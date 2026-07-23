@@ -1,0 +1,17 @@
+# Machine-specific, never commit
+local.properties
+keystore.properties
+*.jks
+*.keystore
+
+# Build outputs
+build/
+*/build/
+.gradle/
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+

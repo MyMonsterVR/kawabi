@@ -1,0 +1,108 @@
+CREATE TABLE mangas (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    site_key TEXT,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL,
+    artist TEXT,
+    author TEXT,
+    description TEXT,
+    genre TEXT AS kotlin.collections.List<kotlin.String>,
+    status TEXT NOT NULL DEFAULT '',
+    thumbnail_url TEXT,
+    favorite INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    last_update INTEGER,
+    next_update INTEGER,
+    initialized INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    chapter_flags INTEGER NOT NULL DEFAULT 0,
+    viewer INTEGER NOT NULL DEFAULT 0,
+    date_added INTEGER NOT NULL DEFAULT 0,
+    calculate_interval INTEGER NOT NULL DEFAULT 0,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    total_chapters REAL NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    last_read_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX mangas_source_url_idx ON mangas(source, url);
+CREATE INDEX mangas_favorite_idx ON mangas(favorite) WHERE favorite = 1;
+
+CREATE TRIGGER update_last_modified_at_mangas
+AFTER UPDATE ON mangas
+FOR EACH ROW
+WHEN new.last_modified_at == old.last_modified_at AND new.is_syncing = 0
+BEGIN
+    UPDATE mangas SET last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000) WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_manga_version
+AFTER UPDATE ON mangas
+FOR EACH ROW
+WHEN new.version == old.version AND new.is_syncing = 0
+BEGIN
+    UPDATE mangas SET version = version + 1 WHERE _id = new._id;
+END;
+
+insertManga:
+INSERT INTO mangas(source, site_key, url, title, artist, author, description, genre, status,
+    thumbnail_url, favorite, last_update, next_update, initialized, chapter_flags, viewer,
+    date_added, calculate_interval, last_modified_at, version, is_syncing, total_chapters, notes,
+    last_read_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectFavorites:
+SELECT * FROM mangas WHERE favorite = 1;
+
+selectFavoritesWithUnreadCount:
+SELECT mangas.*,
+    (SELECT COUNT(*) FROM chapters WHERE chapters.manga_id = mangas._id AND chapters.read = 0) AS unread_count,
+    (SELECT MAX(chapter_number) FROM chapters WHERE chapters.manga_id = mangas._id AND chapters.read = 1) AS last_read_chapter
+FROM mangas
+WHERE favorite = 1;
+
+selectMangaById:
+SELECT * FROM mangas WHERE _id = ?;
+
+selectByUrl:
+SELECT * FROM mangas WHERE url = ? LIMIT 1;
+
+updateFavorite:
+UPDATE mangas SET favorite = ? WHERE _id = ?;
+
+updateInitialized:
+UPDATE mangas SET initialized = ? WHERE _id = ?;
+
+updateTotalChapters:
+UPDATE mangas SET total_chapters = ? WHERE _id = ?;
+
+updateViewer:
+UPDATE mangas SET viewer = ? WHERE _id = ?;
+
+updateSiteKey:
+UPDATE mangas SET site_key = ? WHERE _id = ?;
+
+-- Metadata that legitimately drifts over time from the source (title/cover/site) --
+-- excludes local-only state (favorite, notes, dates, flags) which upsert must not clobber.
+updateMetadata:
+UPDATE mangas SET source = ?, site_key = ?, title = ?, artist = ?, author = ?, description = ?,
+    genre = ?, status = ?, thumbnail_url = ? WHERE _id = ?;
+
+setMangaSyncing:
+UPDATE mangas SET is_syncing = ? WHERE _id = ?;
+
+-- Monotonic-max, same rule as reading progress -- never let a stale/lower value (local
+-- write racing a sync pull, or a pulled value that's actually older) regress it.
+touchLastRead:
+UPDATE mangas SET last_read_at = MAX(last_read_at, ?) WHERE _id = ?;
+
+-- Smart-interval scheduling for the background update job (PLAN.md step 9).
+updateUpdateSchedule:
+UPDATE mangas SET last_update = ?, next_update = ?, calculate_interval = ? WHERE _id = ?;
+
+selectDueForUpdate:
+SELECT * FROM mangas WHERE favorite = 1 AND (next_update IS NULL OR next_update <= ?);
+
+lastInsertMangaRowId:
+SELECT last_insert_rowid();

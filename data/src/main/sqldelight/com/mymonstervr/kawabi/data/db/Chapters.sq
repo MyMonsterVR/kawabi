@@ -1,0 +1,77 @@
+CREATE TABLE chapters (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    manga_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    scanlator TEXT,
+    read INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    bookmark INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    last_page_read INTEGER NOT NULL DEFAULT 0,
+    chapter_number REAL NOT NULL DEFAULT -1,
+    source_order INTEGER NOT NULL DEFAULT 0,
+    date_upload INTEGER NOT NULL DEFAULT 0,
+    date_fetch INTEGER NOT NULL DEFAULT 0,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    FOREIGN KEY(manga_id) REFERENCES mangas(_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX chapters_manga_url_idx ON chapters(manga_id, url);
+CREATE INDEX chapters_manga_id_idx ON chapters(manga_id);
+
+CREATE TRIGGER update_last_modified_at_chapters
+AFTER UPDATE ON chapters
+FOR EACH ROW
+WHEN new.last_modified_at == old.last_modified_at AND new.is_syncing = 0
+BEGIN
+    UPDATE chapters SET last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000) WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_chapter_and_manga_version
+AFTER UPDATE ON chapters
+FOR EACH ROW
+WHEN new.version == old.version AND new.is_syncing = 0
+BEGIN
+    UPDATE chapters SET version = version + 1 WHERE _id = new._id;
+    UPDATE mangas SET version = version + 1, last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+        WHERE _id = new.manga_id AND is_syncing = 0;
+END;
+
+insertChapter:
+INSERT INTO chapters(manga_id, url, name, scanlator, read, bookmark, last_page_read,
+    chapter_number, source_order, date_upload, date_fetch, last_modified_at, version, is_syncing)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectByManga:
+SELECT * FROM chapters WHERE manga_id = ? ORDER BY source_order DESC;
+
+selectByMangaAndUrl:
+SELECT * FROM chapters WHERE manga_id = ? AND url = ?;
+
+selectChapterById:
+SELECT * FROM chapters WHERE _id = ?;
+
+updateReadState:
+UPDATE chapters SET read = ? WHERE _id = ?;
+
+updateProgress:
+UPDATE chapters SET read = ?, last_page_read = ? WHERE _id = ?;
+
+markReadUpToNumber:
+UPDATE chapters SET read = 1 WHERE manga_id = ? AND chapter_number != -1 AND chapter_number <= ?;
+
+updateDetails:
+UPDATE chapters SET name = ?, scanlator = ?, chapter_number = ?, source_order = ?, date_upload = ? WHERE _id = ?;
+
+setChapterSyncing:
+UPDATE chapters SET is_syncing = ? WHERE _id = ?;
+
+deleteChaptersByManga:
+DELETE FROM chapters WHERE manga_id = ?;
+
+deleteChaptersByIds:
+DELETE FROM chapters WHERE _id IN ?;
+
+lastInsertChapterRowId:
+SELECT last_insert_rowid();

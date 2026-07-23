@@ -1,0 +1,29 @@
+CREATE TABLE categories (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    sort INTEGER NOT NULL,
+    flags INTEGER NOT NULL
+);
+
+CREATE TRIGGER protect_default_category
+BEFORE DELETE ON categories
+FOR EACH ROW
+WHEN old._id = 0
+BEGIN
+    SELECT RAISE(ABORT, 'cannot delete default category');
+END;
+
+insertDefault:
+INSERT OR IGNORE INTO categories(_id, name, sort, flags) VALUES (0, '', -1, 0);
+
+insertCategory:
+INSERT INTO categories(name, sort, flags) VALUES (?, ?, ?);
+
+selectAll:
+SELECT * FROM categories ORDER BY sort;
+
+deleteCategoryById:
+DELETE FROM categories WHERE _id = ?;
+
+lastInsertCategoryRowId:
+SELECT last_insert_rowid();

@@ -1,0 +1,9 @@
+<resources>
+    <!--
+        Minimal platform theme for the Activity window. Actual UI theming
+        (colors, typography, dark mode) is done in Compose via MaterialTheme,
+        not here; this only needs to exist so the manifest has a valid
+        android:theme reference.
+    -->
+    <style name="Theme.Kawabi" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

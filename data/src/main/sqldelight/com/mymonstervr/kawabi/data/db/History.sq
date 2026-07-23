@@ -1,0 +1,16 @@
+CREATE TABLE history (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    chapter_id INTEGER NOT NULL UNIQUE,
+    last_read INTEGER,
+    time_read INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(chapter_id) REFERENCES chapters(_id) ON DELETE CASCADE
+);
+
+insertHistory:
+INSERT INTO history(chapter_id, last_read, time_read) VALUES (?, ?, ?);
+
+updateHistory:
+UPDATE history SET last_read = ?, time_read = time_read + ? WHERE chapter_id = ?;
+
+selectByChapter:
+SELECT * FROM history WHERE chapter_id = ?;

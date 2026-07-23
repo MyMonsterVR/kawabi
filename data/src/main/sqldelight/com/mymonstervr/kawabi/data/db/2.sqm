@@ -1,0 +1,14 @@
+CREATE TABLE tracks (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    manga_id INTEGER NOT NULL,
+    tracker_id TEXT NOT NULL,
+    remote_id TEXT NOT NULL,
+    library_id TEXT,
+    title TEXT NOT NULL,
+    tracking_url TEXT NOT NULL,
+    total_chapters REAL NOT NULL DEFAULT 0,
+    last_chapter_read REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY(manga_id) REFERENCES mangas(_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX tracks_manga_tracker_idx ON tracks(manga_id, tracker_id);

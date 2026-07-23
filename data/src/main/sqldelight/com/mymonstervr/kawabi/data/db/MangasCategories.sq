@@ -1,0 +1,17 @@
+CREATE TABLE mangas_categories (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    manga_id INTEGER NOT NULL,
+    category_id INTEGER NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas(_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX mangas_categories_unique_idx ON mangas_categories(manga_id, category_id);
+
+insertMangaCategory:
+INSERT INTO mangas_categories(manga_id, category_id) VALUES (?, ?);
+
+selectCategoryIdsByManga:
+SELECT category_id FROM mangas_categories WHERE manga_id = ?;
+
+deleteMangaCategoriesByManga:
+DELETE FROM mangas_categories WHERE manga_id = ?;

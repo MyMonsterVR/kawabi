@@ -1,0 +1,49 @@
+CREATE TABLE tracks (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    manga_id INTEGER NOT NULL,
+    tracker_id TEXT NOT NULL,
+    remote_id TEXT NOT NULL,
+    library_id TEXT,
+    title TEXT NOT NULL,
+    tracking_url TEXT NOT NULL,
+    total_chapters REAL NOT NULL DEFAULT 0,
+    last_chapter_read REAL NOT NULL DEFAULT 0,
+    score REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'reading',
+    FOREIGN KEY(manga_id) REFERENCES mangas(_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX tracks_manga_tracker_idx ON tracks(manga_id, tracker_id);
+
+-- OR REPLACE so re-linking a manga to a tracker it's already linked to (unique
+-- on manga_id, tracker_id) replaces the old row instead of erroring.
+insertTrack:
+INSERT OR REPLACE INTO tracks(manga_id, tracker_id, remote_id, library_id, title, tracking_url, total_chapters, last_chapter_read)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+selectByManga:
+SELECT * FROM tracks WHERE manga_id = ?;
+
+selectByMangaAndTracker:
+SELECT * FROM tracks WHERE manga_id = ? AND tracker_id = ? LIMIT 1;
+
+deleteByMangaAndTracker:
+DELETE FROM tracks WHERE manga_id = ? AND tracker_id = ?;
+
+-- Monotonic-max, same rule as everywhere else in this app (Mangas.sq's touchLastRead,
+-- SyncClient's applyAllProgress) -- never let a stale/lower pulled value regress it.
+updateChaptersRead:
+UPDATE tracks SET last_chapter_read = MAX(last_chapter_read, ?) WHERE _id = ?;
+
+updateTotalChapters:
+UPDATE tracks SET total_chapters = ? WHERE _id = ?;
+
+-- Explicit user edit (manual chapter/status/score correction) -- deliberately
+-- NOT monotonic-max, unlike updateChaptersRead above: the user might
+-- legitimately lower the count (fixed a mistake, started a reread), so this
+-- always takes exactly what's given.
+updateTrackDetails:
+UPDATE tracks SET last_chapter_read = ?, status = ?, score = ? WHERE _id = ?;
+
+lastInsertTrackRowId:
+SELECT last_insert_rowid();
