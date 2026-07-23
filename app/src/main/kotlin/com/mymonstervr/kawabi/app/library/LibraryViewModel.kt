@@ -3,7 +3,7 @@ package com.mymonstervr.kawabi.app.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.data.settings.AppPreferences
-import com.mymonstervr.kawabi.data.settings.LibraryCardSize
+import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.usecase.RefreshMangaChapters
 import com.mymonstervr.kawabi.domain.model.MangaWithUnreadCount
 import com.mymonstervr.kawabi.domain.repository.MangaRepository
@@ -29,8 +29,8 @@ class LibraryViewModel(
     val favorites: StateFlow<List<MangaWithUnreadCount>> = mangaRepository.observeFavoritesWithUnreadCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val cardSize: StateFlow<LibraryCardSize> = preferences.libraryCardSize
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryCardSize.MEDIUM)
+    val gridColumns: StateFlow<Int> = preferences.libraryGridColumns
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LIBRARY_GRID_COLUMNS_DEFAULT)
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()

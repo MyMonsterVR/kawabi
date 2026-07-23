@@ -16,21 +16,16 @@ private val Context.settingsDataStore by preferencesDataStore(name = "kawabi_set
 
 enum class ReadingDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT, VERTICAL }
 
-// Backs LazyVerticalGrid's GridCells.Adaptive(minSize=) on the library screen -- a
-// bigger minWidthDp means fewer, larger columns. Values chosen around the previous
-// hardcoded 100.dp default (now MEDIUM). No Compose dependency in this module, so
-// dp mapping happens in the UI layer.
-//
-// Adaptive picks a column COUNT from minWidthDp, then stretches cells to fill the
-// row -- so two minWidthDp values that round to the same column count on a given
-// screen width render identically (this bit SMALL/MEDIUM at 80/100 on a ~360dp
-// phone -- both landed on 3 columns). Spaced further apart so each step actually
-// crosses a column-count boundary on typical phone widths (~340-420dp usable).
-enum class LibraryCardSize(val minWidthDp: Int) {
-    SMALL(70),
-    MEDIUM(100),
-    LARGE(150),
-}
+// Directly the LazyVerticalGrid column count for Library/Search (GridCells.Fixed) --
+// a raw slider value rather than a minSize-derived preset. GridCells.Adaptive(minSize=)
+// was tried first, but it keeps adding columns as available width grows, so the same
+// minSize meant very different column counts on phone vs tablet (a "Large" preset that
+// gave 2 columns on phone gave 6+ on a real tablet) -- a direct column count sidesteps
+// that entirely and works the same way at any screen size. Each device's DataStore is
+// local/unsynced, so phone and tablet naturally keep independent preferences already.
+const val LIBRARY_GRID_COLUMNS_MIN = 2
+const val LIBRARY_GRID_COLUMNS_MAX = 8
+const val LIBRARY_GRID_COLUMNS_DEFAULT = 3
 
 /**
  * Tier 1 Settings (PLAN.md step 8) that actually affect app behavior today. Global
@@ -45,7 +40,7 @@ class AppPreferences(private val context: Context) {
     private val keepScreenAwakeKey = booleanPreferencesKey("keep_screen_awake")
     private val accentIndexKey = intPreferencesKey("accent_index")
     private val lastUpdateCheckKey = longPreferencesKey("last_update_check")
-    private val libraryCardSizeKey = stringPreferencesKey("library_card_size")
+    private val libraryGridColumnsKey = intPreferencesKey("library_grid_columns")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -83,13 +78,13 @@ class AppPreferences(private val context: Context) {
         context.settingsDataStore.edit { it[keepScreenAwakeKey] = enabled }
     }
 
-    val libraryCardSize: Flow<LibraryCardSize> = context.settingsDataStore.data.map { prefs ->
-        prefs[libraryCardSizeKey]?.let { runCatching { LibraryCardSize.valueOf(it) }.getOrNull() }
-            ?: LibraryCardSize.MEDIUM
+    val libraryGridColumns: Flow<Int> = context.settingsDataStore.data.map { prefs ->
+        (prefs[libraryGridColumnsKey] ?: LIBRARY_GRID_COLUMNS_DEFAULT)
+            .coerceIn(LIBRARY_GRID_COLUMNS_MIN, LIBRARY_GRID_COLUMNS_MAX)
     }
 
-    suspend fun setLibraryCardSize(size: LibraryCardSize) {
-        context.settingsDataStore.edit { it[libraryCardSizeKey] = size.name }
+    suspend fun setLibraryGridColumns(count: Int) {
+        context.settingsDataStore.edit { it[libraryGridColumnsKey] = count.coerceIn(LIBRARY_GRID_COLUMNS_MIN, LIBRARY_GRID_COLUMNS_MAX) }
     }
 
     // Update-check throttle -- mirrors the old fork's "at most once every 3 days"

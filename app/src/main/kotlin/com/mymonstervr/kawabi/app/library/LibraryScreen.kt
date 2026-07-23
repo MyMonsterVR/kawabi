@@ -142,7 +142,7 @@ fun LibraryScreen(
 ) {
     val favorites by viewModel.favorites.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val cardSize by viewModel.cardSize.collectAsState()
+    val gridColumns by viewModel.gridColumns.collectAsState()
     val pullState = rememberPullToRefreshState()
 
     var sort by remember { mutableStateOf(LibrarySort.LAST_READ) }
@@ -204,11 +204,11 @@ fun LibraryScreen(
                     EmptyLibrary(modifier = Modifier.fillMaxSize())
                 } else {
                     LazyVerticalGrid(
-                        // Adaptive, not Fixed(3) -- 3 columns on a phone-width screen is
-                        // the same math as before, but this scales up to 6-8+ on a
-                        // tablet instead of stretching 3 giant covers across the width.
-                        // minSize itself is user-adjustable (Settings -> Library card size).
-                        columns = GridCells.Adaptive(minSize = cardSize.minWidthDp.dp),
+                        // Fixed, not Adaptive(minSize=) -- Adaptive keeps adding columns as
+                        // available width grows, so the same minSize meant very different
+                        // column counts on phone vs tablet. A direct user-adjustable column
+                        // count (Settings -> Library grid columns) works the same at any size.
+                        columns = GridCells.Fixed(gridColumns),
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),

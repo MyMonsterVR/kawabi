@@ -23,6 +23,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -42,7 +44,8 @@ import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.app.update.AppUpdateDownloadWorker
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
-import com.mymonstervr.kawabi.data.settings.LibraryCardSize
+import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_MAX
+import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_MIN
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import org.koin.androidx.compose.koinViewModel
 
@@ -60,7 +63,7 @@ fun SettingsScreen(
     val markReadOnScroll by viewModel.markReadOnScroll.collectAsState()
     val keepScreenAwake by viewModel.keepScreenAwake.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
-    val libraryCardSize by viewModel.libraryCardSize.collectAsState()
+    val libraryGridColumns by viewModel.libraryGridColumns.collectAsState()
     val updateCheckState by viewModel.updateCheckState.collectAsState()
     val context = LocalContext.current
 
@@ -98,14 +101,10 @@ fun SettingsScreen(
                 HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(top = 8.dp))
             }
             item { SettingsGroupLabel("Library") }
-            items(LibraryCardSize.entries) { size ->
-                SettingsRadioRow(
-                    label = size.label(),
-                    selected = size == libraryCardSize,
-                    onClick = { viewModel.setLibraryCardSize(size) },
-                )
+            item {
+                GridColumnsRow(columns = libraryGridColumns, onColumnsChange = viewModel::setLibraryGridColumns)
+                HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(top = 8.dp))
             }
-            item { HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(top = 8.dp)) }
             item { SettingsGroupLabel("Reading direction") }
             items(ReadingDirection.entries) { direction ->
                 SettingsRadioRow(
@@ -167,10 +166,29 @@ private fun ReadingDirection.label(): String = when (this) {
     ReadingDirection.VERTICAL -> "Vertical scroll"
 }
 
-private fun LibraryCardSize.label(): String = when (this) {
-    LibraryCardSize.SMALL -> "Small"
-    LibraryCardSize.MEDIUM -> "Medium"
-    LibraryCardSize.LARGE -> "Large"
+@Composable
+private fun GridColumnsRow(columns: Int, onColumnsChange: (Int) -> Unit) {
+    val scale = LocalKawabiScale.current
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing)) {
+        Text(text = "Grid columns", fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+        Text(
+            text = "$columns per row -- applies to Library and Search",
+            fontSize = 10.5.sp * scale.font,
+            color = NightSession.TextDim,
+            modifier = Modifier.padding(top = 1.dp),
+        )
+        Slider(
+            value = columns.toFloat(),
+            onValueChange = { onColumnsChange(it.toInt()) },
+            valueRange = LIBRARY_GRID_COLUMNS_MIN.toFloat()..LIBRARY_GRID_COLUMNS_MAX.toFloat(),
+            steps = LIBRARY_GRID_COLUMNS_MAX - LIBRARY_GRID_COLUMNS_MIN - 1,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = NightSession.Chip,
+            ),
+        )
+    }
 }
 
 @Composable

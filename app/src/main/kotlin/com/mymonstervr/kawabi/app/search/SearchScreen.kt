@@ -58,7 +58,7 @@ fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = k
     val results by viewModel.results.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val error by viewModel.error.collectAsState()
-    val cardSize by viewModel.cardSize.collectAsState()
+    val gridColumns by viewModel.gridColumns.collectAsState()
 
     Scaffold(
         containerColor = NightSession.Background,
@@ -106,7 +106,7 @@ fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = k
                     Text(text = "No results yet", color = NightSession.TextDim, fontSize = 11.5.sp)
                 }
                 else -> LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = cardSize.minWidthDp.dp),
+                    columns = GridCells.Fixed(gridColumns),
                     contentPadding = PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),

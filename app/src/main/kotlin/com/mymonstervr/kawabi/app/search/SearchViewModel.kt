@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.dto.SearchResultDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
-import com.mymonstervr.kawabi.data.settings.LibraryCardSize
+import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,10 +18,10 @@ class SearchViewModel(
     preferences: AppPreferences,
 ) : ViewModel() {
 
-    // Same card-size preference as the library grid -- one density knob, not a
+    // Same grid-columns preference as the library grid -- one density knob, not a
     // second independent setting for a visually identical grid.
-    val cardSize: StateFlow<LibraryCardSize> = preferences.libraryCardSize
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryCardSize.MEDIUM)
+    val gridColumns: StateFlow<Int> = preferences.libraryGridColumns
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LIBRARY_GRID_COLUMNS_DEFAULT)
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
