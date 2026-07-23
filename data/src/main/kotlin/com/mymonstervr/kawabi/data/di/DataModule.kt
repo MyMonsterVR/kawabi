@@ -10,6 +10,7 @@ import com.mymonstervr.kawabi.data.network.SessionExpiryNotifier
 import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.SyncApi
 import com.mymonstervr.kawabi.data.network.TokenStore
+import com.mymonstervr.kawabi.data.network.TrackerApi
 import com.mymonstervr.kawabi.data.network.TrackerTokenStore
 import com.mymonstervr.kawabi.data.network.createOkHttpClient
 import com.mymonstervr.kawabi.data.repository.SqlDelightCategoryRepository
@@ -19,11 +20,7 @@ import com.mymonstervr.kawabi.data.repository.SqlDelightMangaRepository
 import com.mymonstervr.kawabi.data.repository.SqlDelightTrackRepository
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.TrackerManager
-import com.mymonstervr.kawabi.data.track.kitsu.KitsuApi
-import com.mymonstervr.kawabi.data.track.kitsu.KitsuInterceptor
 import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
-import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListApi
-import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListInterceptor
 import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListTracker
 import com.mymonstervr.kawabi.data.usecase.AddMangaToLibrary
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
@@ -63,12 +60,9 @@ val dataModule = module {
     single { LibraryUpdateManager(get(), get()) }
     single { BackupManager(get(), get(), get(), get()) }
 
-    single { MyAnimeListInterceptor(get()) }
-    single { MyAnimeListApi(get(), get()) }
+    single { TrackerApi(get(), get()) }
     single { MyAnimeListTracker(get(), get(), get()) }
-    single { KitsuInterceptor(get()) }
-    single { KitsuApi(get(), get()) }
     single { KitsuTracker(get(), get(), get()) }
-    single { TrackerManager(get(), get(), get()) }
-    single { TrackerSyncClient(get(), get(), get(), get(), get()) }
+    single { TrackerManager(get(), get(), get(), get(), get()) }
+    single { TrackerSyncClient(get(), get(), get()) }
 }

@@ -1,10 +1,9 @@
 package com.mymonstervr.kawabi.data.usecase
 
+import com.mymonstervr.kawabi.data.network.TrackEntry
+import com.mymonstervr.kawabi.data.network.TrackerApi
 import com.mymonstervr.kawabi.data.network.TrackerTokenStore
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
-import com.mymonstervr.kawabi.data.track.kitsu.KitsuApi
-import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
-import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListApi
 import com.mymonstervr.kawabi.domain.model.Track
 import com.mymonstervr.kawabi.domain.model.TrackStatus
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
@@ -23,16 +22,10 @@ import kotlinx.coroutines.coroutineScope
 class TrackerSyncClient(
     private val trackRepository: TrackRepository,
     private val chapterRepository: ChapterRepository,
-    private val malApi: MyAnimeListApi,
-    private val kitsuApi: KitsuApi,
-    private val kitsuTracker: KitsuTracker,
+    private val trackerApi: TrackerApi,
 ) {
     suspend fun search(trackerId: String, query: String): Result<List<TrackSearchResult>> = runCatching {
-        when (trackerId) {
-            TrackerTokenStore.TRACKER_MAL -> malApi.search(query)
-            TrackerTokenStore.TRACKER_KITSU -> kitsuApi.search(query)
-            else -> error("Unknown tracker: $trackerId")
-        }
+        trackerApi.search(trackerId, query)
     }
 
     /**
@@ -44,66 +37,33 @@ class TrackerSyncClient(
     suspend fun link(mangaId: Long, trackerId: String, result: TrackSearchResult): Result<Track> = runCatching {
         val localChaptersRead = currentLocalChaptersRead(mangaId)
 
-        val track = when (trackerId) {
-            TrackerTokenStore.TRACKER_MAL -> linkMal(mangaId, result, localChaptersRead)
-            TrackerTokenStore.TRACKER_KITSU -> linkKitsu(mangaId, result, localChaptersRead)
-            else -> error("Unknown tracker: $trackerId")
-        }
+        val existing = trackerApi.findEntry(trackerId, result.remoteId)
+        val chaptersRead = maxOf(localChaptersRead, existing?.chaptersRead ?: 0.0)
+        val status = existing?.status ?: statusFor(chaptersRead, result.totalChapters)
+        val score = existing?.score ?: 0.0
+        trackerApi.upsertEntry(trackerId, result.remoteId, status, chaptersRead, score)
+
+        val trackId = trackRepository.link(
+            Track(
+                id = 0,
+                mangaId = mangaId,
+                trackerId = trackerId,
+                remoteId = result.remoteId,
+                libraryId = null,
+                title = result.title,
+                trackingUrl = trackingUrlFor(trackerId, result.remoteId),
+                totalChapters = existing?.totalChapters?.takeIf { it > 0 } ?: result.totalChapters,
+                lastChapterRead = chaptersRead,
+                score = score,
+                status = status,
+            ),
+        )
+        val track = trackRepository.getForManga(mangaId).first { it.id == trackId }
 
         if (track.lastChapterRead > localChaptersRead) {
             chapterRepository.markReadUpToNumber(mangaId, track.lastChapterRead)
         }
         track
-    }
-
-    private suspend fun linkMal(mangaId: Long, result: TrackSearchResult, localChaptersRead: Double): Track {
-        val existing = malApi.findListItem(result.remoteId)
-        val chaptersRead = maxOf(localChaptersRead, existing?.chaptersRead ?: 0.0)
-        val status = existing?.status ?: statusFor(chaptersRead, result.totalChapters)
-        val score = existing?.score ?: 0.0
-        malApi.upsertListItem(result.remoteId, chaptersRead, status, score)
-        val trackId = trackRepository.link(
-            Track(
-                id = 0,
-                mangaId = mangaId,
-                trackerId = TrackerTokenStore.TRACKER_MAL,
-                remoteId = result.remoteId,
-                libraryId = null,
-                title = result.title,
-                trackingUrl = "https://myanimelist.net/manga/${result.remoteId}",
-                totalChapters = existing?.totalChapters?.takeIf { it > 0 } ?: result.totalChapters,
-                lastChapterRead = chaptersRead,
-                score = score,
-                status = status,
-            ),
-        )
-        return trackRepository.getForManga(mangaId).first { it.id == trackId }
-    }
-
-    private suspend fun linkKitsu(mangaId: Long, result: TrackSearchResult, localChaptersRead: Double): Track {
-        val userId = kitsuTracker.userId ?: error("Kitsu: not authenticated")
-        val existing = kitsuApi.findLibManga(result.remoteId, userId)
-        val chaptersRead = maxOf(localChaptersRead, existing?.chaptersRead ?: 0.0)
-        val status = existing?.status ?: statusFor(chaptersRead, result.totalChapters)
-        val score = existing?.score ?: 0.0
-        val libraryId = existing?.libraryId?.also { kitsuApi.updateLibManga(it, chaptersRead, status, score) }
-            ?: kitsuApi.addLibManga(result.remoteId, userId, chaptersRead, status, score)
-        val trackId = trackRepository.link(
-            Track(
-                id = 0,
-                mangaId = mangaId,
-                trackerId = TrackerTokenStore.TRACKER_KITSU,
-                remoteId = result.remoteId,
-                libraryId = libraryId,
-                title = result.title,
-                trackingUrl = "https://kitsu.app/manga/${result.remoteId}",
-                totalChapters = existing?.totalChapters?.takeIf { it > 0 } ?: result.totalChapters,
-                lastChapterRead = chaptersRead,
-                score = score,
-                status = status,
-            ),
-        )
-        return trackRepository.getForManga(mangaId).first { it.id == trackId }
     }
 
     /** Local-only -- does not delete the remote MAL/Kitsu list entry, see PLAN. */
@@ -117,14 +77,7 @@ class TrackerSyncClient(
      * (the user might legitimately lower the count).
      */
     suspend fun updateTrackDetails(track: Track, chaptersRead: Double, status: String, score: Double): Result<Unit> = runCatching {
-        when (track.trackerId) {
-            TrackerTokenStore.TRACKER_MAL -> malApi.upsertListItem(track.remoteId, chaptersRead, status, score)
-            TrackerTokenStore.TRACKER_KITSU -> {
-                val libraryId = track.libraryId ?: error("Kitsu: missing library id")
-                kitsuApi.updateLibManga(libraryId, chaptersRead, status, score)
-            }
-            else -> error("Unknown tracker: ${track.trackerId}")
-        }
+        trackerApi.upsertEntry(track.trackerId, track.remoteId, status, chaptersRead, score)
         trackRepository.updateTrackDetails(track.id, chaptersRead, status, score)
         if (chaptersRead > currentLocalChaptersRead(track.mangaId)) {
             chapterRepository.markReadUpToNumber(track.mangaId, chaptersRead)
@@ -144,12 +97,7 @@ class TrackerSyncClient(
         for (track in trackRepository.getForManga(mangaId)) {
             if (track.lastChapterRead == localChaptersRead) continue
             runCatching {
-                when (track.trackerId) {
-                    TrackerTokenStore.TRACKER_MAL -> malApi.upsertListItem(track.remoteId, localChaptersRead, track.status, track.score)
-                    TrackerTokenStore.TRACKER_KITSU -> track.libraryId?.let {
-                        kitsuApi.updateLibManga(it, localChaptersRead, track.status, track.score)
-                    }
-                }
+                trackerApi.upsertEntry(track.trackerId, track.remoteId, track.status, localChaptersRead, track.score)
                 trackRepository.updateTrackDetails(track.id, localChaptersRead, track.status, track.score)
             }
         }
@@ -164,24 +112,15 @@ class TrackerSyncClient(
     }
 
     private suspend fun syncTrack(mangaId: Long, track: Track, localChaptersRead: Double) {
-        val remoteChaptersRead = when (track.trackerId) {
-            TrackerTokenStore.TRACKER_MAL -> malApi.findListItem(track.remoteId)?.chaptersRead ?: track.lastChapterRead
-            TrackerTokenStore.TRACKER_KITSU -> {
-                val userId = kitsuTracker.userId ?: return
-                kitsuApi.findLibManga(track.remoteId, userId)?.chaptersRead ?: track.lastChapterRead
-            }
-            else -> return
-        }
+        val entry: TrackEntry? = trackerApi.findEntry(track.trackerId, track.remoteId)
+        val remoteChaptersRead = entry?.chaptersRead ?: track.lastChapterRead
 
         val merged = maxOf(localChaptersRead, remoteChaptersRead, track.lastChapterRead)
         if (merged > localChaptersRead) chapterRepository.markReadUpToNumber(mangaId, merged)
         if (merged > track.lastChapterRead) trackRepository.updateChaptersRead(track.id, merged)
 
         if (merged > remoteChaptersRead) {
-            when (track.trackerId) {
-                TrackerTokenStore.TRACKER_MAL -> malApi.upsertListItem(track.remoteId, merged, track.status, track.score)
-                TrackerTokenStore.TRACKER_KITSU -> track.libraryId?.let { kitsuApi.updateLibManga(it, merged, track.status, track.score) }
-            }
+            trackerApi.upsertEntry(track.trackerId, track.remoteId, track.status, merged, track.score)
         }
     }
 
@@ -190,4 +129,10 @@ class TrackerSyncClient(
 
     private fun statusFor(chaptersRead: Double, totalChapters: Double): String =
         if (totalChapters > 0 && chaptersRead >= totalChapters) TrackStatus.COMPLETED else TrackStatus.READING
+
+    private fun trackingUrlFor(trackerId: String, remoteId: String): String = when (trackerId) {
+        TrackerTokenStore.TRACKER_MAL -> "https://myanimelist.net/manga/$remoteId"
+        TrackerTokenStore.TRACKER_KITSU -> "https://kitsu.app/manga/$remoteId"
+        else -> error("Unknown tracker: $trackerId")
+    }
 }

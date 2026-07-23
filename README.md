@@ -1,16 +1,18 @@
 # kawabi
 
-Native Android manga reader, built from scratch, talking to its own backend
-(`kawabi-server`) and sharing an account with the browser reader
-(`kawabi-web`).
+A native Android manga reader, built from scratch because the old fork it
+replaced got creaky. Talks to its own backend (`kawabi-server`) and shares
+an account with the browser reader (`kawabi-web`) — read a chapter on your
+phone, pick it up on the couch, same progress either way.
 
-Full design/scope: [`planning/PLAN.md`](planning/PLAN.md).
+Personal project, open-sourced because there's no good reason not to. If
+you find it useful or want to poke at the code, welcome aboard.
 
 ## Status
 
 Library, reader, search, settings, backup/restore, and MAL+Kitsu progress
-tracking (account login, per-manga linking, chapter sync) are all shipped and
-verified on-device. Follow live progress in `planning/TODO.md`.
+tracking (account login, per-manga linking, chapter sync) are all shipped
+and verified on-device.
 
 ## Modules
 
@@ -62,3 +64,10 @@ plain `adb connect` is enough after that as long as both stay on.
 
 - `kawabi-server` — Go backend this app talks to.
 - `kawabi-web` — Next.js browser reader, same backend, same account.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the practical bits, and
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for the "don't be a jerk" bits.
+Issues and PRs both welcome — this moves at hobby-project pace, so don't
+expect same-day replies, but everything gets read.

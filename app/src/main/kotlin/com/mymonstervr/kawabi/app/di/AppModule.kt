@@ -15,9 +15,9 @@ import org.koin.dsl.module
 
 val appModule = module {
     single { AppUpdateChecker(get(), get()) }
-    viewModel { LibraryViewModel(get(), get()) }
+    viewModel { LibraryViewModel(get(), get(), get()) }
     viewModel { LoginViewModel(get(), get(), get(), get()) }
-    viewModel { SearchViewModel(get()) }
+    viewModel { SearchViewModel(get(), get()) }
     viewModel { MangaDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { ReaderViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }

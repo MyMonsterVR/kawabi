@@ -34,8 +34,16 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
+
+// Deliberately narrower than ResponsiveContainer/LocalKawabiScale's content-width caps
+// (a login form reads better narrow at any screen size, this isn't the "text stretches
+// too wide" problem those solve) -- kept as its own constant, deduped across both
+// call sites below rather than routed through ResponsiveContainer, since this screen's
+// vertically-centered Box layout would conflict with ResponsiveContainer's TopCenter.
+private val LOGIN_FORM_MAX_WIDTH = 400.dp
 
 @Composable
 fun LoginScreen(onDone: () -> Unit, viewModel: LoginViewModel = koinViewModel()) {
@@ -55,7 +63,7 @@ fun LoginScreen(onDone: () -> Unit, viewModel: LoginViewModel = koinViewModel())
 
 @Composable
 private fun LoggedInContent(onLogout: () -> Unit, onDone: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().widthIn(max = 400.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().widthIn(max = LOGIN_FORM_MAX_WIDTH)) {
         Text(text = "You're logged in.", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(20.dp))
         Button(
@@ -78,10 +86,13 @@ private fun LoginForm(viewModel: LoginViewModel, onContinueWithoutAccount: () ->
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().widthIn(max = 400.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().widthIn(max = LOGIN_FORM_MAX_WIDTH)) {
         Text(
             text = "Kawabi",
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, fontSize = 30.sp),
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 30.sp * LocalKawabiScale.current.font,
+            ),
             color = MaterialTheme.colorScheme.primary,
         )
         Text(

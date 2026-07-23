@@ -7,6 +7,7 @@ import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.settings.LibraryCardSize
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -69,5 +70,12 @@ class SettingsViewModel(
 
     fun setKeepScreenAwake(enabled: Boolean) {
         viewModelScope.launch { preferences.setKeepScreenAwake(enabled) }
+    }
+
+    val libraryCardSize: StateFlow<LibraryCardSize> = preferences.libraryCardSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryCardSize.MEDIUM)
+
+    fun setLibraryCardSize(size: LibraryCardSize) {
+        viewModelScope.launch { preferences.setLibraryCardSize(size) }
     }
 }

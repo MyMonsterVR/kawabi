@@ -38,9 +38,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.app.update.AppUpdateDownloadWorker
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
+import com.mymonstervr.kawabi.data.settings.LibraryCardSize
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import org.koin.androidx.compose.koinViewModel
 
@@ -58,6 +60,7 @@ fun SettingsScreen(
     val markReadOnScroll by viewModel.markReadOnScroll.collectAsState()
     val keepScreenAwake by viewModel.keepScreenAwake.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
+    val libraryCardSize by viewModel.libraryCardSize.collectAsState()
     val updateCheckState by viewModel.updateCheckState.collectAsState()
     val context = LocalContext.current
 
@@ -94,6 +97,15 @@ fun SettingsScreen(
                 AccentRow(selectedIndex = accentIndex, onSelect = viewModel::setAccentIndex)
                 HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(top = 8.dp))
             }
+            item { SettingsGroupLabel("Library") }
+            items(LibraryCardSize.entries) { size ->
+                SettingsRadioRow(
+                    label = size.label(),
+                    selected = size == libraryCardSize,
+                    onClick = { viewModel.setLibraryCardSize(size) },
+                )
+            }
+            item { HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(top = 8.dp)) }
             item { SettingsGroupLabel("Reading direction") }
             items(ReadingDirection.entries) { direction ->
                 SettingsRadioRow(
@@ -155,29 +167,37 @@ private fun ReadingDirection.label(): String = when (this) {
     ReadingDirection.VERTICAL -> "Vertical scroll"
 }
 
+private fun LibraryCardSize.label(): String = when (this) {
+    LibraryCardSize.SMALL -> "Small"
+    LibraryCardSize.MEDIUM -> "Medium"
+    LibraryCardSize.LARGE -> "Large"
+}
+
 @Composable
 private fun SettingsGroupLabel(text: String) {
+    val scale = LocalKawabiScale.current
     Text(
         text = text.uppercase(),
-        fontSize = 10.5.sp,
+        fontSize = 10.5.sp * scale.font,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.6.sp,
         color = NightSession.TextDim,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
     )
 }
 
 @Composable
 private fun AccentRow(selectedIndex: Int, onSelect: (Int) -> Unit) {
+    val scale = LocalKawabiScale.current
     Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
     ) {
         NightSession.Accents.forEachIndexed { index, accent ->
             val selected = index == selectedIndex
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(28.dp * scale.spacing)
                     .clip(CircleShape)
                     .background(accent.color)
                     .border(2.dp, if (selected) NightSession.Text else androidx.compose.ui.graphics.Color.Transparent, CircleShape)
@@ -185,7 +205,7 @@ private fun AccentRow(selectedIndex: Int, onSelect: (Int) -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 if (selected) {
-                    Icon(Icons.Filled.Check, contentDescription = accent.label, tint = NightSession.OnAccent, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.Check, contentDescription = accent.label, tint = NightSession.OnAccent, modifier = Modifier.size(14.dp * scale.spacing))
                 }
             }
         }
@@ -194,18 +214,20 @@ private fun AccentRow(selectedIndex: Int, onSelect: (Int) -> Unit) {
 
 @Composable
 private fun SettingsRow(title: String, subtitle: String?, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp)) {
-        Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+    val scale = LocalKawabiScale.current
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp * scale.spacing, vertical = 13.dp * scale.spacing)) {
+        Text(text = title, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
         if (subtitle != null) {
-            Text(text = subtitle, fontSize = 10.5.sp, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+            Text(text = subtitle, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
         }
     }
 }
 
 @Composable
 private fun SettingsRadioRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    val scale = LocalKawabiScale.current
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(
@@ -216,20 +238,21 @@ private fun SettingsRadioRow(label: String, selected: Boolean, onClick: () -> Un
                 unselectedColor = NightSession.TextDim,
             ),
         )
-        Text(text = label, fontSize = 12.sp, color = NightSession.Text, modifier = Modifier.padding(start = 4.dp))
+        Text(text = label, fontSize = 12.sp * scale.font, color = NightSession.Text, modifier = Modifier.padding(start = 4.dp))
     }
 }
 
 @Composable
 private fun SettingsSwitchRow(title: String, subtitle: String?, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val scale = LocalKawabiScale.current
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+            Text(text = title, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
             if (subtitle != null) {
-                Text(text = subtitle, fontSize = 10.5.sp, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+                Text(text = subtitle, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
             }
         }
         Switch(

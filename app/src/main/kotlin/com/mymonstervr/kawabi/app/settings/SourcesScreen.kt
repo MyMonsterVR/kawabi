@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.SourceToggleDto
 import org.koin.androidx.compose.koinViewModel
@@ -77,13 +78,14 @@ fun SourcesScreen(onBack: () -> Unit, viewModel: SourcesViewModel = koinViewMode
 
 @Composable
 private fun SourceRow(source: SourceToggleDto, onToggle: (Boolean) -> Unit) {
+    val scale = LocalKawabiScale.current
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 10.dp * scale.spacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = source.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
-            Text(text = source.key, fontSize = 10.sp, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+            Text(text = source.name, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+            Text(text = source.key, fontSize = 10.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
         }
         Switch(
             checked = source.enabled,

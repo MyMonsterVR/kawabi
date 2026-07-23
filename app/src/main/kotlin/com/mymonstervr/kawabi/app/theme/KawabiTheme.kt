@@ -3,11 +3,18 @@ package com.mymonstervr.kawabi.app.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.data.settings.AppPreferences
@@ -48,26 +55,74 @@ object NightSession {
     val DefaultAccent = Accents.first().color
 }
 
-private val kawabiTypography = Typography().let { base ->
-    // Spec uses the platform system font stack throughout (-apple-system/Segoe UI/Roboto),
-    // not a custom typeface -- Compose's FontFamily.Default already resolves to Roboto on
-    // Android, so this is a faithful port, not a placeholder.
-    base.copy(
-        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
-        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.Bold),
-        titleSmall = base.titleSmall.copy(fontWeight = FontWeight.Bold),
-        labelLarge = base.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-        labelMedium = base.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-        labelSmall = base.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-        bodyLarge = base.bodyLarge.copy(fontWeight = FontWeight.Medium),
+// Screen-size-aware scale, derived once from WindowWidthSizeClass and provided down
+// via LocalKawabiScale -- COMPACT (phones, the vast majority of usage) is exactly 1x
+// on every axis, a deliberate no-op so this system can never visibly change phone
+// rendering. MEDIUM/EXPANDED (tablets) scale font size, spacing/padding, and the
+// content-width cap together, superseding the old per-screen widthIn(max=...)
+// band-aids that only capped width and left text/touch-targets phone-sized.
+data class KawabiScale(val font: Float, val spacing: Float, val maxContentWidth: Dp)
+
+private val CompactScale = KawabiScale(font = 1f, spacing = 1f, maxContentWidth = Dp.Unspecified)
+private val MediumScale = KawabiScale(font = 1.1f, spacing = 1.15f, maxContentWidth = 680.dp)
+private val ExpandedScale = KawabiScale(font = 1.22f, spacing = 1.3f, maxContentWidth = 860.dp)
+
+val LocalKawabiScale = staticCompositionLocalOf { CompactScale }
+
+private fun scaleOf(windowSizeClass: WindowSizeClass): KawabiScale = when (windowSizeClass.widthSizeClass) {
+    WindowWidthSizeClass.Expanded -> ExpandedScale
+    WindowWidthSizeClass.Medium -> MediumScale
+    else -> CompactScale
+}
+
+private fun TextUnit.scaled(factor: Float): TextUnit =
+    if (isSp) value.times(factor).sp else this
+
+private fun TextStyle.scaled(factor: Float): TextStyle =
+    copy(fontSize = fontSize.scaled(factor), lineHeight = lineHeight.scaled(factor))
+
+// Spec uses the platform system font stack throughout (-apple-system/Segoe UI/Roboto),
+// not a custom typeface -- Compose's FontFamily.Default already resolves to Roboto on
+// Android, so this is a faithful port, not a placeholder. font=1f (COMPACT) reproduces
+// this byte-for-byte; MEDIUM/EXPANDED multiply every style's fontSize/lineHeight.
+private fun kawabiTypography(font: Float): Typography {
+    val base = Typography().let {
+        it.copy(
+            titleLarge = it.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
+            titleMedium = it.titleMedium.copy(fontWeight = FontWeight.Bold),
+            titleSmall = it.titleSmall.copy(fontWeight = FontWeight.Bold),
+            labelLarge = it.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+            labelMedium = it.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+            labelSmall = it.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            bodyLarge = it.bodyLarge.copy(fontWeight = FontWeight.Medium),
+        )
+    }
+    if (font == 1f) return base
+    return base.copy(
+        displayLarge = base.displayLarge.scaled(font),
+        displayMedium = base.displayMedium.scaled(font),
+        displaySmall = base.displaySmall.scaled(font),
+        headlineLarge = base.headlineLarge.scaled(font),
+        headlineMedium = base.headlineMedium.scaled(font),
+        headlineSmall = base.headlineSmall.scaled(font),
+        titleLarge = base.titleLarge.scaled(font),
+        titleMedium = base.titleMedium.scaled(font),
+        titleSmall = base.titleSmall.scaled(font),
+        bodyLarge = base.bodyLarge.scaled(font),
+        bodyMedium = base.bodyMedium.scaled(font),
+        bodySmall = base.bodySmall.scaled(font),
+        labelLarge = base.labelLarge.scaled(font),
+        labelMedium = base.labelMedium.scaled(font),
+        labelSmall = base.labelSmall.scaled(font),
     )
 }
 
 @Composable
-fun KawabiTheme(content: @Composable () -> Unit) {
+fun KawabiTheme(windowSizeClass: WindowSizeClass, content: @Composable () -> Unit) {
     val preferences = koinInject<AppPreferences>()
     val accentIndex by preferences.accentIndex.collectAsState(initial = 0)
     val accent = NightSession.Accents.getOrElse(accentIndex) { NightSession.Accents.first() }.color
+    val scale = scaleOf(windowSizeClass)
 
     val colorScheme = darkColorScheme(
         background = NightSession.Background,
@@ -86,5 +141,7 @@ fun KawabiTheme(content: @Composable () -> Unit) {
         error = NightSession.Danger,
         onError = Color.White,
     )
-    MaterialTheme(colorScheme = colorScheme, typography = kawabiTypography, content = content)
+    CompositionLocalProvider(LocalKawabiScale provides scale) {
+        MaterialTheme(colorScheme = colorScheme, typography = kawabiTypography(scale.font), content = content)
+    }
 }

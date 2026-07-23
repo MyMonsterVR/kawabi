@@ -60,6 +60,7 @@ import coil3.size.Size
 import com.mymonstervr.kawabi.data.network.dto.PageDto
 import com.mymonstervr.kawabi.data.network.resolveImageUrl
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
@@ -331,7 +332,8 @@ private fun ContinuousVerticalScreen(
                             model = pageImageRequest(resolveImageUrl(item.page.proxied_image_url)),
                             contentDescription = null,
                             contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth().widthIn(max = READER_MAX_PAGE_WIDTH)
+                            modifier = Modifier.fillMaxWidth()
+                                .widthIn(max = READER_MAX_PAGE_WIDTH * LocalKawabiScale.current.spacing)
                                 .defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT),
                         )
                         is FlatItem.ChapterDivider -> ChapterDividerRow(item.label)
@@ -569,7 +571,10 @@ private fun ReaderBottomBar(
 private val PAGE_PLACEHOLDER_MIN_HEIGHT = 500.dp
 
 // Caps vertical-mode page width on wide/tablet screens -- a phone's width never reaches
-// this, so it's a no-op there.
+// this, so it's a no-op there. Multiplied by LocalKawabiScale.current.spacing at its
+// usage site (grows to ~936.dp on EXPANDED) rather than routed through
+// ResponsiveContainer's maxContentWidth -- a webtoon page's reading-width ergonomics
+// differ from a settings list's, so it keeps its own base value.
 private val READER_MAX_PAGE_WIDTH = 720.dp
 
 // AsyncImage normally sizes its decode to the composable's measured constraints (here,

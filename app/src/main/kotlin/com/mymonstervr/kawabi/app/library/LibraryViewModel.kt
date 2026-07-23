@@ -2,6 +2,8 @@ package com.mymonstervr.kawabi.app.library
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.settings.LibraryCardSize
 import com.mymonstervr.kawabi.data.usecase.RefreshMangaChapters
 import com.mymonstervr.kawabi.domain.model.MangaWithUnreadCount
 import com.mymonstervr.kawabi.domain.repository.MangaRepository
@@ -21,10 +23,14 @@ private const val REFRESH_CONCURRENCY = 6
 class LibraryViewModel(
     mangaRepository: MangaRepository,
     private val refreshMangaChapters: RefreshMangaChapters,
+    preferences: AppPreferences,
 ) : ViewModel() {
 
     val favorites: StateFlow<List<MangaWithUnreadCount>> = mangaRepository.observeFavoritesWithUnreadCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val cardSize: StateFlow<LibraryCardSize> = preferences.libraryCardSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryCardSize.MEDIUM)
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()

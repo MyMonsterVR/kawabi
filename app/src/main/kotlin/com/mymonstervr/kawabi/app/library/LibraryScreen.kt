@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
 import com.mymonstervr.kawabi.domain.model.Manga
@@ -141,6 +142,7 @@ fun LibraryScreen(
 ) {
     val favorites by viewModel.favorites.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val cardSize by viewModel.cardSize.collectAsState()
     val pullState = rememberPullToRefreshState()
 
     var sort by remember { mutableStateOf(LibrarySort.LAST_READ) }
@@ -159,7 +161,7 @@ fun LibraryScreen(
                     Text(
                         text = "Kawabi",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 19.sp,
+                        fontSize = 19.sp * LocalKawabiScale.current.font,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 },
@@ -205,7 +207,8 @@ fun LibraryScreen(
                         // Adaptive, not Fixed(3) -- 3 columns on a phone-width screen is
                         // the same math as before, but this scales up to 6-8+ on a
                         // tablet instead of stretching 3 giant covers across the width.
-                        columns = GridCells.Adaptive(minSize = 100.dp),
+                        // minSize itself is user-adjustable (Settings -> Library card size).
+                        columns = GridCells.Adaptive(minSize = cardSize.minWidthDp.dp),
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -223,17 +226,18 @@ fun LibraryScreen(
 
 @Composable
 private fun NightChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val scale = LocalKawabiScale.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(100))
             .background(if (selected) MaterialTheme.colorScheme.primary else NightSession.Chip)
             .border(1.dp, if (selected) androidx.compose.ui.graphics.Color.Transparent else NightSession.Hairline, RoundedCornerShape(100))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp * scale.spacing, vertical = 6.dp * scale.spacing),
     ) {
         Text(
             text = label,
-            fontSize = 11.sp,
+            fontSize = 11.sp * scale.font,
             fontWeight = FontWeight.SemiBold,
             color = if (selected) NightSession.OnAccent else NightSession.TextDim,
         )
@@ -250,6 +254,7 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 @Composable
 private fun MangaCard(entry: MangaWithUnreadCount, onClick: () -> Unit) {
     val manga: Manga = entry.manga
+    val scale = LocalKawabiScale.current
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         Box(modifier = Modifier.fillMaxWidth()) {
             AsyncImage(
@@ -266,21 +271,21 @@ private fun MangaCard(entry: MangaWithUnreadCount, onClick: () -> Unit) {
             if (entry.unreadCount > 0) {
                 Text(
                     text = "${entry.unreadCount}",
-                    fontSize = 9.sp,
+                    fontSize = 9.sp * scale.font,
                     fontWeight = FontWeight.Bold,
                     color = NightSession.OnAccent,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(6.dp)
+                        .padding(6.dp * scale.spacing)
                         .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .padding(horizontal = 6.dp * scale.spacing, vertical = 2.dp * scale.spacing),
                 )
             }
         }
-        Spacer(modifier = Modifier.height(5.dp))
+        Spacer(modifier = Modifier.height(5.dp * scale.spacing))
         Text(
             text = manga.title,
-            fontSize = 10.5.sp,
+            fontSize = 10.5.sp * scale.font,
             fontWeight = FontWeight.SemiBold,
             color = NightSession.Text,
             maxLines = 2,
@@ -289,7 +294,7 @@ private fun MangaCard(entry: MangaWithUnreadCount, onClick: () -> Unit) {
         entry.lastReadChapterNumber?.let { lastRead ->
             Text(
                 text = "Ch. ${formatChapterNumber(lastRead)}",
-                fontSize = 9.sp,
+                fontSize = 9.sp * scale.font,
                 color = NightSession.TextDim,
             )
         }

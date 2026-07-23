@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -83,7 +84,7 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = koinViewModel(
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(
                 text = "Exports your library, categories, and read/progress state as a JSON file. Doesn't include account/tracker login.",
-                fontSize = 11.5.sp,
+                fontSize = 11.5.sp * LocalKawabiScale.current.font,
                 color = NightSession.TextDim,
             )
             Spacer(modifier = Modifier.height(20.dp))

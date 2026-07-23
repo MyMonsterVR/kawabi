@@ -30,21 +30,12 @@ val kawabiBaseUrl = (localProperties.getProperty("kawabi.baseUrl"))
 // fails loudly instead of silently using someone else's tracker app. MAL
 // requires its own registered app (myanimelist.net/apiconfig) with redirect
 // `kawabi://myanimelist-auth`; set `kawabi.malClientId` locally or the
-// KAWABI_MAL_CLIENT_ID CI secret. Kitsu has never implemented per-app
-// registration -- its own API docs publish a single shared client_id/secret
-// for all third-party apps to use, so set kawabi.kitsuClientId/
-// kawabi.kitsuClientSecret to that documented pair (not a private credential
-// of anyone's, but still not hardcoded here, same open-sourceability
-// reasoning as kawabiBaseUrl).
+// KAWABI_MAL_CLIENT_ID CI secret. Still needed client-side (unlike Kitsu's
+// credentials) because the browser-facing PKCE authorize URL is built here,
+// not by the backend.
 val malClientId = (localProperties.getProperty("kawabi.malClientId"))
     ?: System.getenv("KAWABI_MAL_CLIENT_ID")
     ?: "REPLACE-MAL-CLIENT-ID"
-val kitsuClientId = (localProperties.getProperty("kawabi.kitsuClientId"))
-    ?: System.getenv("KAWABI_KITSU_CLIENT_ID")
-    ?: "REPLACE-KITSU-CLIENT-ID"
-val kitsuClientSecret = (localProperties.getProperty("kawabi.kitsuClientSecret"))
-    ?: System.getenv("KAWABI_KITSU_CLIENT_SECRET")
-    ?: "REPLACE-KITSU-CLIENT-SECRET"
 
 android {
     namespace = "com.mymonstervr.kawabi.data"
@@ -54,8 +45,6 @@ android {
         minSdk = libs.versions.android.min.sdk.get().toInt()
         buildConfigField("String", "BASE_URL", "\"$kawabiBaseUrl\"")
         buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"")
-        buildConfigField("String", "KITSU_CLIENT_ID", "\"$kitsuClientId\"")
-        buildConfigField("String", "KITSU_CLIENT_SECRET", "\"$kitsuClientSecret\"")
     }
 
     buildFeatures {

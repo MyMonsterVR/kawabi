@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
 
@@ -105,29 +106,30 @@ fun TrackingServicesScreen(onBack: () -> Unit, viewModel: TrackingServicesViewMo
 
 @Composable
 private fun TrackerRow(row: TrackerRowState, onConnect: () -> Unit, onDisconnect: () -> Unit) {
+    val scale = LocalKawabiScale.current
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 12.dp * scale.spacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = row.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+            Text(text = row.name, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
             Text(
                 text = if (row.connected) row.userName ?: "Connected" else "Not connected",
-                fontSize = 10.5.sp,
+                fontSize = 10.5.sp * scale.font,
                 color = NightSession.TextDim,
                 modifier = Modifier.padding(top = 1.dp),
             )
         }
         if (row.connected) {
             TextButton(onClick = onDisconnect) {
-                Text("Disconnect", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                Text("Disconnect", color = MaterialTheme.colorScheme.error, fontSize = 11.sp * scale.font)
             }
         } else {
             Button(
                 onClick = onConnect,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
             ) {
-                Text("Connect", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Connect", fontSize = 11.sp * scale.font, fontWeight = FontWeight.Bold)
             }
         }
     }

@@ -3,17 +3,20 @@ package com.mymonstervr.kawabi.app.search
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.SearchResultDto
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
@@ -54,6 +58,7 @@ fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = k
     val results by viewModel.results.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val error by viewModel.error.collectAsState()
+    val cardSize by viewModel.cardSize.collectAsState()
 
     Scaffold(
         containerColor = NightSession.Background,
@@ -100,9 +105,15 @@ fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = k
                 results.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(text = "No results yet", color = NightSession.TextDim, fontSize = 11.5.sp)
                 }
-                else -> LazyColumn(contentPadding = PaddingValues(vertical = 4.dp)) {
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = cardSize.minWidthDp.dp),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
                     items(results, key = { it.url }) { result ->
-                        SearchResultRow(result = result, onClick = { onResultClick(result.url) })
+                        SearchResultCard(result = result, onClick = { onResultClick(result.url) })
                     }
                 }
             }
@@ -112,30 +123,35 @@ fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = k
 }
 
 @Composable
-private fun SearchResultRow(result: SearchResultDto, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+private fun SearchResultCard(result: SearchResultDto, onClick: () -> Unit) {
+    val scale = LocalKawabiScale.current
+    Column(modifier = Modifier.clickable(onClick = onClick)) {
         AsyncImage(
             model = resolveCoverUrl(result.cover_url),
             contentDescription = result.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(width = 38.dp, height = 57.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(NightSession.RadiusMd))
+                .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
                 .background(NightSession.Cover),
         )
-        Box(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = result.title,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = NightSession.Text,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Spacer(modifier = Modifier.height(5.dp * scale.spacing))
+        Text(
+            text = result.title,
+            fontSize = 10.5.sp * scale.font,
+            fontWeight = FontWeight.SemiBold,
+            color = NightSession.Text,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = result.source_name,
+            fontSize = 9.sp * scale.font,
+            color = NightSession.TextDim,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

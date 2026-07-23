@@ -10,9 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-
-private val DEFAULT_MAX_CONTENT_WIDTH = 640.dp
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 
 /**
  * Caps content width and centers it on wide screens (tablets) -- a no-op on phone-width
@@ -20,11 +18,16 @@ private val DEFAULT_MAX_CONTENT_WIDTH = 640.dp
  * exceeds it. Without this, text-heavy screens (Settings, Login, manga detail's
  * description) stretch edge-to-edge on a tablet, which reads badly at that line length;
  * a phone never hits the cap so its layout is unaffected.
+ *
+ * Default maxWidth comes from LocalKawabiScale (COMPACT=Unspecified/no cap, MEDIUM=680.dp,
+ * EXPANDED=860.dp) so it moves together with the font/spacing scale instead of being an
+ * independent constant -- callers with genuinely different width needs (Login's narrower
+ * form, Reader's wider page) still pass their own maxWidth explicitly.
  */
 @Composable
 fun ResponsiveContainer(
     modifier: Modifier = Modifier,
-    maxWidth: Dp = DEFAULT_MAX_CONTENT_WIDTH,
+    maxWidth: Dp = LocalKawabiScale.current.maxContentWidth,
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {

@@ -58,10 +58,14 @@ class SourceApi(
         }
     }
 
+    // Same 10s-default-vs-server-fan-out race as getMangaSources below -- search fans
+    // out across every enabled source server-side and can legitimately take just over
+    // 10s (confirmed live: 10.01s/10.003s responses), which OkHttp's default read
+    // timeout was cutting off right as the server would've answered.
     suspend fun search(query: String): Result<SearchResponse> = withContext(dispatchers.io) {
         runCatching {
             val request = requestFor("search") { addQueryParameter("q", query) }
-            executeWithRetry(request, SearchResponse.serializer())
+            executeWithRetry(request, SearchResponse.serializer(), longReadClient)
         }
     }
 
@@ -127,19 +131,19 @@ class SourceApi(
         return Request.Builder().url(url).get().build()
     }
 
-    private suspend fun <T> executeWithRetry(request: Request, serializer: KSerializer<T>): T {
+    private suspend fun <T> executeWithRetry(request: Request, serializer: KSerializer<T>, httpClient: OkHttpClient = client): T {
         repeat(RATE_LIMIT_MAX_RETRIES) {
             try {
-                return execute(request, serializer)
+                return execute(request, serializer, httpClient)
             } catch (e: SourceRateLimitedException) {
                 delay(RATE_LIMIT_RETRY_DELAY_MS)
             }
         }
-        return execute(request, serializer)
+        return execute(request, serializer, httpClient)
     }
 
-    private fun <T> execute(request: Request, serializer: KSerializer<T>): T {
-        client.newCall(request).execute().use { response ->
+    private fun <T> execute(request: Request, serializer: KSerializer<T>, httpClient: OkHttpClient = client): T {
+        httpClient.newCall(request).execute().use { response ->
             if (response.code == 429) throw SourceRateLimitedException()
             if (!response.isSuccessful) {
                 error(errorMessageFor(response))
