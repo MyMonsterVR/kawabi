@@ -21,6 +21,10 @@ class RefreshMangaChapters(
     suspend fun refresh(manga: Manga): Result<List<Chapter>> {
         val response = sourceApi.getManga(manga.url).getOrElse { return Result.failure(it) }
 
+        if (response.source != manga.source) {
+            mangaRepository.updateSource(manga.id, response.source)
+        }
+
         val sourceChapters = response.chapters.map { dto ->
             SourceChapter(
                 url = dto.id,

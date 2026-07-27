@@ -16,6 +16,7 @@ interface MangaRepository {
     suspend fun setTotalChapters(id: Long, totalChapters: Double)
     suspend fun setViewer(id: Long, viewer: Int)
     suspend fun updateSiteKey(id: Long, siteKey: String?)
+    suspend fun updateSource(id: Long, source: String)
     suspend fun touchLastRead(id: Long, timestamp: Long)
     suspend fun getDueForUpdate(now: Long): List<Manga>
     suspend fun updateUpdateSchedule(id: Long, lastUpdate: Long, nextUpdate: Long, calculateInterval: Int)

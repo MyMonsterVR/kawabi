@@ -83,6 +83,9 @@ UPDATE mangas SET viewer = ? WHERE _id = ?;
 updateSiteKey:
 UPDATE mangas SET site_key = ? WHERE _id = ?;
 
+updateSource:
+UPDATE mangas SET source = ? WHERE _id = ?;
+
 -- Metadata that legitimately drifts over time from the source (title/cover/site) --
 -- excludes local-only state (favorite, notes, dates, flags) which upsert must not clobber.
 updateMetadata:

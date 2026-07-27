@@ -321,6 +321,7 @@ class MangaDetailViewModel(
                                     .filter { it.read }
                                     .maxOfOrNull { it.chapterNumber } ?: 0.0
                                 mangaRepository.updateSiteKey(mangaId, response.served_from)
+                                mangaRepository.updateSource(mangaId, response.source)
                                 mangaRepository.getById(mangaId)?.let { refreshMangaChapters.refresh(it) }
                                 if (chaptersReadBefore > 0) {
                                     chapterRepository.markReadUpToNumber(mangaId, chaptersReadBefore)

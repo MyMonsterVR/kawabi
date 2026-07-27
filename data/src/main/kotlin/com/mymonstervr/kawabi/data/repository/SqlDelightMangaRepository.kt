@@ -109,6 +109,10 @@ class SqlDelightMangaRepository(
         queries.updateSiteKey(siteKey, id)
     }
 
+    override suspend fun updateSource(id: Long, source: String): Unit = withContext<Unit>(dispatchers.io) {
+        queries.updateSource(source, id)
+    }
+
     override suspend fun touchLastRead(id: Long, timestamp: Long): Unit = withContext<Unit>(dispatchers.io) {
         queries.touchLastRead(timestamp, id)
     }
