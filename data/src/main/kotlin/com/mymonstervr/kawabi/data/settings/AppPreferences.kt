@@ -41,6 +41,8 @@ class AppPreferences(private val context: Context) {
     private val accentIndexKey = intPreferencesKey("accent_index")
     private val lastUpdateCheckKey = longPreferencesKey("last_update_check")
     private val libraryGridColumnsKey = intPreferencesKey("library_grid_columns")
+    private val hideReadChaptersKey = booleanPreferencesKey("hide_read_chapters")
+    private val chapterSortAscendingKey = booleanPreferencesKey("chapter_sort_ascending")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -98,4 +100,43 @@ class AppPreferences(private val context: Context) {
     suspend fun markUpdateChecked() {
         context.settingsDataStore.edit { it[lastUpdateCheckKey] = System.currentTimeMillis() }
     }
+
+    // Chapter-list reading habits -- global, not per-manga, since they're about how you
+    // like to browse a list rather than a fact about any one series.
+    val hideReadChapters: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[hideReadChaptersKey] ?: false
+    }
+
+    suspend fun setHideReadChapters(enabled: Boolean) {
+        context.settingsDataStore.edit { it[hideReadChaptersKey] = enabled }
+    }
+
+    val chapterSortAscending: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[chapterSortAscendingKey] ?: false
+    }
+
+    suspend fun setChapterSortAscending(ascending: Boolean) {
+        context.settingsDataStore.edit { it[chapterSortAscendingKey] = ascending }
+    }
+
+    // Per-manga preferred scanlator (e.g. "official" vs "unofficial" on MangaFire) --
+    // null means "show both versions". Device-local by design, same as everything else
+    // in this class; a manga with only one scanlator per chapter number never reads this.
+    //
+    // Keyed on the manga's URL, not its local DB row id -- unlike the reader (which only
+    // ever opens a manga already in the local library), the detail screen's version
+    // picker must also work for a manga the user is merely browsing and hasn't favorited
+    // yet, which has no local row id at all.
+    fun preferredScanlator(mangaUrl: String): Flow<String?> = context.settingsDataStore.data.map { prefs ->
+        prefs[preferredScanlatorKey(mangaUrl)]
+    }
+
+    suspend fun setPreferredScanlator(mangaUrl: String, scanlator: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (scanlator == null) prefs.remove(preferredScanlatorKey(mangaUrl))
+            else prefs[preferredScanlatorKey(mangaUrl)] = scanlator
+        }
+    }
+
+    private fun preferredScanlatorKey(mangaUrl: String) = stringPreferencesKey("preferred_scanlator_$mangaUrl")
 }

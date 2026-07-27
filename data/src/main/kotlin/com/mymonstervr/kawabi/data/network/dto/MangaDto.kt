@@ -26,4 +26,5 @@ data class ChapterDto(
     val number: Double,
     val title: String,
     val date_upload: Long? = null,
+    val scanlator: String? = null,
 )

@@ -6,6 +6,7 @@ import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.network.dto.MangaResponse
 import com.mymonstervr.kawabi.data.network.dto.MangaSourceOptionDto
+import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.data.usecase.AddMangaToLibrary
@@ -14,12 +15,16 @@ import com.mymonstervr.kawabi.data.usecase.SyncClient
 import com.mymonstervr.kawabi.data.usecase.TrackerSyncClient
 import com.mymonstervr.kawabi.domain.model.Chapter
 import com.mymonstervr.kawabi.domain.model.Track
+import com.mymonstervr.kawabi.domain.model.normalizedScanlator
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
 import com.mymonstervr.kawabi.domain.repository.MangaRepository
 import com.mymonstervr.kawabi.domain.repository.TrackRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface MangaDetailState {
@@ -62,6 +67,7 @@ class MangaDetailViewModel(
     private val trackerManager: TrackerManager,
     private val trackRepository: TrackRepository,
     private val trackerSyncClient: TrackerSyncClient,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
 
     val isLoggedIn: StateFlow<Boolean> = tokenStore.isLoggedIn
@@ -109,6 +115,33 @@ class MangaDetailViewModel(
     // differently on MAL/Kitsu than on its source site.
     private val _altTitleSuggestions = MutableStateFlow<List<String>>(emptyList())
     val altTitleSuggestions: StateFlow<List<String>> = _altTitleSuggestions.asStateFlow()
+
+    // Device-local per-manga preference between duplicate-numbered chapter versions
+    // (e.g. MangaFire's official/unofficial), null once no manga is resolved yet or the
+    // user hasn't picked one -- resumeTarget() and the reader both fall back to a
+    // deterministic tiebreak in that case.
+    private val _preferredScanlator = MutableStateFlow<String?>(null)
+    val preferredScanlator: StateFlow<String?> = _preferredScanlator.asStateFlow()
+
+    // Chapter-list reading habits -- global (not per-manga), see AppPreferences.
+    val hideReadChapters: StateFlow<Boolean> = preferences.hideReadChapters
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val chapterSortAscending: StateFlow<Boolean> = preferences.chapterSortAscending
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setHideReadChapters(enabled: Boolean) {
+        viewModelScope.launch { preferences.setHideReadChapters(enabled) }
+    }
+
+    fun setChapterSortAscending(ascending: Boolean) {
+        viewModelScope.launch { preferences.setChapterSortAscending(ascending) }
+    }
+
+    fun setPreferredScanlator(scanlator: String?) {
+        val url = loadedUrl ?: return
+        _preferredScanlator.value = scanlator
+        viewModelScope.launch { preferences.setPreferredScanlator(url, scanlator) }
+    }
 
     fun loadAltTitleSuggestions(title: String) {
         _altTitleSuggestions.value = emptyList()
@@ -359,6 +392,7 @@ class MangaDetailViewModel(
         val existing = mangaRepository.getByUrl(url)
         localMangaId = existing?.id
         _isFavorite.value = existing?.favorite == true
+        _preferredScanlator.value = preferences.preferredScanlator(url).first()
         refreshLocalChapters()
         syncTrackers()
     }
@@ -373,10 +407,23 @@ class MangaDetailViewModel(
  * Where "Continue"/"Start reading" should resume: an in-progress chapter (partially
  * read, lowest-numbered if several) takes priority over just picking the next unread
  * chapter in order. Null if every numbered chapter is already read.
+ *
+ * When duplicate chapter numbers exist (e.g. MangaFire's official/unofficial pairs),
+ * ties break on [preferredScanlator] first, then deterministically on [Chapter.sourceOrder]
+ * -- previously `minByOrNull` alone picked whichever twin happened to sort first, which
+ * could silently resume you on the version you don't actually prefer.
  */
-fun resumeTarget(chapters: Collection<Chapter>): Chapter? {
+fun resumeTarget(chapters: Collection<Chapter>, preferredScanlator: String? = null): Chapter? {
     val numbered = chapters.filter { it.chapterNumber != UNKNOWN_CHAPTER_NUMBER }
-    val inProgress = numbered.filter { !it.read && it.lastPageRead > 0 }.minByOrNull { it.chapterNumber }
+    val inProgress = pickAtLowestNumber(numbered.filter { !it.read && it.lastPageRead > 0 }, preferredScanlator)
     if (inProgress != null) return inProgress
-    return numbered.filter { !it.read }.minByOrNull { it.chapterNumber }
+    return pickAtLowestNumber(numbered.filter { !it.read }, preferredScanlator)
+}
+
+private fun pickAtLowestNumber(candidates: List<Chapter>, preferredScanlator: String?): Chapter? {
+    val lowest = candidates.minOfOrNull { it.chapterNumber } ?: return null
+    val atLowest = candidates.filter { it.chapterNumber == lowest }
+    if (atLowest.size == 1) return atLowest.single()
+    return atLowest.firstOrNull { it.scanlator.normalizedScanlator() == preferredScanlator.normalizedScanlator() }
+        ?: atLowest.minByOrNull { it.sourceOrder }
 }

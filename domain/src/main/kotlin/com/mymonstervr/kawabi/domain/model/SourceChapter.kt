@@ -10,4 +10,5 @@ data class SourceChapter(
     val name: String,
     val chapterNumber: Double,
     val dateUpload: Long,
+    val scanlator: String? = null,
 )

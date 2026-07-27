@@ -18,7 +18,7 @@ val appModule = module {
     viewModel { LibraryViewModel(get(), get(), get()) }
     viewModel { LoginViewModel(get(), get(), get(), get()) }
     viewModel { SearchViewModel(get(), get()) }
-    viewModel { MangaDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { MangaDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { ReaderViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
     viewModel { SourcesViewModel(get()) }

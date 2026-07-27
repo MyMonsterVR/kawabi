@@ -5,11 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -42,6 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -60,6 +64,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,9 +83,15 @@ import com.mymonstervr.kawabi.data.network.resolveCoverUrl
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.domain.model.Chapter
 import com.mymonstervr.kawabi.domain.model.Track
+import com.mymonstervr.kawabi.domain.model.normalizedScanlator
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 private val DETAIL_HERO_HEIGHT = 190.dp
+// A fixed, predictable offset rather than measuring header content -- description
+// length varies per manga, and clamping against a measured height felt like it started
+// in an arbitrary place. This just clears the top app bar area.
+private val FAST_SCROLL_TOP_OFFSET = 64.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +114,9 @@ fun MangaDetailScreen(
     val lastTitle by viewModel.lastTitle.collectAsState()
     val trackerSheet by viewModel.trackerSheet.collectAsState()
     val altTitleSuggestions by viewModel.altTitleSuggestions.collectAsState()
+    val preferredScanlator by viewModel.preferredScanlator.collectAsState()
+    val hideReadChapters by viewModel.hideReadChapters.collectAsState()
+    val chapterSortAscending by viewModel.chapterSortAscending.collectAsState()
     val pullState = rememberPullToRefreshState()
     var showRemoveConfirm by remember { mutableStateOf(false) }
     var searchingTrackerId by remember { mutableStateOf<String?>(null) }
@@ -207,6 +221,12 @@ fun MangaDetailScreen(
                             if (isFavorite) showRemoveConfirm = true else viewModel.toggleFavorite(url)
                         },
                         localChaptersByUrl = localChaptersByUrl,
+                        preferredScanlator = preferredScanlator,
+                        onSetPreferredScanlator = viewModel::setPreferredScanlator,
+                        hideReadChapters = hideReadChapters,
+                        onSetHideReadChapters = viewModel::setHideReadChapters,
+                        chapterSortAscending = chapterSortAscending,
+                        onSetChapterSortAscending = viewModel::setChapterSortAscending,
                         onChapterClick = onChapterClick,
                         onSetChapterRead = viewModel::setChapterRead,
                         onMarkPreviousAsRead = viewModel::markPreviousAsRead,
@@ -224,6 +244,30 @@ fun MangaDetailScreen(
     }
 }
 
+// A manga is "multi-version" when at least one chapter number has two or more chapters
+// with differing scanlators (MangaFire's official/unofficial pairs being the confirmed
+// case). Everything version-related -- badges, the version pill, preferred-version
+// filtering -- only ever engages when this is true, so a single-version manga (the
+// overwhelming majority of sources) renders exactly as it did before this feature existed.
+private fun List<ChapterDto>.chapterVersionOptions(): List<Pair<String?, String>> {
+    val duplicatedNumbers = groupBy { it.number }
+        .filterValues { group -> group.map { it.scanlator.normalizedScanlator() }.distinct().size > 1 }
+        .keys
+    if (duplicatedNumbers.isEmpty()) return emptyList()
+    return filter { it.number in duplicatedNumbers }
+        .groupBy { it.scanlator.normalizedScanlator() }
+        .map { (normalized, group) ->
+            val label = group.firstNotNullOfOrNull { it.scanlator?.trim()?.ifBlank { null } }
+                ?.replaceFirstChar { c -> c.titlecase() }
+                ?: "Unknown"
+            normalized to label
+        }
+        .sortedByDescending { (normalized, _) -> count { it.scanlator.normalizedScanlator() == normalized } }
+}
+
+private fun ChapterDto.versionBadgeLabel(): String =
+    scanlator?.trim()?.ifBlank { null }?.replaceFirstChar { it.titlecase() } ?: "Unknown"
+
 @Composable
 private fun MangaDetailContent(
     manga: MangaResponse,
@@ -231,6 +275,12 @@ private fun MangaDetailContent(
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     localChaptersByUrl: Map<String, Chapter>,
+    preferredScanlator: String?,
+    onSetPreferredScanlator: (String?) -> Unit,
+    hideReadChapters: Boolean,
+    onSetHideReadChapters: (Boolean) -> Unit,
+    chapterSortAscending: Boolean,
+    onSetChapterSortAscending: (Boolean) -> Unit,
     onChapterClick: (Long) -> Unit,
     onSetChapterRead: (Long, Boolean) -> Unit,
     onMarkPreviousAsRead: (Chapter) -> Unit,
@@ -242,179 +292,376 @@ private fun MangaDetailContent(
     onOpenTrackerSheet: () -> Unit,
 ) {
     var expandedChapterUrl by remember { mutableStateOf<String?>(null) }
-    val target = remember(localChaptersByUrl) { resumeTarget(localChaptersByUrl.values) }
+    var showJumpDialog by remember { mutableStateOf(false) }
+    val target = remember(localChaptersByUrl, preferredScanlator) { resumeTarget(localChaptersByUrl.values, preferredScanlator) }
     val hasAnyRead = remember(localChaptersByUrl) { localChaptersByUrl.values.any { it.read } }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            Box(modifier = Modifier.fillMaxWidth().height(DETAIL_HERO_HEIGHT)) {
-                AsyncImage(
-                    model = resolveCoverUrl(manga.cover_url),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().background(NightSession.Cover),
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                0.25f to Color.Transparent,
-                                1f to NightSession.Background,
-                            ),
-                        ),
-                )
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(12.dp)
-                        .background(Color.Black.copy(alpha = 0.4f), CircleShape),
-                ) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                AsyncImage(
-                    model = resolveCoverUrl(manga.cover_url),
-                    contentDescription = manga.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 16.dp, bottom = 14.dp)
-                        .width(80.dp)
-                        .height(120.dp)
-                        .clip(RoundedCornerShape(NightSession.RadiusMd))
-                        .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
-                        .background(NightSession.Cover),
-                )
+    val versionOptions = remember(manga.chapters) { manga.chapters.chapterVersionOptions() }
+    val isMultiVersion = versionOptions.size > 1
+
+    val displayedChapters = remember(manga.chapters, localChaptersByUrl, preferredScanlator, hideReadChapters, chapterSortAscending, isMultiVersion) {
+        var list = manga.chapters
+        if (isMultiVersion && preferredScanlator != null) {
+            val byNumber = list.groupBy { it.number }
+            list = byNumber.flatMap { (_, group) ->
+                group.filter { it.scanlator.normalizedScanlator() == preferredScanlator } .ifEmpty { group }
             }
         }
-
-        item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(text = manga.title, fontSize = 16.5.sp, fontWeight = FontWeight.Bold, color = NightSession.Text)
-                val byline = listOfNotNull(manga.author?.takeIf { it.isNotBlank() }, manga.status.takeIf { it.isNotBlank() })
-                    .joinToString(" · ")
-                if (byline.isNotBlank()) {
-                    Text(text = byline, fontSize = 11.sp, color = NightSession.TextDim, modifier = Modifier.padding(top = 3.dp))
-                }
-            }
+        if (hideReadChapters) {
+            list = list.filter { localChaptersByUrl[it.id]?.read != true }
         }
+        list.sortedWith(compareBy<ChapterDto> { it.number }.let { if (chapterSortAscending) it else it.reversed() })
+    }
 
-        if (isLoggedIn) {
+    // The chapter list shares this LazyColumn with all the header content above it --
+    // header items are conditional (login state, description presence), so collapsing
+    // them into one item{} gives the chapter list a constant flat offset of 1, valid
+    // regardless of which optional header pieces render for this manga.
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val headerOffset = 1
+
+    if (showJumpDialog) {
+        JumpToChapterDialog(
+            onDismiss = { showJumpDialog = false },
+            onJump = { number ->
+                val index = displayedChapters.indexOfFirst { it.number == number }
+                    .let { if (it >= 0) it else displayedChapters.indexOfFirst { c -> c.number >= number } }
+                if (index >= 0) {
+                    scope.launch { listState.animateScrollToItem(headerOffset + index) }
+                }
+                showJumpDialog = false
+            },
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             item {
-                SourcePickerPill(
-                    picker = sourcePicker,
-                    servedFrom = manga.served_from,
-                    isPinned = manga.preferred_source != null,
-                    siteNames = siteNames,
-                    onOpen = onOpenSourcePicker,
-                    onSelect = onSelectSource,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                Column {
+                    Box(modifier = Modifier.fillMaxWidth().height(DETAIL_HERO_HEIGHT)) {
+                        AsyncImage(
+                            model = resolveCoverUrl(manga.cover_url),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().background(NightSession.Cover),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        0f to Color.Transparent,
+                                        0.25f to Color.Transparent,
+                                        1f to NightSession.Background,
+                                    ),
+                                ),
+                        )
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(12.dp)
+                                .background(Color.Black.copy(alpha = 0.4f), CircleShape),
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                        AsyncImage(
+                            model = resolveCoverUrl(manga.cover_url),
+                            contentDescription = manga.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(start = 16.dp, bottom = 14.dp)
+                                .width(80.dp)
+                                .height(120.dp)
+                                .clip(RoundedCornerShape(NightSession.RadiusMd))
+                                .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
+                                .background(NightSession.Cover),
+                        )
+                    }
+
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(text = manga.title, fontSize = 16.5.sp, fontWeight = FontWeight.Bold, color = NightSession.Text)
+                        val byline = listOfNotNull(manga.author?.takeIf { it.isNotBlank() }, manga.status.takeIf { it.isNotBlank() })
+                            .joinToString(" · ")
+                        if (byline.isNotBlank()) {
+                            Text(text = byline, fontSize = 11.sp, color = NightSession.TextDim, modifier = Modifier.padding(top = 3.dp))
+                        }
+                    }
+
+                    if (isLoggedIn) {
+                        SourcePickerPill(
+                            picker = sourcePicker,
+                            servedFrom = manga.served_from,
+                            isPinned = manga.preferred_source != null,
+                            siteNames = siteNames,
+                            onOpen = onOpenSourcePicker,
+                            onSelect = onSelectSource,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (isFavorite && target != null) {
+                            Button(
+                                onClick = { onChapterClick(target.id) },
+                                shape = RoundedCornerShape(NightSession.RadiusMd),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(continueLabel(manga, target, hasAnyRead), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        } else if (!isFavorite) {
+                            Button(
+                                onClick = onToggleFavorite,
+                                shape = RoundedCornerShape(NightSession.RadiusMd),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Add to library", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                        IconButton(
+                            onClick = if (isFavorite) onToggleFavorite else ({}),
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(NightSession.RadiusMd))
+                                .background(NightSession.Chip)
+                                .border(1.dp, if (isFavorite) MaterialTheme.colorScheme.primary else NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
+                        ) {
+                            if (isFavorite) {
+                                Icon(Icons.Filled.Favorite, contentDescription = "Remove from library", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            } else {
+                                Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Add to library", tint = NightSession.Text, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        // Tracker linking only makes sense once this manga is actually in the
+                        // library -- same gating as the heart itself.
+                        if (isFavorite) {
+                            IconButton(
+                                onClick = onOpenTrackerSheet,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(NightSession.RadiusMd))
+                                    .background(NightSession.Chip)
+                                    .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
+                            ) {
+                                Icon(Icons.Outlined.Flag, contentDescription = "Tracker links", tint = NightSession.Text, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+
+                    val description = manga.description
+                    if (!description.isNullOrBlank()) {
+                        Text(
+                            text = description,
+                            fontSize = 11.5.sp,
+                            lineHeight = 17.sp,
+                            color = NightSession.TextDim,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+
+                    ChapterListControlsRow(
+                        // Distinct chapter NUMBERS, not rows -- a multi-version manga's
+                        // official/unofficial pair is one chapter, not two, even though
+                        // "Show both" renders both as separate rows.
+                        chapterCount = displayedChapters.map { it.number }.distinct().size,
+                        isMultiVersion = isMultiVersion,
+                        versionOptions = versionOptions,
+                        preferredScanlator = preferredScanlator,
+                        onSetPreferredScanlator = onSetPreferredScanlator,
+                        hideReadChapters = hideReadChapters,
+                        onSetHideReadChapters = onSetHideReadChapters,
+                        sortAscending = chapterSortAscending,
+                        onSetSortAscending = onSetChapterSortAscending,
+                        onJump = { showJumpDialog = true },
+                    )
+
+                    if (!isFavorite) {
+                        Text(
+                            text = "Add to library to read",
+                            fontSize = 10.5.sp,
+                            color = NightSession.TextDim,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 6.dp),
+                        )
+                    }
+                    HorizontalDivider(color = NightSession.Hairline)
+                }
+            }
+
+            items(displayedChapters, key = { it.id }) { chapter ->
+                val localChapter = localChaptersByUrl[chapter.id]
+                ChapterRow(
+                    chapter = chapter,
+                    localChapter = localChapter,
+                    showVersionBadge = isMultiVersion,
+                    expanded = expandedChapterUrl == chapter.id,
+                    onClick = { localChapter?.let { onChapterClick(it.id) } },
+                    onLongClick = { if (localChapter != null) expandedChapterUrl = chapter.id },
+                    onMarkRead = {
+                        localChapter?.let { onSetChapterRead(it.id, !it.read) }
+                        expandedChapterUrl = null
+                    },
+                    onMarkPreviousRead = {
+                        localChapter?.let(onMarkPreviousAsRead)
+                        expandedChapterUrl = null
+                    },
                 )
             }
         }
 
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (isFavorite && target != null) {
-                    Button(
-                        onClick = { onChapterClick(target.id) },
-                        shape = RoundedCornerShape(NightSession.RadiusMd),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(continueLabel(manga, target, hasAnyRead), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                } else if (!isFavorite) {
-                    Button(
-                        onClick = onToggleFavorite,
-                        shape = RoundedCornerShape(NightSession.RadiusMd),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Add to library", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-                IconButton(
-                    onClick = if (isFavorite) onToggleFavorite else ({}),
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(NightSession.RadiusMd))
-                        .background(NightSession.Chip)
-                        .border(1.dp, if (isFavorite) MaterialTheme.colorScheme.primary else NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
-                ) {
-                    if (isFavorite) {
-                        Icon(Icons.Filled.Favorite, contentDescription = "Remove from library", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                    } else {
-                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Add to library", tint = NightSession.Text, modifier = Modifier.size(16.dp))
-                    }
-                }
-                // Tracker linking only makes sense once this manga is actually in the
-                // library -- same gating as the heart itself.
-                if (isFavorite) {
-                    IconButton(
-                        onClick = onOpenTrackerSheet,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(NightSession.RadiusMd))
-                            .background(NightSession.Chip)
-                            .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
-                    ) {
-                        Icon(Icons.Outlined.Flag, contentDescription = "Tracker links", tint = NightSession.Text, modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-        }
+        com.mymonstervr.kawabi.app.common.FastScroller(
+            listState = listState,
+            itemCount = displayedChapters.size,
+            headerOffset = headerOffset,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = FAST_SCROLL_TOP_OFFSET)
+                .fillMaxHeight()
+                .width(36.dp),
+        )
+    }
+}
 
-        val description = manga.description
-        if (!description.isNullOrBlank()) {
-            item {
-                Text(
-                    text = description,
-                    fontSize = 11.5.sp,
-                    lineHeight = 17.sp,
-                    color = NightSession.TextDim,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+@Composable
+private fun ChapterListControlsRow(
+    chapterCount: Int,
+    isMultiVersion: Boolean,
+    versionOptions: List<Pair<String?, String>>,
+    preferredScanlator: String?,
+    onSetPreferredScanlator: (String?) -> Unit,
+    hideReadChapters: Boolean,
+    onSetHideReadChapters: (Boolean) -> Unit,
+    sortAscending: Boolean,
+    onSetSortAscending: (Boolean) -> Unit,
+    onJump: () -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "$chapterCount chapters", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = NightSession.Text, modifier = Modifier.weight(1f))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ChipToggle(
+                label = if (sortAscending) "Oldest first" else "Newest first",
+                onClick = { onSetSortAscending(!sortAscending) },
+            )
+            ChipToggle(
+                label = "Hide read",
+                selected = hideReadChapters,
+                onClick = { onSetHideReadChapters(!hideReadChapters) },
+            )
+            ChipToggle(label = "Jump", onClick = onJump)
+            if (isMultiVersion) {
+                VersionPickerChip(
+                    options = versionOptions,
+                    selected = preferredScanlator,
+                    onSelect = onSetPreferredScanlator,
                 )
             }
         }
+    }
+}
 
-        item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(text = "${manga.chapters.size} chapters", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = NightSession.Text)
-                if (!isFavorite) {
-                    Text(
-                        text = "Add to library to read",
-                        fontSize = 10.5.sp,
-                        color = NightSession.TextDim,
-                        modifier = Modifier.padding(top = 2.dp),
+@Composable
+private fun ChipToggle(label: String, onClick: () -> Unit, selected: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(100))
+            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else NightSession.Chip)
+            .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else NightSession.Hairline, RoundedCornerShape(100))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = label,
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) MaterialTheme.colorScheme.primary else NightSession.TextDim,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun VersionPickerChip(
+    options: List<Pair<String?, String>>,
+    selected: String?,
+    onSelect: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: "Show both"
+
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(100))
+                .background(NightSession.Chip)
+                .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+        ) {
+            Text(text = "Version: $selectedLabel", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = NightSession.TextDim, maxLines = 1, softWrap = false)
+        }
+        if (expanded) {
+            androidx.compose.material3.DropdownMenu(expanded = true, onDismissRequest = { expanded = false }, containerColor = NightSession.Chip) {
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("Show both", color = NightSession.Text, fontSize = 12.sp) },
+                    trailingIcon = if (selected == null) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
+                    onClick = { onSelect(null); expanded = false },
+                )
+                options.forEach { (value, label) ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(label, color = NightSession.Text, fontSize = 12.sp) },
+                        trailingIcon = if (value == selected) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
+                        onClick = { onSelect(value); expanded = false },
                     )
                 }
             }
-            HorizontalDivider(color = NightSession.Hairline)
         }
+    }
+}
 
-        items(manga.chapters, key = { it.id }) { chapter ->
-            val localChapter = localChaptersByUrl[chapter.id]
-            ChapterRow(
-                chapter = chapter,
-                localChapter = localChapter,
-                expanded = expandedChapterUrl == chapter.id,
-                onClick = { localChapter?.let { onChapterClick(it.id) } },
-                onLongClick = { if (localChapter != null) expandedChapterUrl = chapter.id },
-                onMarkRead = {
-                    localChapter?.let { onSetChapterRead(it.id, !it.read) }
-                    expandedChapterUrl = null
-                },
-                onMarkPreviousRead = {
-                    localChapter?.let(onMarkPreviousAsRead)
-                    expandedChapterUrl = null
-                },
-            )
+@Composable
+private fun JumpToChapterDialog(onDismiss: () -> Unit, onJump: (Double) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(NightSession.RadiusMd), color = NightSession.Chip) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("Jump to chapter", color = NightSession.Text, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("Chapter number") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { text.toDoubleOrNull()?.let(onJump) }),
+                    colors = TextFieldDefaults.colors(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onDismiss) { Text("Cancel", color = NightSession.TextDim) }
+                    TextButton(onClick = { text.toDoubleOrNull()?.let(onJump) }) {
+                        Text("Go", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
     }
 }
@@ -625,6 +872,7 @@ private fun continueLabel(manga: MangaResponse, target: Chapter, hasAnyRead: Boo
 private fun ChapterRow(
     chapter: ChapterDto,
     localChapter: Chapter?,
+    showVersionBadge: Boolean,
     expanded: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -649,6 +897,20 @@ private fun ChapterRow(
                 color = if (isRead) NightSession.TextDim else NightSession.Text,
                 modifier = Modifier.weight(1f),
             )
+            if (showVersionBadge) {
+                Text(
+                    text = chapter.versionBadgeLabel(),
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NightSession.TextDim,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .clip(RoundedCornerShape(100))
+                        .background(NightSession.Chip)
+                        .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
             if (isRead) {
                 Text(text = "✓", fontSize = 11.sp, color = NightSession.Read)
             }

@@ -7,6 +7,8 @@ import com.mymonstervr.kawabi.data.network.dto.PageDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.domain.model.Chapter
+import com.mymonstervr.kawabi.domain.model.normalizedScanlator
+import com.mymonstervr.kawabi.domain.model.versionBadgeLabel
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
 import com.mymonstervr.kawabi.domain.repository.MangaRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,9 @@ sealed interface ReaderState {
         val hasMoreToAppend: Boolean,
     ) : ReaderState
     data class Error(val message: String) : ReaderState
+    // Chapter failed to load (or came back with no pages) and a same-numbered other
+    // version exists -- offer it instead of leaving the user stuck on a bare error.
+    data class ErrorWithAlternate(val message: String, val alternateChapterId: Long, val alternateLabel: String) : ReaderState
 }
 
 private const val UNKNOWN_CHAPTER_NUMBER = -1.0
@@ -74,6 +79,51 @@ class ReaderViewModel(
     private var siblingChapters: List<Chapter> = emptyList()
     private var loadedFor: Long? = null
 
+    // This manga's per-manga preferred scanlator (null = no preference / show both),
+    // snapshotted at load time like markReadOnScroll.
+    private var preferredScanlator: String? = null
+
+    // Set only by swapToAlternate() -- the chapter the user is reading because its
+    // preferred-version twin failed to load, not because they changed their preference.
+    // Transient and session-only: never written to the stored preference. nextOf/prevOf
+    // check this so the chapter AFTER the swapped one returns to the real preference
+    // instead of following the fallback's scanlator, which would otherwise make the
+    // fallback sticky -- the mirror image of the bug this whole feature fixes.
+    private var sessionOverrideChapterId: Long? = null
+
+    /**
+     * The chapter to advance to from [chapter]: the next distinct chapter NUMBER, then
+     * among that number's versions (if the source has more than one) the one matching,
+     * in order, the scanlator actually being read now, the manga's stored preference, or
+     * failing both a deterministic tiebreak. Keeps duplicate-numbered manga (e.g.
+     * MangaFire's official/unofficial pairs) advancing chapter-to-chapter instead of
+     * bouncing between one number's two versions.
+     */
+    private fun nextOf(chapter: Chapter): Chapter? = adjacentOf(chapter, forward = true)
+
+    private fun prevOf(chapter: Chapter): Chapter? = adjacentOf(chapter, forward = false)
+
+    private fun adjacentOf(chapter: Chapter, forward: Boolean): Chapter? {
+        val candidates = if (forward) {
+            siblingChapters.filter { it.chapterNumber > chapter.chapterNumber }
+        } else {
+            siblingChapters.filter { it.chapterNumber < chapter.chapterNumber }
+        }
+        if (candidates.isEmpty()) return null
+        val targetNumber = if (forward) candidates.minOf { it.chapterNumber } else candidates.maxOf { it.chapterNumber }
+        val atNumber = candidates.filter { it.chapterNumber == targetNumber }
+        if (atNumber.size == 1) return atNumber.single()
+
+        val referenceScanlator = if (chapter.id == sessionOverrideChapterId) {
+            preferredScanlator.normalizedScanlator()
+        } else {
+            chapter.scanlator.normalizedScanlator()
+        }
+        return atNumber.firstOrNull { it.scanlator.normalizedScanlator() == referenceScanlator }
+            ?: atNumber.firstOrNull { it.scanlator.normalizedScanlator() == preferredScanlator.normalizedScanlator() }
+            ?: atNumber.minByOrNull { it.sourceOrder }
+    }
+
     // Tracks the latest position so onCleared() can flush it synchronously. A write
     // launched on viewModelScope can't be trusted to land here: leaving the reader pops
     // the nav back-stack entry, which clears viewModelScope, and any write not yet
@@ -82,7 +132,15 @@ class ReaderViewModel(
     // one place guaranteed to run exactly once as this ViewModel actually goes away, so
     // the final write happens there instead, blocking briefly since viewModelScope is no
     // longer usable by that point.
-    private var lastKnownProgress: Triple<Long, Int, Int>? = null
+    //
+    // reachedEnd is computed by the caller (ReaderScreen), not derived here from
+    // index/totalPages alone -- a bare `index == totalPages - 1` is true the instant a
+    // single-page chapter opens, or the instant a tall webtoon strip's TOP edge scrolls
+    // into view, both of which used to mark the chapter read before it was actually
+    // finished. The caller decides what "reached the end" really means for its reading
+    // mode (bottom-edge visibility in vertical mode, arrival-not-start in paged mode).
+    private data class ReaderProgress(val chapterId: Long, val index: Int, val totalPages: Int, val reachedEnd: Boolean)
+    private var lastKnownProgress: ReaderProgress? = null
 
     fun load(chapterId: Long) {
         if (loadedFor == chapterId) return
@@ -102,17 +160,21 @@ class ReaderViewModel(
             mangaSource = manga.source
             mangaId = manga.id
             markReadOnScroll = preferences.markReadOnScroll.first()
+            preferredScanlator = preferences.preferredScanlator(manga.url).first()
             siblingChapters = chapterRepository.getForManga(chapter.mangaId)
                 .filter { it.chapterNumber != UNKNOWN_CHAPTER_NUMBER }
                 .sortedBy { it.chapterNumber }
 
-            val myIndex = siblingChapters.indexOfFirst { it.id == chapterId }
-            val prevChapterId = siblingChapters.getOrNull(myIndex - 1)?.id
-            val nextChapterId = siblingChapters.getOrNull(myIndex + 1)?.id
+            val prevChapterId = prevOf(chapter)?.id
+            val nextChapterId = nextOf(chapter)?.id
 
             sourceApi.getPages(manga.source, chapter.url)
                 .onSuccess { pages ->
-                    val start = if (pages.isEmpty()) 0 else chapter.lastPageRead.coerceIn(0, pages.size - 1)
+                    if (pages.isEmpty()) {
+                        onChapterUnavailable(chapter, "No pages found for this chapter")
+                        return@onSuccess
+                    }
+                    val start = chapter.lastPageRead.coerceIn(0, pages.size - 1)
                     val section = ChapterSection(chapter.id, chapterLabel(chapter), pages)
                     _state.value = ReaderState.Success(
                         sections = listOf(section),
@@ -122,8 +184,30 @@ class ReaderViewModel(
                         hasMoreToAppend = nextChapterId != null,
                     )
                 }
-                .onFailure { _state.value = ReaderState.Error(it.message ?: "Failed to load pages") }
+                .onFailure { onChapterUnavailable(chapter, it.message ?: "Failed to load pages") }
         }
+    }
+
+    // Called when a chapter's pages fail to load or come back empty. If another version
+    // of the same chapter number exists (the MangaFire-style official/unofficial case),
+    // offer it as a one-tap alternative instead of leaving the user stuck.
+    private fun onChapterUnavailable(chapter: Chapter, message: String) {
+        val alternate = siblingChapters.firstOrNull {
+            it.chapterNumber == chapter.chapterNumber && it.id != chapter.id
+        }
+        _state.value = if (alternate != null) {
+            ReaderState.ErrorWithAlternate(message, alternate.id, alternate.versionBadgeLabel())
+        } else {
+            ReaderState.Error(message)
+        }
+    }
+
+    // Fallback swap from ErrorWithAlternate -- transient, per-chapter, never persisted
+    // as the manga's preference (see sessionOverrideChapterId's doc above).
+    fun swapToAlternate(chapterId: Long) {
+        sessionOverrideChapterId = chapterId
+        loadedFor = null
+        load(chapterId)
     }
 
     /**
@@ -134,8 +218,8 @@ class ReaderViewModel(
         val current = _state.value as? ReaderState.Success ?: return
         if (_isLoadingNext.value || !current.hasMoreToAppend) return
         val lastSection = current.sections.last()
-        val lastSiblingIndex = siblingChapters.indexOfFirst { it.id == lastSection.chapterId }
-        val next = siblingChapters.getOrNull(lastSiblingIndex + 1)
+        val lastSiblingChapter = siblingChapters.firstOrNull { it.id == lastSection.chapterId } ?: return
+        val next = nextOf(lastSiblingChapter)
         if (next == null) {
             _state.value = current.copy(hasMoreToAppend = false)
             return
@@ -144,8 +228,7 @@ class ReaderViewModel(
             _isLoadingNext.value = true
             sourceApi.getPages(mangaSource, next.url)
                 .onSuccess { pages ->
-                    val nextSiblingIndex = siblingChapters.indexOfFirst { it.id == next.id }
-                    val hasMore = siblingChapters.getOrNull(nextSiblingIndex + 1) != null
+                    val hasMore = nextOf(next) != null
                     val newSection = ChapterSection(next.id, chapterLabel(next), pages)
                     val stillCurrent = _state.value as? ReaderState.Success
                     if (stillCurrent != null) {
@@ -164,37 +247,26 @@ class ReaderViewModel(
 
     // In-memory only, called on every scroll tick so onCleared() always has the true
     // latest position even if the user leaves mid-scroll, before onPageChanged's own
-    // last-page/debounce conditions ever fire.
-    fun trackPosition(chapterId: Long, index: Int, totalPages: Int) {
+    // debounce ever fires.
+    fun trackPosition(chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) {
         if (totalPages == 0) return
-        lastKnownProgress = Triple(chapterId, index, totalPages)
+        lastKnownProgress = ReaderProgress(chapterId, index, totalPages, reachedEnd)
     }
 
-    fun onPageChanged(chapterId: Long, index: Int, totalPages: Int) {
+    fun onPageChanged(chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) {
         if (totalPages == 0) return
-        lastKnownProgress = Triple(chapterId, index, totalPages)
+        lastKnownProgress = ReaderProgress(chapterId, index, totalPages, reachedEnd)
         viewModelScope.launch {
-            val isLastPage = index == totalPages - 1
-            chapterRepository.setProgress(chapterId, read = isLastPage && markReadOnScroll, lastPageRead = index)
-            mangaRepository.touchLastRead(mangaId, System.currentTimeMillis())
-        }
-    }
-
-    fun markChapterFinished(chapterId: Long, totalPages: Int) {
-        if (totalPages == 0) return
-        lastKnownProgress = Triple(chapterId, totalPages - 1, totalPages)
-        viewModelScope.launch {
-            chapterRepository.setProgress(chapterId, read = true, lastPageRead = totalPages - 1)
+            chapterRepository.setProgress(chapterId, read = reachedEnd && markReadOnScroll, lastPageRead = index)
             mangaRepository.touchLastRead(mangaId, System.currentTimeMillis())
         }
     }
 
     override fun onCleared() {
         super.onCleared()
-        val (chapterId, index, totalPages) = lastKnownProgress ?: return
-        val isLastPage = index == totalPages - 1
+        val progress = lastKnownProgress ?: return
         runBlocking {
-            chapterRepository.setProgress(chapterId, read = isLastPage && markReadOnScroll, lastPageRead = index)
+            chapterRepository.setProgress(progress.chapterId, read = progress.reachedEnd && markReadOnScroll, lastPageRead = progress.index)
             mangaRepository.touchLastRead(mangaId, System.currentTimeMillis())
         }
     }

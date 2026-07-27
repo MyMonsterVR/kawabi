@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -79,6 +80,12 @@ private enum class ReaderMode(val label: String) {
 // index tick -- dozens of writes per second, which is what made scrolling janky.
 private const val PROGRESS_WRITE_DEBOUNCE_MS = 400L
 
+// A page counts as "reached" once its bottom edge is within this much of the viewport's
+// bottom edge -- not only when it's pixel-perfect at the very bottom. Without slack, a
+// device where the last image ends a hair short of the viewport (rounding, a sliver of
+// next-chapter padding already composed) would never satisfy an exact equality check.
+private val BOTTOM_REACHED_SLACK_DP = 48.dp
+
 // How long the "now reading Chapter N" banner stays up after crossing into a new
 // chapter during continuous vertical scrolling.
 private const val CHAPTER_BANNER_DURATION_MS = 1800L
@@ -94,6 +101,13 @@ private sealed interface FlatItem {
     data class ChapterDivider(val sectionIndex: Int, val label: String) : FlatItem {
         override val key get() = "divider:$sectionIndex"
     }
+}
+
+// True once the item at `index`'s bottom edge has scrolled up to within `slackPx` of the
+// viewport's bottom edge -- i.e. you've actually seen the whole item, not just its top.
+private fun androidx.compose.foundation.lazy.LazyListLayoutInfo.itemReachedBottom(index: Int, slackPx: Float): Boolean {
+    val info = visibleItemsInfo.firstOrNull { it.index == index } ?: return false
+    return info.offset + info.size <= viewportEndOffset + slackPx
 }
 
 private fun buildFlatItems(sections: List<ChapterSection>): List<FlatItem> = buildList {
@@ -144,6 +158,18 @@ fun ReaderScreen(
             }
             is ReaderState.Error -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text(text = current.message, color = MaterialTheme.colorScheme.error)
+            }
+            is ReaderState.ErrorWithAlternate -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = current.message, color = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TextButton(onClick = { viewModel.swapToAlternate(current.alternateChapterId) }) {
+                        Text(
+                            "Read the ${current.alternateLabel} version instead?",
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
             is ReaderState.Success -> {
                 if (mode == ReaderMode.VERTICAL) {
@@ -212,11 +238,12 @@ private fun ContinuousVerticalScreen(
     isLoadingNext: Boolean,
     chromeVisible: Boolean,
     onToggleChrome: () -> Unit,
-    onPageChanged: (chapterId: Long, index: Int, totalPages: Int) -> Unit,
-    onTrackPosition: (chapterId: Long, index: Int, totalPages: Int) -> Unit,
+    onPageChanged: (chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) -> Unit,
+    onTrackPosition: (chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) -> Unit,
     onNeedNext: () -> Unit,
 ) {
     val sections = current.sections
+    val slackPx = with(LocalDensity.current) { BOTTOM_REACHED_SLACK_DP.toPx() }
     val flatItems = remember(sections) { buildFlatItems(sections) }
     // Section 0 (the chapter this screen was opened on) has no divider before it, so its
     // page indices map 1:1 onto flat indices -- current.startPage IS the flat index to
@@ -253,16 +280,22 @@ private fun ContinuousVerticalScreen(
                 if (item.sectionIndex > currentSectionIndex) {
                     for (i in currentSectionIndex until item.sectionIndex) {
                         val finished = latestSections[i]
-                        onPageChanged(finished.chapterId, finished.pages.lastIndex, finished.pages.size)
+                        onPageChanged(finished.chapterId, finished.pages.lastIndex, finished.pages.size, true)
                     }
                     currentSectionIndex = item.sectionIndex
                     bannerLabel = latestSections[item.sectionIndex].chapterLabel
                 }
                 currentPageInSection = item.pageIndexInSection
                 val section = latestSections[item.sectionIndex]
-                onTrackPosition(section.chapterId, item.pageIndexInSection, section.pages.size)
-                if (item.pageIndexInSection == section.pages.lastIndex) {
-                    onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size)
+                // Reached-end requires the last page's BOTTOM edge to actually be visible
+                // (or nothing left below at all to scroll to) -- not just that its top has
+                // scrolled into view, which used to fire the instant a tall webtoon strip's
+                // final image appeared, long before its bottom was ever seen.
+                val reachedEnd = item.pageIndexInSection == section.pages.lastIndex &&
+                    (listState.layoutInfo.itemReachedBottom(flatIndex, slackPx) || !listState.canScrollForward)
+                onTrackPosition(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
+                if (reachedEnd) {
+                    onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, true)
                 }
             }
         }
@@ -270,7 +303,9 @@ private fun ContinuousVerticalScreen(
             positions.debounce(PROGRESS_WRITE_DEBOUNCE_MS).collect { flatIndex ->
                 val item = latestFlatItems.getOrNull(flatIndex) as? FlatItem.PageItem ?: return@collect
                 val section = latestSections[item.sectionIndex]
-                onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size)
+                val reachedEnd = item.pageIndexInSection == section.pages.lastIndex &&
+                    (listState.layoutInfo.itemReachedBottom(flatIndex, slackPx) || !listState.canScrollForward)
+                onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
             }
         }
     }
@@ -433,8 +468,8 @@ private fun PagedChapterScreen(
     chromeVisible: Boolean,
     scope: kotlinx.coroutines.CoroutineScope,
     onToggleChrome: () -> Unit,
-    onPageChanged: (chapterId: Long, index: Int, totalPages: Int) -> Unit,
-    onTrackPosition: (chapterId: Long, index: Int, totalPages: Int) -> Unit,
+    onPageChanged: (chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) -> Unit,
+    onTrackPosition: (chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) -> Unit,
     onPrevChapter: () -> Unit,
     onNextChapter: () -> Unit,
 ) {
@@ -442,19 +477,28 @@ private fun PagedChapterScreen(
     val pages = section.pages
     val pagerState = rememberPagerState(initialPage = current.startPage) { pages.size }
     var currentPage by remember(section.chapterId) { mutableIntStateOf(current.startPage) }
+    // In paged mode the whole page is already visible on screen (ContentScale.Fit), so
+    // arriving at the last page is a real "reached end" signal -- except when the chapter
+    // opens with the last page already showing (a single-page chapter, or resuming a
+    // chapter you'd already finished before). "Reached" there requires either genuinely
+    // being a single-page chapter (nothing more to swipe to, so opening it IS reading it)
+    // or having actually paged there rather than opened on it.
+    val latestStartPage by rememberUpdatedState(current.startPage)
 
     LaunchedEffect(pagerState) {
         val positions = snapshotFlow { pagerState.currentPage }
         launch {
             positions.collect { index ->
                 currentPage = index
-                onTrackPosition(section.chapterId, index, pages.size)
-                if (index == pages.lastIndex) onPageChanged(section.chapterId, index, pages.size)
+                val reachedEnd = index == pages.lastIndex && (pages.size == 1 || index != latestStartPage)
+                onTrackPosition(section.chapterId, index, pages.size, reachedEnd)
+                if (reachedEnd) onPageChanged(section.chapterId, index, pages.size, true)
             }
         }
         launch {
             positions.debounce(PROGRESS_WRITE_DEBOUNCE_MS).collect { index ->
-                onPageChanged(section.chapterId, index, pages.size)
+                val reachedEnd = index == pages.lastIndex && (pages.size == 1 || index != latestStartPage)
+                onPageChanged(section.chapterId, index, pages.size, reachedEnd)
             }
         }
     }

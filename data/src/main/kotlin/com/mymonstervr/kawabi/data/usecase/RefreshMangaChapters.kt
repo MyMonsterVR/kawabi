@@ -31,6 +31,7 @@ class RefreshMangaChapters(
                 name = dto.title,
                 chapterNumber = dto.number,
                 dateUpload = dto.date_upload ?: 0L,
+                scanlator = dto.scanlator?.trim()?.ifBlank { null },
             )
         }
 

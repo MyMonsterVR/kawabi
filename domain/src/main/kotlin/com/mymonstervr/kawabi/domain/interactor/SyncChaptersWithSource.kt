@@ -11,8 +11,7 @@ private const val UNKNOWN_CHAPTER_NUMBER = -1.0
 
 /**
  * Diffs a manga's locally stored chapters against a fresh listing from a source.
- * Trimmed for v1: no download-folder renaming, no scanlator-exclusion filtering (the
- * backend doesn't send per-chapter scanlator yet), no fetch-interval bookkeeping (step 9).
+ * Trimmed for v1: no download-folder renaming, no fetch-interval bookkeeping (step 9).
  *
  * Companion-level lock map (not instance-level) because this interactor is
  * constructed fresh per call site -- a shared map is the only thing that actually
@@ -46,7 +45,8 @@ class SyncChaptersWithSource(
             val changed = current.name != sourceChapter.name ||
                 current.chapterNumber != sourceChapter.chapterNumber ||
                 current.dateUpload != sourceChapter.dateUpload ||
-                current.sourceOrder != index
+                current.sourceOrder != index ||
+                current.scanlator != sourceChapter.scanlator
             if (changed) current to (sourceChapter to index) else null
         }
 
@@ -54,11 +54,14 @@ class SyncChaptersWithSource(
             return emptyList()
         }
 
-        // Re-upload detection: a "new" chapter whose number matches a chapter that just
-        // got removed in this same sync inherits its read state instead of appearing as new.
+        // Re-upload detection: a "new" chapter whose (number, scanlator) matches a chapter
+        // that just got removed in this same sync inherits its read state instead of
+        // appearing as new. Keyed on the pair, not just number -- MangaFire-style manga
+        // carry two versions per number (official/unofficial), and number-only keying
+        // would silently hand one twin's read state to the other.
         val carryoverByNumber = removedChapters
             .filter { it.chapterNumber != UNKNOWN_CHAPTER_NUMBER }
-            .associateBy { it.chapterNumber }
+            .associateBy { it.chapterNumber to it.scanlator }
 
         val now = System.currentTimeMillis()
         var fetchOffset = newEntries.size
@@ -66,14 +69,14 @@ class SyncChaptersWithSource(
 
         for ((url, entry) in newEntries) {
             val (sourceChapter, index) = entry
-            val carryover = carryoverByNumber[sourceChapter.chapterNumber]
+            val carryover = carryoverByNumber[sourceChapter.chapterNumber to sourceChapter.scanlator]
 
             val chapter = Chapter(
                 id = 0,
                 mangaId = mangaId,
                 url = url,
                 name = sourceChapter.name,
-                scanlator = null,
+                scanlator = sourceChapter.scanlator,
                 read = carryover?.read ?: false,
                 bookmark = carryover?.bookmark ?: false,
                 lastPageRead = carryover?.lastPageRead ?: 0,
@@ -94,7 +97,7 @@ class SyncChaptersWithSource(
             chapterRepository.updateDetails(
                 id = current.id,
                 name = sourceChapter.name,
-                scanlator = current.scanlator,
+                scanlator = sourceChapter.scanlator,
                 chapterNumber = sourceChapter.chapterNumber,
                 sourceOrder = index,
                 dateUpload = sourceChapter.dateUpload,
