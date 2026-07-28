@@ -54,8 +54,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
-import coil3.request.allowHardware
 import coil3.request.maxBitmapSize
 import coil3.size.Size
 import com.mymonstervr.kawabi.data.network.dto.PageDto
@@ -363,14 +363,26 @@ private fun ContinuousVerticalScreen(
                         // Capped, not unconditional fillMaxWidth -- a webtoon page
                         // stretched across a 10"+ tablet reads worse than one capped to a
                         // sane reading width and centered; a phone never hits this cap.
-                        is FlatItem.PageItem -> AsyncImage(
-                            model = pageImageRequest(resolveImageUrl(item.page.proxied_image_url)),
-                            contentDescription = null,
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth()
-                                .widthIn(max = READER_MAX_PAGE_WIDTH * LocalKawabiScale.current.spacing)
-                                .defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT),
-                        )
+                        is FlatItem.PageItem -> {
+                            // The min-height placeholder must only hold space open before
+                            // the real image reports its size -- some sources (confirmed:
+                            // MangaFire official chapters) split one tall panel across
+                            // several page files, each individually much shorter than a
+                            // normal page. A permanent floor here left dead black space
+                            // below every such fragment once it *had* loaded, which read as
+                            // "the image is split/missing a chunk" -- the actual content
+                            // was just a sliver at the top of an oversized empty box.
+                            var hasLoaded by remember(item.key) { mutableStateOf(false) }
+                            AsyncImage(
+                                model = pageImageRequest(resolveImageUrl(item.page.proxied_image_url)),
+                                contentDescription = null,
+                                contentScale = ContentScale.FillWidth,
+                                onState = { state -> hasLoaded = state is AsyncImagePainter.State.Success },
+                                modifier = Modifier.fillMaxWidth()
+                                    .widthIn(max = READER_MAX_PAGE_WIDTH * LocalKawabiScale.current.spacing)
+                                    .then(if (hasLoaded) Modifier else Modifier.defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT)),
+                            )
+                        }
                         is FlatItem.ChapterDivider -> ChapterDividerRow(item.label)
                     }
                 }
@@ -624,20 +636,32 @@ private val READER_MAX_PAGE_WIDTH = 720.dp
 // AsyncImage normally sizes its decode to the composable's measured constraints (here,
 // screen width) to save memory -- Size.ORIGINAL overrides that. But Coil3 also caps
 // *output* dimensions at 4096x4096 by default regardless of the requested size (its own
-// OOM guard) -- some AsuraScans "pages" are actually ultra-tall webtoon-style strips
-// (confirmed one at 900x16000px), which that cap silently downsamples ~4x.
-// allowHardware(false) avoids a second, separate limit: Android's GPU-backed Canvas has
-// its own max texture size (~4096-8192px depending on the device), which a 16000px-tall
-// hardware bitmap can exceed; software bitmaps aren't bound by it, only by heap.
+// OOM guard) -- some pages (AsuraScans webtoon strips, but also seen on other sources'
+// tall/high-res pages) exceed that.
 //
-// maxBitmapSize is raised, not disabled entirely: page dimensions ultimately come from
-// wherever /image's `src` is pointed, and with the backend's catalog routes now
-// login-optional, an attacker doesn't need an account to make this app decode whatever
-// that param resolves to. An uncapped decode turns a maliciously-declared huge image into
-// an unbounded-allocation DoS. This ceiling comfortably covers the tallest real content
-// seen (16000px) with headroom, while still bounding the worst case.
+// Previously this raised the cap to 24000px tall and forced allowHardware(false)
+// (software bitmaps), reasoning that software bitmaps aren't bound by the GPU's texture
+// size limit the way hardware bitmaps are. That was wrong in practice: Compose's own
+// render pipeline is hardware-accelerated regardless of the *decoded* bitmap's config --
+// drawing a bitmap taller than the GPU's max texture size (commonly ~4096-8192px) still
+// has to composite it through that pipeline, and a bitmap decoded far past that limit
+// showed up as a black band or a visibly split/torn image instead of a decode crash.
+// allowHardware(false) just moved the failure from decode-time to draw-time and made it
+// silent. Capping the decode itself to a size that's safe to actually render, and letting
+// Coil use hardware bitmaps (default, and far cheaper on RAM than software), fixes both
+// the corruption and the memory pressure that came with always decoding in software.
+//
+// maxBitmapSize is set explicitly (matching, not exceeding, Coil's own 4096 default) so
+// this stays intentional rather than silently inheriting whatever Coil's default happens
+// to be. 8192 was tried first and still produced a black band splitting a page on a real
+// device, meaning its actual GPU max texture size is below that -- 4096 is the
+// widely-supported safe floor across real Android GPUs (Coil's own default exists for
+// exactly this reason). Page dimensions ultimately come from wherever /image's `src` is
+// pointed, and with the backend's catalog routes now login-optional, an attacker doesn't
+// need an account to make this app decode whatever that param resolves to -- a cap here
+// (rather than uncapped) also bounds that as an unbounded-allocation DoS.
 private const val PAGE_MAX_BITMAP_WIDTH = 2048
-private const val PAGE_MAX_BITMAP_HEIGHT = 24000
+private const val PAGE_MAX_BITMAP_HEIGHT = 4096
 
 @Composable
 private fun pageImageRequest(url: String): ImageRequest {
@@ -646,6 +670,5 @@ private fun pageImageRequest(url: String): ImageRequest {
         .data(url)
         .size(Size.ORIGINAL)
         .maxBitmapSize(Size(PAGE_MAX_BITMAP_WIDTH, PAGE_MAX_BITMAP_HEIGHT))
-        .allowHardware(false)
         .build()
 }
