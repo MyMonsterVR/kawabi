@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.dto.SearchResultDto
+import com.mymonstervr.kawabi.data.network.dto.SourceToggleDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,19 @@ class SearchViewModel(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // Chip row for Browse -- logged out getSources() just returns nothing, so
+    // chips silently don't render rather than surfacing an error state.
+    private val _sources = MutableStateFlow<List<SourceToggleDto>>(emptyList())
+    val sources: StateFlow<List<SourceToggleDto>> = _sources.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            sourceApi.getSources().onSuccess { response ->
+                _sources.value = response.sources.filter { it.enabled }
+            }
+        }
+    }
 
     fun onQueryChange(value: String) {
         _query.value = value

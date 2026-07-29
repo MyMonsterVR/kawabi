@@ -2,21 +2,19 @@ package com.mymonstervr.kawabi.app.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -37,28 +35,28 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
-import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
+import com.mymonstervr.kawabi.app.common.MangaGridCard
+import com.mymonstervr.kawabi.app.common.NightChip
 import com.mymonstervr.kawabi.app.theme.NightSession
-import com.mymonstervr.kawabi.data.network.dto.SearchResultDto
-import com.mymonstervr.kawabi.data.network.resolveCoverUrl
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = koinViewModel()) {
+fun SearchScreen(
+    onResultClick: (String) -> Unit,
+    onBrowseClick: (String) -> Unit,
+    viewModel: SearchViewModel = koinViewModel(),
+) {
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val error by viewModel.error.collectAsState()
     val gridColumns by viewModel.gridColumns.collectAsState()
+    val sources by viewModel.sources.collectAsState()
 
     Scaffold(
         containerColor = NightSession.Background,
@@ -95,6 +93,18 @@ fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = k
                 )
             }
 
+            if (sources.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                ) {
+                    items(sources, key = { it.key }) { source ->
+                        NightChip(label = source.name, onClick = { onBrowseClick(source.key) })
+                    }
+                }
+            }
+
             when {
                 isSearching -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -113,45 +123,11 @@ fun SearchScreen(onResultClick: (String) -> Unit, viewModel: SearchViewModel = k
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(results, key = { it.url }) { result ->
-                        SearchResultCard(result = result, onClick = { onResultClick(result.url) })
+                        MangaGridCard(result = result, onClick = { onResultClick(result.url) })
                     }
                 }
             }
         }
         }
-    }
-}
-
-@Composable
-private fun SearchResultCard(result: SearchResultDto, onClick: () -> Unit) {
-    val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
-        AsyncImage(
-            model = resolveCoverUrl(result.cover_url),
-            contentDescription = result.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(NightSession.RadiusMd))
-                .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
-                .background(NightSession.Cover),
-        )
-        Spacer(modifier = Modifier.height(5.dp * scale.spacing))
-        Text(
-            text = result.title,
-            fontSize = 10.5.sp * scale.font,
-            fontWeight = FontWeight.SemiBold,
-            color = NightSession.Text,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = result.source_name,
-            fontSize = 9.sp * scale.font,
-            color = NightSession.TextDim,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }

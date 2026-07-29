@@ -1,6 +1,7 @@
 package com.mymonstervr.kawabi.app.di
 
 import com.mymonstervr.kawabi.app.auth.LoginViewModel
+import com.mymonstervr.kawabi.app.browse.BrowseViewModel
 import com.mymonstervr.kawabi.app.detail.MangaDetailViewModel
 import com.mymonstervr.kawabi.app.library.LibraryViewModel
 import com.mymonstervr.kawabi.app.reader.ReaderViewModel
@@ -18,6 +19,7 @@ val appModule = module {
     viewModel { LibraryViewModel(get(), get(), get()) }
     viewModel { LoginViewModel(get(), get(), get(), get()) }
     viewModel { SearchViewModel(get(), get()) }
+    viewModel { BrowseViewModel(get(), get()) }
     viewModel { MangaDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { ReaderViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }

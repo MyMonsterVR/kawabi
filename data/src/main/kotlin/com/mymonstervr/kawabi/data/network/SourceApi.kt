@@ -2,6 +2,7 @@ package com.mymonstervr.kawabi.data.network
 
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.network.dto.AltTitlesResponse
+import com.mymonstervr.kawabi.data.network.dto.BrowseResponse
 import com.mymonstervr.kawabi.data.network.dto.MangaResponse
 import com.mymonstervr.kawabi.data.network.dto.MangaSourcesResponse
 import com.mymonstervr.kawabi.data.network.dto.PageDto
@@ -66,6 +67,19 @@ class SourceApi(
         runCatching {
             val request = requestFor("search") { addQueryParameter("q", query) }
             executeWithRetry(request, SearchResponse.serializer(), longReadClient)
+        }
+    }
+
+    // Same fan-out-vs-timeout reasoning as search() -- a single-source listing is
+    // normally fast, but reuses the long-read client for consistency and headroom.
+    suspend fun browse(source: String, sort: String, page: Int): Result<BrowseResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val request = requestFor("browse") {
+                addQueryParameter("source", source)
+                addQueryParameter("sort", sort)
+                addQueryParameter("page", page.toString())
+            }
+            executeWithRetry(request, BrowseResponse.serializer(), longReadClient)
         }
     }
 

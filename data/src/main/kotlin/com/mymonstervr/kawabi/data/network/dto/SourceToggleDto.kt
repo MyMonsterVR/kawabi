@@ -12,6 +12,7 @@ data class SourceToggleDto(
     val key: String,
     val name: String,
     val enabled: Boolean,
+    val supports_latest: Boolean = true,
 )
 
 @Serializable

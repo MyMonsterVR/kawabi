@@ -27,6 +27,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mymonstervr.kawabi.app.auth.LoginScreen
+import com.mymonstervr.kawabi.app.browse.BrowseScreen
 import com.mymonstervr.kawabi.app.detail.MangaDetailScreen
 import com.mymonstervr.kawabi.app.library.LibraryScreen
 import com.mymonstervr.kawabi.app.reader.ReaderScreen
@@ -45,8 +46,10 @@ private const val ROUTE_TRACKING = "tracking"
 private const val ROUTE_LOGIN = "login"
 private const val ROUTE_MANGA_DETAIL = "manga/{url}"
 private const val ROUTE_READER = "reader/{chapterId}"
+private const val ROUTE_BROWSE = "browse/{sourceKey}"
 private const val ARG_URL = "url"
 private const val ARG_CHAPTER_ID = "chapterId"
+private const val ARG_SOURCE_KEY = "sourceKey"
 
 private data class BottomNavItem(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector)
 
@@ -78,6 +81,10 @@ private fun androidx.navigation.NavController.popBackStackSafe() {
 
 private fun navigateToMangaDetail(navController: androidx.navigation.NavController, url: String) {
     navController.navigateSafe("manga/${Uri.encode(url)}")
+}
+
+private fun navigateToBrowse(navController: androidx.navigation.NavController, sourceKey: String) {
+    navController.navigateSafe("browse/${Uri.encode(sourceKey)}")
 }
 
 private fun navigateToReader(navController: androidx.navigation.NavController, chapterId: Long) {
@@ -147,6 +154,7 @@ fun KawabiApp() {
             composable(ROUTE_SEARCH) {
                 SearchScreen(
                     onResultClick = { url -> navigateToMangaDetail(navController, url) },
+                    onBrowseClick = { sourceKey -> navigateToBrowse(navController, sourceKey) },
                 )
             }
             composable(ROUTE_LOGIN) {
@@ -179,6 +187,17 @@ fun KawabiApp() {
                     onBack = { navController.popBackStackSafe() },
                     onChapterClick = { chapterId -> navigateToReader(navController, chapterId) },
                     onOpenTrackingSettings = { navController.navigateSafe(ROUTE_TRACKING) },
+                )
+            }
+            composable(
+                route = ROUTE_BROWSE,
+                arguments = listOf(navArgument(ARG_SOURCE_KEY) { type = NavType.StringType }),
+            ) { entry ->
+                val sourceKey = Uri.decode(entry.arguments?.getString(ARG_SOURCE_KEY).orEmpty())
+                BrowseScreen(
+                    sourceKey = sourceKey,
+                    onBack = { navController.popBackStackSafe() },
+                    onResultClick = { url -> navigateToMangaDetail(navController, url) },
                 )
             }
             composable(

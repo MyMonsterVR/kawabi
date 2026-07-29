@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.mymonstervr.kawabi.app.common.NightChip
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
@@ -221,26 +222,6 @@ fun LibraryScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun NightChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val scale = LocalKawabiScale.current
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(100))
-            .background(if (selected) MaterialTheme.colorScheme.primary else NightSession.Chip)
-            .border(1.dp, if (selected) androidx.compose.ui.graphics.Color.Transparent else NightSession.Hairline, RoundedCornerShape(100))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp * scale.spacing, vertical = 6.dp * scale.spacing),
-    ) {
-        Text(
-            text = label,
-            fontSize = 11.sp * scale.font,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) NightSession.OnAccent else NightSession.TextDim,
-        )
     }
 }
 
