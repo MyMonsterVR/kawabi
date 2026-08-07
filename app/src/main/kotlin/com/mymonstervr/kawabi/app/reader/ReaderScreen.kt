@@ -55,6 +55,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
+import coil3.imageLoader
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.maxBitmapSize
 import coil3.size.Size
@@ -85,6 +87,16 @@ private const val PROGRESS_WRITE_DEBOUNCE_MS = 400L
 // device where the last image ends a hair short of the viewport (rounding, a sliver of
 // next-chapter padding already composed) would never satisfy an exact equality check.
 private val BOTTOM_REACHED_SLACK_DP = 48.dp
+
+// How many pages of a newly-appended chapter to warm Coil's cache for ahead of the
+// scroll reaching them. Small on purpose -- this is a head start for the pages the
+// user hits first, not a bulk-download of the whole chapter.
+private const val PREFETCH_PAGE_COUNT = 4
+
+// Deliberately tiny -- the prefetch request has no target, so whatever gets decoded is
+// discarded immediately. This only exists to keep that throwaway decode cheap; the real
+// decode at full page size happens later when AsyncImage actually renders the page.
+private val PREFETCH_DECODE_SIZE = Size(64, 64)
 
 // How long the "now reading Chapter N" banner stays up after crossing into a new
 // chapter during continuous vertical scrolling.
@@ -243,6 +255,7 @@ private fun ContinuousVerticalScreen(
     onNeedNext: () -> Unit,
 ) {
     val sections = current.sections
+    val context = LocalContext.current
     val slackPx = with(LocalDensity.current) { BOTTOM_REACHED_SLACK_DP.toPx() }
     val flatItems = remember(sections) { buildFlatItems(sections) }
     // Section 0 (the chapter this screen was opened on) has no divider before it, so its
@@ -327,6 +340,40 @@ private fun ContinuousVerticalScreen(
             val lastVisible = layout.visibleItemsInfo.lastOrNull() ?: return@snapshotFlow false
             lastVisible.index >= layout.totalItemsCount - 3
         }.collect { nearEnd -> if (nearEnd) onNeedNext() }
+    }
+
+    // Appending a chapter's pages (loadNextSection) only fetches the page URL LIST --
+    // the actual image bytes still weren't requested until AsyncImage for that page
+    // composed, which only happens once it scrolls near-visible. That's what made the
+    // first pages of a new chapter visibly spinner-load for a few seconds even though
+    // the URL list had been sitting ready for a while. A new section only ever appears
+    // via append (never replaces sections.last()), so keying off sections.size fires
+    // this once per newly-arrived chapter (it can also re-fire harmlessly on a
+    // composition restart, e.g. rotation -- disk cache hit, no real cost).
+    //
+    // Disk-cache-only on purpose: fetching at full page size with the memory cache on
+    // would decode up to PREFETCH_PAGE_COUNT full webtoon-strip bitmaps (tens of MB
+    // each) right as the user is mid-scroll, which pressures Coil's memory cache hard
+    // enough to evict the pages actually on screen -- the opposite of the goal. The
+    // spinner is a network-latency problem, not a decode problem, so warming the disk
+    // cache (bytes only, no bitmap kept around) gets the win without the cost; the real
+    // AsyncImage decode still happens once the page scrolls into view, just from a warm
+    // disk cache instead of over the network.
+    LaunchedEffect(sections.size) {
+        if (sections.size <= 1) return@LaunchedEffect
+        val newSection = sections.last()
+        newSection.pages.take(PREFETCH_PAGE_COUNT).forEach { page ->
+            context.imageLoader.enqueue(
+                ImageRequest.Builder(context)
+                    .data(resolveImageUrl(page.proxied_image_url))
+                    .memoryCachePolicy(CachePolicy.DISABLED)
+                    // No target means the decoded bitmap is discarded either way -- keep
+                    // the decode itself cheap rather than decoding at full page size for
+                    // nothing.
+                    .size(PREFETCH_DECODE_SIZE)
+                    .build()
+            )
+        }
     }
 
     // Dragging the slider only seeks within the CURRENT chapter -- there's no single
