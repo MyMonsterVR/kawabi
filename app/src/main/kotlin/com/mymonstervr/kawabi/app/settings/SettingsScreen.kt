@@ -6,14 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +26,7 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -83,64 +85,70 @@ fun SettingsScreen(
             modifier = Modifier.background(NightSession.Background),
         ) {
             item {
-                SettingsRow(
-                    title = "Account",
-                    subtitle = if (isLoggedIn) "Synced" else "Not logged in / Local library only",
-                    onClick = onAccountClick,
-                )
-                HorizontalDivider(color = NightSession.Hairline)
-                SettingsRow(title = "Sources", subtitle = "Enable or disable catalog sources", onClick = onSourcesClick)
-                HorizontalDivider(color = NightSession.Hairline)
-                SettingsRow(title = "Backup & Restore", subtitle = "Export or import your library as JSON", onClick = onBackupClick)
-                HorizontalDivider(color = NightSession.Hairline)
-                SettingsRow(title = "Tracking services", subtitle = "Connect MyAnimeList or Kitsu", onClick = onTrackingClick)
-                HorizontalDivider(color = NightSession.Hairline)
-            }
-            item { SettingsGroupLabel("Appearance") }
-            item {
-                AccentRow(selectedIndex = accentIndex, onSelect = viewModel::setAccentIndex)
-                HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(top = 8.dp))
-            }
-            item { SettingsGroupLabel("Library") }
-            item {
-                GridColumnsRow(columns = libraryGridColumns, onColumnsChange = viewModel::setLibraryGridColumns)
-                HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(top = 8.dp))
-            }
-            item { SettingsGroupLabel("Reading direction") }
-            items(ReadingDirection.entries) { direction ->
-                SettingsRadioRow(
-                    label = direction.label(),
-                    selected = direction == readingDirection,
-                    onClick = { viewModel.setReadingDirection(direction) },
-                )
+                SettingsGroup("Account") {
+                    SettingsRow(
+                        title = "Account",
+                        subtitle = if (isLoggedIn) "Synced" else "Not logged in / Local library only",
+                        onClick = onAccountClick,
+                    )
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsRow(title = "Sources", subtitle = "Enable or disable catalog sources", onClick = onSourcesClick)
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsRow(title = "Backup & Restore", subtitle = "Export or import your library as JSON", onClick = onBackupClick)
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsRow(title = "Tracking services", subtitle = "Connect MyAnimeList or Kitsu", onClick = onTrackingClick)
+                }
             }
             item {
-                HorizontalDivider(color = NightSession.Hairline)
-                SettingsSwitchRow(
-                    title = "Mark read on scroll",
-                    subtitle = "Auto-mark a chapter read on reaching its last page",
-                    checked = markReadOnScroll,
-                    onCheckedChange = viewModel::setMarkReadOnScroll,
-                )
-                HorizontalDivider(color = NightSession.Hairline)
-                SettingsSwitchRow(
-                    title = "Keep screen awake while reading",
-                    subtitle = null,
-                    checked = keepScreenAwake,
-                    onCheckedChange = viewModel::setKeepScreenAwake,
-                )
+                SettingsGroup("Appearance") {
+                    AccentRow(selectedIndex = accentIndex, onSelect = viewModel::setAccentIndex)
+                }
             }
-            item { SettingsGroupLabel("About") }
             item {
-                HorizontalDivider(color = NightSession.Hairline)
-                UpdateRow(
-                    currentVersion = viewModel.currentVersion,
-                    state = updateCheckState,
-                    onCheckClick = viewModel::checkForUpdate,
-                    onInstallClick = { info -> AppUpdateDownloadWorker.start(context, info.downloadUrl) },
-                )
-                HorizontalDivider(color = NightSession.Hairline)
-                SettingsRow(title = "Changelog", subtitle = "What's changed in each version", onClick = onChangelogClick)
+                SettingsGroup("Library") {
+                    GridColumnsRow(columns = libraryGridColumns, onColumnsChange = viewModel::setLibraryGridColumns)
+                }
+            }
+            item {
+                SettingsGroup("Reading direction") {
+                    ReadingDirection.entries.forEachIndexed { index, direction ->
+                        if (index > 0) HorizontalDivider(color = NightSession.Hairline)
+                        SettingsRadioRow(
+                            label = direction.label(),
+                            selected = direction == readingDirection,
+                            onClick = { viewModel.setReadingDirection(direction) },
+                        )
+                    }
+                }
+            }
+            item {
+                SettingsGroup("Behavior") {
+                    SettingsSwitchRow(
+                        title = "Mark read on scroll",
+                        subtitle = "Auto-mark a chapter read on reaching its last page",
+                        checked = markReadOnScroll,
+                        onCheckedChange = viewModel::setMarkReadOnScroll,
+                    )
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsSwitchRow(
+                        title = "Keep screen awake while reading",
+                        subtitle = null,
+                        checked = keepScreenAwake,
+                        onCheckedChange = viewModel::setKeepScreenAwake,
+                    )
+                }
+            }
+            item {
+                SettingsGroup("About") {
+                    UpdateRow(
+                        currentVersion = viewModel.currentVersion,
+                        state = updateCheckState,
+                        onCheckClick = viewModel::checkForUpdate,
+                        onInstallClick = { info -> AppUpdateDownloadWorker.start(context, info.downloadUrl) },
+                    )
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsRow(title = "Changelog", subtitle = "What's changed in each version", onClick = onChangelogClick)
+                }
             }
         }
         }
@@ -191,6 +199,26 @@ private fun GridColumnsRow(columns: Int, onColumnsChange: (Int) -> Unit) {
                 inactiveTrackColor = NightSession.Chip,
             ),
         )
+    }
+}
+
+// Card fill is NightSession.Cover, not .Chip -- .Chip is also the Slider inactive-track /
+// Switch unchecked-track color (see GridColumnsRow/SettingsSwitchRow below), so using it as
+// the card background too would wash those controls out to near-invisible against their own
+// container. Cover is already a distinct "raised surface" token (MaterialTheme's
+// surfaceVariant), unused elsewhere in this screen.
+@Composable
+private fun SettingsGroup(label: String, content: @Composable ColumnScope.() -> Unit) {
+    val scale = LocalKawabiScale.current
+    Column(modifier = Modifier.padding(bottom = 16.dp * scale.spacing)) {
+        SettingsGroupLabel(label)
+        Surface(
+            shape = RoundedCornerShape(NightSession.RadiusMd),
+            color = NightSession.Cover,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing),
+        ) {
+            Column(content = content)
+        }
     }
 }
 
