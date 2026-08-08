@@ -16,6 +16,16 @@ private val Context.settingsDataStore by preferencesDataStore(name = "kawabi_set
 
 enum class ReadingDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT, VERTICAL }
 
+enum class PageFitMode { FIT_WIDTH, FIT_HEIGHT, ORIGINAL }
+
+// A page counts as "reached" once scroll position has covered at least this fraction of
+// its height -- not only at a pixel-perfect bottom edge. 95 approximates the old fixed
+// 48dp-slack behavior closely enough for a typical page/viewport size while being an
+// actual user-adjustable setting instead of a hardcoded constant.
+const val MARK_READ_THRESHOLD_MIN = 50
+const val MARK_READ_THRESHOLD_MAX = 100
+const val MARK_READ_THRESHOLD_DEFAULT = 95
+
 // Directly the LazyVerticalGrid column count for Library/Search (GridCells.Fixed) --
 // a raw slider value rather than a minSize-derived preset. GridCells.Adaptive(minSize=)
 // was tried first, but it keeps adding columns as available width grows, so the same
@@ -43,6 +53,8 @@ class AppPreferences(private val context: Context) {
     private val libraryGridColumnsKey = intPreferencesKey("library_grid_columns")
     private val hideReadChaptersKey = booleanPreferencesKey("hide_read_chapters")
     private val chapterSortAscendingKey = booleanPreferencesKey("chapter_sort_ascending")
+    private val pageFitModeKey = stringPreferencesKey("page_fit_mode")
+    private val markReadThresholdKey = intPreferencesKey("mark_read_threshold")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -139,4 +151,37 @@ class AppPreferences(private val context: Context) {
     }
 
     private fun preferredScanlatorKey(mangaUrl: String) = stringPreferencesKey("preferred_scanlator_$mangaUrl")
+
+    val pageFitMode: Flow<PageFitMode> = context.settingsDataStore.data.map { prefs ->
+        prefs[pageFitModeKey]?.let { runCatching { PageFitMode.valueOf(it) }.getOrNull() } ?: PageFitMode.FIT_WIDTH
+    }
+
+    suspend fun setPageFitMode(mode: PageFitMode) {
+        context.settingsDataStore.edit { it[pageFitModeKey] = mode.name }
+    }
+
+    val markReadThreshold: Flow<Int> = context.settingsDataStore.data.map { prefs ->
+        (prefs[markReadThresholdKey] ?: MARK_READ_THRESHOLD_DEFAULT)
+            .coerceIn(MARK_READ_THRESHOLD_MIN, MARK_READ_THRESHOLD_MAX)
+    }
+
+    suspend fun setMarkReadThreshold(percent: Int) {
+        context.settingsDataStore.edit { it[markReadThresholdKey] = percent.coerceIn(MARK_READ_THRESHOLD_MIN, MARK_READ_THRESHOLD_MAX) }
+    }
+
+    // Per-manga reading-direction override -- null means "use the global default".
+    // URL-keyed like preferredScanlator, for the same reason (must resolve for a manga
+    // not yet favorited/in the local library).
+    fun readingDirectionOverride(mangaUrl: String): Flow<ReadingDirection?> = context.settingsDataStore.data.map { prefs ->
+        prefs[readingDirectionOverrideKey(mangaUrl)]?.let { runCatching { ReadingDirection.valueOf(it) }.getOrNull() }
+    }
+
+    suspend fun setReadingDirectionOverride(mangaUrl: String, direction: ReadingDirection?) {
+        context.settingsDataStore.edit { prefs ->
+            if (direction == null) prefs.remove(readingDirectionOverrideKey(mangaUrl))
+            else prefs[readingDirectionOverrideKey(mangaUrl)] = direction.name
+        }
+    }
+
+    private fun readingDirectionOverrideKey(mangaUrl: String) = stringPreferencesKey("reading_direction_override_$mangaUrl")
 }

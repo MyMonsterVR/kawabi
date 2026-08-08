@@ -80,6 +80,7 @@ import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.ChapterDto
 import com.mymonstervr.kawabi.data.network.dto.MangaResponse
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
+import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.domain.model.Chapter
 import com.mymonstervr.kawabi.domain.model.Track
@@ -117,6 +118,7 @@ fun MangaDetailScreen(
     val preferredScanlator by viewModel.preferredScanlator.collectAsState()
     val hideReadChapters by viewModel.hideReadChapters.collectAsState()
     val chapterSortAscending by viewModel.chapterSortAscending.collectAsState()
+    val readingDirectionOverride by viewModel.readingDirectionOverride.collectAsState()
     val pullState = rememberPullToRefreshState()
     var showRemoveConfirm by remember { mutableStateOf(false) }
     var searchingTrackerId by remember { mutableStateOf<String?>(null) }
@@ -227,6 +229,8 @@ fun MangaDetailScreen(
                         onSetHideReadChapters = viewModel::setHideReadChapters,
                         chapterSortAscending = chapterSortAscending,
                         onSetChapterSortAscending = viewModel::setChapterSortAscending,
+                        readingDirectionOverride = readingDirectionOverride,
+                        onSetReadingDirectionOverride = viewModel::setReadingDirectionOverride,
                         onChapterClick = onChapterClick,
                         onSetChapterRead = viewModel::setChapterRead,
                         onMarkPreviousAsRead = viewModel::markPreviousAsRead,
@@ -281,6 +285,8 @@ private fun MangaDetailContent(
     onSetHideReadChapters: (Boolean) -> Unit,
     chapterSortAscending: Boolean,
     onSetChapterSortAscending: (Boolean) -> Unit,
+    readingDirectionOverride: ReadingDirection?,
+    onSetReadingDirectionOverride: (ReadingDirection?) -> Unit,
     onChapterClick: (Long) -> Unit,
     onSetChapterRead: (Long, Boolean) -> Unit,
     onMarkPreviousAsRead: (Chapter) -> Unit,
@@ -479,6 +485,8 @@ private fun MangaDetailContent(
                         onSetHideReadChapters = onSetHideReadChapters,
                         sortAscending = chapterSortAscending,
                         onSetSortAscending = onSetChapterSortAscending,
+                        readingDirectionOverride = readingDirectionOverride,
+                        onSetReadingDirectionOverride = onSetReadingDirectionOverride,
                         onJump = { showJumpDialog = true },
                     )
 
@@ -539,6 +547,8 @@ private fun ChapterListControlsRow(
     onSetHideReadChapters: (Boolean) -> Unit,
     sortAscending: Boolean,
     onSetSortAscending: (Boolean) -> Unit,
+    readingDirectionOverride: ReadingDirection?,
+    onSetReadingDirectionOverride: (ReadingDirection?) -> Unit,
     onJump: () -> Unit,
 ) {
     Column {
@@ -572,8 +582,50 @@ private fun ChapterListControlsRow(
                     onSelect = onSetPreferredScanlator,
                 )
             }
+            ReadingDirectionChip(selected = readingDirectionOverride, onSelect = onSetReadingDirectionOverride)
         }
     }
+}
+
+@Composable
+private fun ReadingDirectionChip(selected: ReadingDirection?, onSelect: (ReadingDirection?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = selected?.chipLabel() ?: "Auto"
+
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(100))
+                .background(NightSession.Chip)
+                .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+        ) {
+            Text(text = "Direction: $selectedLabel", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = NightSession.TextDim, maxLines = 1, softWrap = false)
+        }
+        if (expanded) {
+            androidx.compose.material3.DropdownMenu(expanded = true, onDismissRequest = { expanded = false }, containerColor = NightSession.Chip) {
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("Auto (Settings default)", color = NightSession.Text, fontSize = 12.sp) },
+                    trailingIcon = if (selected == null) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
+                    onClick = { onSelect(null); expanded = false },
+                )
+                ReadingDirection.entries.forEach { direction ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(direction.chipLabel(), color = NightSession.Text, fontSize = 12.sp) },
+                        trailingIcon = if (direction == selected) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
+                        onClick = { onSelect(direction); expanded = false },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun ReadingDirection.chipLabel(): String = when (this) {
+    ReadingDirection.LEFT_TO_RIGHT -> "Left-to-right"
+    ReadingDirection.RIGHT_TO_LEFT -> "Right-to-left"
+    ReadingDirection.VERTICAL -> "Vertical"
 }
 
 @Composable

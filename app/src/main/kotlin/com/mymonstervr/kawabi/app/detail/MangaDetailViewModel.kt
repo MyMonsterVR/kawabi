@@ -7,6 +7,7 @@ import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.network.dto.MangaResponse
 import com.mymonstervr.kawabi.data.network.dto.MangaSourceOptionDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.data.usecase.AddMangaToLibrary
@@ -122,6 +123,17 @@ class MangaDetailViewModel(
     // deterministic tiebreak in that case.
     private val _preferredScanlator = MutableStateFlow<String?>(null)
     val preferredScanlator: StateFlow<String?> = _preferredScanlator.asStateFlow()
+
+    // Per-manga reading-direction override -- null means "use the global Settings
+    // default". Same URL-keyed DataStore pattern/lifecycle as preferredScanlator above.
+    private val _readingDirectionOverride = MutableStateFlow<ReadingDirection?>(null)
+    val readingDirectionOverride: StateFlow<ReadingDirection?> = _readingDirectionOverride.asStateFlow()
+
+    fun setReadingDirectionOverride(direction: ReadingDirection?) {
+        val url = loadedUrl ?: return
+        _readingDirectionOverride.value = direction
+        viewModelScope.launch { preferences.setReadingDirectionOverride(url, direction) }
+    }
 
     // Chapter-list reading habits -- global (not per-manga), see AppPreferences.
     val hideReadChapters: StateFlow<Boolean> = preferences.hideReadChapters
@@ -393,6 +405,7 @@ class MangaDetailViewModel(
         localMangaId = existing?.id
         _isFavorite.value = existing?.favorite == true
         _preferredScanlator.value = preferences.preferredScanlator(url).first()
+        _readingDirectionOverride.value = preferences.readingDirectionOverride(url).first()
         refreshLocalChapters()
         syncTrackers()
     }

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.dto.PageDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
+import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.domain.model.Chapter
 import com.mymonstervr.kawabi.domain.model.normalizedScanlator
@@ -61,8 +63,23 @@ class ReaderViewModel(
     private val _isLoadingNext = MutableStateFlow(false)
     val isLoadingNext: StateFlow<Boolean> = _isLoadingNext.asStateFlow()
 
-    val readingDirection: StateFlow<ReadingDirection> = preferences.readingDirection
-        .stateIn(viewModelScope, SharingStarted.Eagerly, ReadingDirection.VERTICAL)
+    // Resolved once load() completes -- the global default folded together with this
+    // manga's per-series override, if any. ReaderScreen only ever reads this once the
+    // reader state is already Success (load() has finished), so there's no risk of
+    // seeding the in-reader mode from a stale/unresolved value the way a synchronous
+    // `.value` read at first composition would have needed to guard against.
+    private val _effectiveReadingDirection = MutableStateFlow(ReadingDirection.VERTICAL)
+    val effectiveReadingDirection: StateFlow<ReadingDirection> = _effectiveReadingDirection.asStateFlow()
+
+    // Unlike reading direction (a full layout flip, deliberately not applied mid-read),
+    // changing fit mode or the mark-read threshold mid-session only changes how the SAME
+    // pages render/how soon a page counts as read -- not disruptive enough to warrant a
+    // snapshot-at-open, so these stay reactive.
+    val pageFitMode: StateFlow<PageFitMode> = preferences.pageFitMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PageFitMode.FIT_WIDTH)
+
+    val markReadThreshold: StateFlow<Int> = preferences.markReadThreshold
+        .stateIn(viewModelScope, SharingStarted.Eagerly, MARK_READ_THRESHOLD_DEFAULT)
 
     val keepScreenAwake: StateFlow<Boolean> = preferences.keepScreenAwake
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -163,6 +180,8 @@ class ReaderViewModel(
             mangaId = manga.id
             markReadOnScroll = preferences.markReadOnScroll.first()
             preferredScanlator = preferences.preferredScanlator(manga.url).first()
+            _effectiveReadingDirection.value = preferences.readingDirectionOverride(manga.url).first()
+                ?: preferences.readingDirection.first()
             siblingChapters = chapterRepository.getForManga(chapter.mangaId)
                 .filter { it.chapterNumber != UNKNOWN_CHAPTER_NUMBER }
                 .sortedBy { it.chapterNumber }

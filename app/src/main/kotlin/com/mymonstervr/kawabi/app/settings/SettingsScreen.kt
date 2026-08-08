@@ -48,6 +48,9 @@ import com.mymonstervr.kawabi.app.update.AppUpdateDownloadWorker
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_MAX
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_MIN
+import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_MAX
+import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_MIN
+import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import org.koin.androidx.compose.koinViewModel
 
@@ -68,6 +71,8 @@ fun SettingsScreen(
     val accentIndex by viewModel.accentIndex.collectAsState()
     val libraryGridColumns by viewModel.libraryGridColumns.collectAsState()
     val updateCheckState by viewModel.updateCheckState.collectAsState()
+    val pageFitMode by viewModel.pageFitMode.collectAsState()
+    val markReadThreshold by viewModel.markReadThreshold.collectAsState()
     val context = LocalContext.current
 
     Scaffold(
@@ -122,6 +127,18 @@ fun SettingsScreen(
                 }
             }
             item {
+                SettingsGroup("Page fit") {
+                    PageFitMode.entries.forEachIndexed { index, fitMode ->
+                        if (index > 0) HorizontalDivider(color = NightSession.Hairline)
+                        SettingsRadioRow(
+                            label = fitMode.label(),
+                            selected = fitMode == pageFitMode,
+                            onClick = { viewModel.setPageFitMode(fitMode) },
+                        )
+                    }
+                }
+            }
+            item {
                 SettingsGroup("Behavior") {
                     SettingsSwitchRow(
                         title = "Mark read on scroll",
@@ -129,6 +146,8 @@ fun SettingsScreen(
                         checked = markReadOnScroll,
                         onCheckedChange = viewModel::setMarkReadOnScroll,
                     )
+                    HorizontalDivider(color = NightSession.Hairline)
+                    MarkReadThresholdRow(threshold = markReadThreshold, onThresholdChange = viewModel::setMarkReadThreshold)
                     HorizontalDivider(color = NightSession.Hairline)
                     SettingsSwitchRow(
                         title = "Keep screen awake while reading",
@@ -175,6 +194,37 @@ private fun ReadingDirection.label(): String = when (this) {
     ReadingDirection.LEFT_TO_RIGHT -> "Left-to-right"
     ReadingDirection.RIGHT_TO_LEFT -> "Right-to-left"
     ReadingDirection.VERTICAL -> "Vertical scroll"
+}
+
+private fun PageFitMode.label(): String = when (this) {
+    PageFitMode.FIT_WIDTH -> "Fit width"
+    PageFitMode.FIT_HEIGHT -> "Fit height"
+    PageFitMode.ORIGINAL -> "Original size"
+}
+
+@Composable
+private fun MarkReadThresholdRow(threshold: Int, onThresholdChange: (Int) -> Unit) {
+    val scale = LocalKawabiScale.current
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing)) {
+        Text(text = "Mark read at", fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+        Text(
+            text = "$threshold% scrolled -- lower marks a chapter read sooner",
+            fontSize = 10.5.sp * scale.font,
+            color = NightSession.TextDim,
+            modifier = Modifier.padding(top = 1.dp),
+        )
+        Slider(
+            value = threshold.toFloat(),
+            onValueChange = { onThresholdChange(it.toInt()) },
+            valueRange = MARK_READ_THRESHOLD_MIN.toFloat()..MARK_READ_THRESHOLD_MAX.toFloat(),
+            steps = MARK_READ_THRESHOLD_MAX - MARK_READ_THRESHOLD_MIN - 1,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = NightSession.Chip,
+            ),
+        )
+    }
 }
 
 @Composable

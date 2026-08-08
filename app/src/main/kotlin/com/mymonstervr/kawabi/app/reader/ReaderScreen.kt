@@ -57,7 +57,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -70,6 +69,7 @@ import coil3.request.maxBitmapSize
 import coil3.size.Size
 import com.mymonstervr.kawabi.data.network.dto.PageDto
 import com.mymonstervr.kawabi.data.network.resolveImageUrl
+import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
@@ -92,11 +92,6 @@ private enum class ReaderMode(val label: String) {
 // index tick -- dozens of writes per second, which is what made scrolling janky.
 private const val PROGRESS_WRITE_DEBOUNCE_MS = 400L
 
-// A page counts as "reached" once its bottom edge is within this much of the viewport's
-// bottom edge -- not only when it's pixel-perfect at the very bottom. Without slack, a
-// device where the last image ends a hair short of the viewport (rounding, a sliver of
-// next-chapter padding already composed) would never satisfy an exact equality check.
-private val BOTTOM_REACHED_SLACK_DP = 48.dp
 
 // How many pages ahead of the current scroll position to keep warmed in Coil's disk
 // cache. Small on purpose -- this is a rolling head start, re-evaluated every scroll
@@ -125,11 +120,17 @@ private sealed interface FlatItem {
     }
 }
 
-// True once the item at `index`'s bottom edge has scrolled up to within `slackPx` of the
-// viewport's bottom edge -- i.e. you've actually seen the whole item, not just its top.
-private fun androidx.compose.foundation.lazy.LazyListLayoutInfo.itemReachedBottom(index: Int, slackPx: Float): Boolean {
+// True once at least `thresholdFraction` of the item at `index`'s height has scrolled past
+// the viewport's bottom edge -- e.g. 0.95 means "95% of this page has been seen", not only
+// a pixel-perfect bottom-edge match (a device where the last image ends a hair short of the
+// viewport -- rounding, a sliver of next-chapter padding already composed -- would never
+// satisfy an exact equality check). Replaces a previous fixed 48dp-slack version of this
+// same idea with a user-adjustable percentage (Settings -> Behavior -> Mark read at).
+private fun androidx.compose.foundation.lazy.LazyListLayoutInfo.itemReachedThreshold(index: Int, thresholdFraction: Float): Boolean {
     val info = visibleItemsInfo.firstOrNull { it.index == index } ?: return false
-    return info.offset + info.size <= viewportEndOffset + slackPx
+    if (info.size <= 0) return false
+    val visibleFraction = (viewportEndOffset - info.offset).toFloat() / info.size
+    return visibleFraction >= thresholdFraction
 }
 
 private fun buildFlatItems(sections: List<ChapterSection>): List<FlatItem> = buildList {
@@ -153,11 +154,17 @@ fun ReaderScreen(
 
     val state by viewModel.state.collectAsState()
     val isLoadingNext by viewModel.isLoadingNext.collectAsState()
-    // Seeded from the Settings default at open time -- not observed reactively after
-    // that, so changing the setting mid-read doesn't yank the current chapter into a
-    // different mode out from under you. The in-reader mode-cycle button still overrides
-    // per-session same as before.
-    var mode by remember { mutableStateOf(viewModel.readingDirection.value.toReaderMode()) }
+    val pageFitMode by viewModel.pageFitMode.collectAsState()
+    val markReadThreshold by viewModel.markReadThreshold.collectAsState()
+    // effectiveReadingDirection only resolves inside load() (global default folded with
+    // this manga's per-series override), but ReaderScreen only ever consumes `mode` once
+    // `state` is ReaderState.Success below -- by then load() has already finished, so
+    // there's no stale/unresolved value to guard against here. manualMode is session-only
+    // (the in-reader mode-cycle button), never persisted, and takes priority once set --
+    // same "per-session override, doesn't yank you mid-read" behavior as before.
+    val resolvedDirection by viewModel.effectiveReadingDirection.collectAsState()
+    var manualMode by remember { mutableStateOf<ReaderMode?>(null) }
+    val mode = manualMode ?: resolvedDirection.toReaderMode()
     var chromeVisible by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
@@ -199,6 +206,8 @@ fun ReaderScreen(
                         current = current,
                         isLoadingNext = isLoadingNext,
                         chromeVisible = chromeVisible,
+                        pageFitMode = pageFitMode,
+                        markReadThreshold = markReadThreshold,
                         onToggleChrome = { chromeVisible = !chromeVisible },
                         onPageChanged = viewModel::onPageChanged,
                         onTrackPosition = viewModel::trackPosition,
@@ -209,6 +218,7 @@ fun ReaderScreen(
                         current = current,
                         mode = mode,
                         chromeVisible = chromeVisible,
+                        pageFitMode = pageFitMode,
                         scope = scope,
                         onToggleChrome = { chromeVisible = !chromeVisible },
                         onPageChanged = viewModel::onPageChanged,
@@ -229,7 +239,7 @@ fun ReaderScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = { mode = nextMode(mode) }) {
+                    TextButton(onClick = { manualMode = nextMode(mode) }) {
                         Text(mode.label, color = MaterialTheme.colorScheme.primary)
                     }
                 },
@@ -259,6 +269,8 @@ private fun ContinuousVerticalScreen(
     current: ReaderState.Success,
     isLoadingNext: Boolean,
     chromeVisible: Boolean,
+    pageFitMode: PageFitMode,
+    markReadThreshold: Int,
     onToggleChrome: () -> Unit,
     onPageChanged: (chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) -> Unit,
     onTrackPosition: (chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) -> Unit,
@@ -266,7 +278,7 @@ private fun ContinuousVerticalScreen(
 ) {
     val sections = current.sections
     val context = LocalContext.current
-    val slackPx = with(LocalDensity.current) { BOTTOM_REACHED_SLACK_DP.toPx() }
+    val thresholdFraction = markReadThreshold / 100f
     val flatItems = remember(sections) { buildFlatItems(sections) }
     // Section 0 (the chapter this screen was opened on) has no divider before it, so its
     // page indices map 1:1 onto flat indices -- current.startPage IS the flat index to
@@ -315,7 +327,7 @@ private fun ContinuousVerticalScreen(
                 // scrolled into view, which used to fire the instant a tall webtoon strip's
                 // final image appeared, long before its bottom was ever seen.
                 val reachedEnd = item.pageIndexInSection == section.pages.lastIndex &&
-                    (listState.layoutInfo.itemReachedBottom(flatIndex, slackPx) || !listState.canScrollForward)
+                    (listState.layoutInfo.itemReachedThreshold(flatIndex, thresholdFraction) || !listState.canScrollForward)
                 onTrackPosition(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
                 if (reachedEnd) {
                     onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, true)
@@ -327,7 +339,7 @@ private fun ContinuousVerticalScreen(
                 val item = latestFlatItems.getOrNull(flatIndex) as? FlatItem.PageItem ?: return@collect
                 val section = latestSections[item.sectionIndex]
                 val reachedEnd = item.pageIndexInSection == section.pages.lastIndex &&
-                    (listState.layoutInfo.itemReachedBottom(flatIndex, slackPx) || !listState.canScrollForward)
+                    (listState.layoutInfo.itemReachedThreshold(flatIndex, thresholdFraction) || !listState.canScrollForward)
                 onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
             }
         }
@@ -419,6 +431,7 @@ private fun ContinuousVerticalScreen(
                             VerticalPageImage(
                                 key = item.key,
                                 url = resolveImageUrl(item.page.proxied_image_url),
+                                fitMode = pageFitMode,
                                 widthModifier = Modifier.fillMaxWidth()
                                     .widthIn(max = READER_MAX_PAGE_WIDTH * LocalKawabiScale.current.spacing),
                             )
@@ -518,6 +531,7 @@ private fun PagedChapterScreen(
     current: ReaderState.Success,
     mode: ReaderMode,
     chromeVisible: Boolean,
+    pageFitMode: PageFitMode,
     scope: kotlinx.coroutines.CoroutineScope,
     onToggleChrome: () -> Unit,
     onPageChanged: (chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) -> Unit,
@@ -585,7 +599,7 @@ private fun PagedChapterScreen(
                 AsyncImage(
                     model = pageImageRequest(resolveImageUrl(pages[index].proxied_image_url)),
                     contentDescription = null,
-                    contentScale = ContentScale.Fit,
+                    contentScale = pageFitMode.toContentScale(),
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -781,8 +795,14 @@ private suspend fun loadOversizedTiles(context: Context, diskCacheKey: String): 
         }
     }
 
+private fun PageFitMode.toContentScale(): ContentScale = when (this) {
+    PageFitMode.FIT_WIDTH -> ContentScale.FillWidth
+    PageFitMode.FIT_HEIGHT -> ContentScale.FillHeight
+    PageFitMode.ORIGINAL -> ContentScale.None
+}
+
 @Composable
-private fun VerticalPageImage(key: String, url: String, widthModifier: Modifier) {
+private fun VerticalPageImage(key: String, url: String, fitMode: PageFitMode, widthModifier: Modifier) {
     val context = LocalContext.current
     // The min-height placeholder must only hold space open before the real image reports
     // its size -- some sources (confirmed: MangaFire official chapters) split one tall
@@ -803,7 +823,7 @@ private fun VerticalPageImage(key: String, url: String, widthModifier: Modifier)
         AsyncImage(
             model = pageImageRequest(url),
             contentDescription = null,
-            contentScale = ContentScale.FillWidth,
+            contentScale = fitMode.toContentScale(),
             onState = { state ->
                 hasLoaded = state is AsyncImagePainter.State.Success
                 if (state is AsyncImagePainter.State.Success) diskCacheKey = state.result.diskCacheKey
@@ -812,6 +832,11 @@ private fun VerticalPageImage(key: String, url: String, widthModifier: Modifier)
                 .then(if (hasLoaded) Modifier else Modifier.defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT)),
         )
     } else {
+        // Always FillWidth regardless of fitMode -- these tiles are pieces of one giant
+        // stitched strip, stacked to read as a single continuous image (see
+        // loadOversizedTiles above); a per-tile fit-height/original scale would break
+        // that seam, and a multi-screen-tall panel doesn't meaningfully support those
+        // modes anyway.
         Column(modifier = widthModifier) {
             tiles!!.forEach { tile ->
                 Image(

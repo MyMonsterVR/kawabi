@@ -8,6 +8,8 @@ import com.mymonstervr.kawabi.app.update.AppUpdateInfo
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
+import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
+import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -77,5 +79,19 @@ class SettingsViewModel(
 
     fun setLibraryGridColumns(count: Int) {
         viewModelScope.launch { preferences.setLibraryGridColumns(count) }
+    }
+
+    val pageFitMode: StateFlow<PageFitMode> = preferences.pageFitMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PageFitMode.FIT_WIDTH)
+
+    fun setPageFitMode(mode: PageFitMode) {
+        viewModelScope.launch { preferences.setPageFitMode(mode) }
+    }
+
+    val markReadThreshold: StateFlow<Int> = preferences.markReadThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MARK_READ_THRESHOLD_DEFAULT)
+
+    fun setMarkReadThreshold(percent: Int) {
+        viewModelScope.launch { preferences.setMarkReadThreshold(percent) }
     }
 }
