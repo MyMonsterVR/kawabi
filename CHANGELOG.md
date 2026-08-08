@@ -21,3 +21,6 @@ Settings -> About -> Changelog.
 - New reader settings: page fit mode (fit width / fit height / original
   size), an adjustable "mark read at N% scrolled" threshold, and a per-manga
   reading-direction override (accessible from the manga's own page).
+- New theming options (Settings -> Appearance): a Catppuccin Mocha palette
+  alongside the original look, an AMOLED true-black toggle, and Material You
+  dynamic color on Android 12+.
