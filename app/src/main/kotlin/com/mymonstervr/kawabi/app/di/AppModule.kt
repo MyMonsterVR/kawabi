@@ -11,11 +11,13 @@ import com.mymonstervr.kawabi.app.settings.SettingsViewModel
 import com.mymonstervr.kawabi.app.settings.SourcesViewModel
 import com.mymonstervr.kawabi.app.settings.TrackingServicesViewModel
 import com.mymonstervr.kawabi.app.update.AppUpdateChecker
+import com.mymonstervr.kawabi.app.update.AppUpdateNotifier
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
     single { AppUpdateChecker(get(), get()) }
+    single { AppUpdateNotifier(get()) }
     viewModel { LibraryViewModel(get(), get(), get()) }
     viewModel { LoginViewModel(get(), get(), get(), get()) }
     viewModel { SearchViewModel(get(), get()) }

@@ -36,7 +36,7 @@ class KawabiApplication : Application() {
         // Silent, throttled (AppPreferences.isUpdateCheckDue) -- Settings also exposes a
         // manual "Check for updates" button for an explicit forceCheck.
         get<CoroutineScope>().launch {
-            get<AppUpdateChecker>().check()?.let { AppUpdateNotifier(this@KawabiApplication).updateAvailable(it) }
+            get<AppUpdateChecker>().check()?.let { get<AppUpdateNotifier>().updateAvailable(it) }
         }
     }
 }

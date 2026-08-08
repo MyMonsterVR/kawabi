@@ -13,14 +13,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import java.io.File
 
 private const val WORK_NAME = "app_update_download"
 private const val EXTRA_DOWNLOAD_URL = "download_url"
 
-class AppUpdateDownloadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+class AppUpdateDownloadWorker(context: Context, params: WorkerParameters) :
+    CoroutineWorker(context, params),
+    KoinComponent {
 
-    private val notifier = AppUpdateNotifier(applicationContext)
+    private val notifier: AppUpdateNotifier by inject()
     private val client = OkHttpClient()
 
     override suspend fun doWork(): Result {
