@@ -76,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.ChapterDto
 import com.mymonstervr.kawabi.data.network.dto.MangaResponse
@@ -297,6 +298,7 @@ private fun MangaDetailContent(
     onSelectSource: (String) -> Unit,
     onOpenTrackerSheet: () -> Unit,
 ) {
+    val scale = LocalKawabiScale.current
     var expandedChapterUrl by remember { mutableStateOf<String?>(null) }
     var showJumpDialog by remember { mutableStateOf(false) }
     val target = remember(localChaptersByUrl, preferredScanlator) { resumeTarget(localChaptersByUrl.values, preferredScanlator) }
@@ -345,7 +347,7 @@ private fun MangaDetailContent(
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             item {
                 Column {
-                    Box(modifier = Modifier.fillMaxWidth().height(DETAIL_HERO_HEIGHT)) {
+                    Box(modifier = Modifier.fillMaxWidth().height(DETAIL_HERO_HEIGHT * scale.spacing)) {
                         AsyncImage(
                             model = resolveCoverUrl(manga.cover_url),
                             contentDescription = null,
@@ -367,7 +369,7 @@ private fun MangaDetailContent(
                             onClick = onBack,
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .padding(12.dp)
+                                .padding(12.dp * scale.spacing)
                                 .background(Color.Black.copy(alpha = 0.4f), CircleShape),
                         ) {
                             Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -378,21 +380,21 @@ private fun MangaDetailContent(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
-                                .padding(start = 16.dp, bottom = 14.dp)
-                                .width(80.dp)
-                                .height(120.dp)
+                                .padding(start = 16.dp * scale.spacing, bottom = 14.dp * scale.spacing)
+                                .width(80.dp * scale.spacing)
+                                .height(120.dp * scale.spacing)
                                 .clip(RoundedCornerShape(NightSession.RadiusMd))
                                 .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
                                 .background(NightSession.Cover),
                         )
                     }
 
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(text = manga.title, fontSize = 16.5.sp, fontWeight = FontWeight.Bold, color = NightSession.Text)
+                    Column(modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing)) {
+                        Text(text = manga.title, fontSize = 16.5.sp * scale.font, fontWeight = FontWeight.Bold, color = NightSession.Text)
                         val byline = listOfNotNull(manga.author?.takeIf { it.isNotBlank() }, manga.status.takeIf { it.isNotBlank() })
                             .joinToString(" · ")
                         if (byline.isNotBlank()) {
-                            Text(text = byline, fontSize = 11.sp, color = NightSession.TextDim, modifier = Modifier.padding(top = 3.dp))
+                            Text(text = byline, fontSize = 11.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 3.dp * scale.spacing))
                         }
                     }
 
@@ -404,13 +406,13 @@ private fun MangaDetailContent(
                             siteNames = siteNames,
                             onOpen = onOpenSourcePicker,
                             onSelect = onSelectSource,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 4.dp * scale.spacing),
                         )
                     }
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 4.dp * scale.spacing),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp * scale.spacing),
                     ) {
                         if (isFavorite && target != null) {
                             Button(
@@ -419,7 +421,7 @@ private fun MangaDetailContent(
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(continueLabel(manga, target, hasAnyRead), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(continueLabel(manga, target, hasAnyRead), fontWeight = FontWeight.Bold, fontSize = 12.sp * scale.font)
                             }
                         } else if (!isFavorite) {
                             Button(
@@ -428,21 +430,21 @@ private fun MangaDetailContent(
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text("Add to library", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("Add to library", fontWeight = FontWeight.Bold, fontSize = 12.sp * scale.font)
                             }
                         }
                         IconButton(
                             onClick = if (isFavorite) onToggleFavorite else ({}),
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(40.dp * scale.spacing)
                                 .clip(RoundedCornerShape(NightSession.RadiusMd))
                                 .background(NightSession.Chip)
                                 .border(1.dp, if (isFavorite) MaterialTheme.colorScheme.primary else NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
                         ) {
                             if (isFavorite) {
-                                Icon(Icons.Filled.Favorite, contentDescription = "Remove from library", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Filled.Favorite, contentDescription = "Remove from library", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp * scale.spacing))
                             } else {
-                                Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Add to library", tint = NightSession.Text, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Add to library", tint = NightSession.Text, modifier = Modifier.size(16.dp * scale.spacing))
                             }
                         }
                         // Tracker linking only makes sense once this manga is actually in the
@@ -451,12 +453,12 @@ private fun MangaDetailContent(
                             IconButton(
                                 onClick = onOpenTrackerSheet,
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(40.dp * scale.spacing)
                                     .clip(RoundedCornerShape(NightSession.RadiusMd))
                                     .background(NightSession.Chip)
                                     .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
                             ) {
-                                Icon(Icons.Outlined.Flag, contentDescription = "Tracker links", tint = NightSession.Text, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Outlined.Flag, contentDescription = "Tracker links", tint = NightSession.Text, modifier = Modifier.size(16.dp * scale.spacing))
                             }
                         }
                     }
@@ -465,10 +467,10 @@ private fun MangaDetailContent(
                     if (!description.isNullOrBlank()) {
                         Text(
                             text = description,
-                            fontSize = 11.5.sp,
-                            lineHeight = 17.sp,
+                            fontSize = 11.5.sp * scale.font,
+                            lineHeight = 17.sp * scale.font,
                             color = NightSession.TextDim,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
                         )
                     }
 
@@ -493,9 +495,9 @@ private fun MangaDetailContent(
                     if (!isFavorite) {
                         Text(
                             text = "Add to library to read",
-                            fontSize = 10.5.sp,
+                            fontSize = 10.5.sp * scale.font,
                             color = NightSession.TextDim,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 6.dp),
+                            modifier = Modifier.padding(start = 16.dp * scale.spacing, end = 16.dp * scale.spacing, top = 2.dp * scale.spacing, bottom = 6.dp * scale.spacing),
                         )
                     }
                     HorizontalDivider(color = NightSession.Hairline)
@@ -529,9 +531,9 @@ private fun MangaDetailContent(
             headerOffset = headerOffset,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = FAST_SCROLL_TOP_OFFSET)
+                .padding(top = FAST_SCROLL_TOP_OFFSET * scale.spacing)
                 .fillMaxHeight()
-                .width(36.dp),
+                .width(36.dp * scale.spacing),
         )
     }
 }
@@ -551,19 +553,20 @@ private fun ChapterListControlsRow(
     onSetReadingDirectionOverride: (ReadingDirection?) -> Unit,
     onJump: () -> Unit,
 ) {
+    val scale = LocalKawabiScale.current
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp * scale.spacing, end = 16.dp * scale.spacing, top = 8.dp * scale.spacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "$chapterCount chapters", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = NightSession.Text, modifier = Modifier.weight(1f))
+            Text(text = "$chapterCount chapters", fontSize = 12.sp * scale.font, fontWeight = FontWeight.Bold, color = NightSession.Text, modifier = Modifier.weight(1f))
         }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
+            horizontalArrangement = Arrangement.spacedBy(6.dp * scale.spacing),
         ) {
             ChipToggle(
                 label = if (sortAscending) "Oldest first" else "Newest first",
@@ -589,6 +592,7 @@ private fun ChapterListControlsRow(
 
 @Composable
 private fun ReadingDirectionChip(selected: ReadingDirection?, onSelect: (ReadingDirection?) -> Unit) {
+    val scale = LocalKawabiScale.current
     var expanded by remember { mutableStateOf(false) }
     val selectedLabel = selected?.chipLabel() ?: "Auto"
 
@@ -599,20 +603,20 @@ private fun ReadingDirectionChip(selected: ReadingDirection?, onSelect: (Reading
                 .background(NightSession.Chip)
                 .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
                 .clickable { expanded = true }
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+                .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
         ) {
-            Text(text = "Direction: $selectedLabel", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = NightSession.TextDim, maxLines = 1, softWrap = false)
+            Text(text = "Direction: $selectedLabel", fontSize = 10.5.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.TextDim, maxLines = 1, softWrap = false)
         }
         if (expanded) {
             androidx.compose.material3.DropdownMenu(expanded = true, onDismissRequest = { expanded = false }, containerColor = NightSession.Chip) {
                 androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("Auto (Settings default)", color = NightSession.Text, fontSize = 12.sp) },
+                    text = { Text("Auto (Settings default)", color = NightSession.Text, fontSize = 12.sp * scale.font) },
                     trailingIcon = if (selected == null) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
                     onClick = { onSelect(null); expanded = false },
                 )
                 ReadingDirection.entries.forEach { direction ->
                     androidx.compose.material3.DropdownMenuItem(
-                        text = { Text(direction.chipLabel(), color = NightSession.Text, fontSize = 12.sp) },
+                        text = { Text(direction.chipLabel(), color = NightSession.Text, fontSize = 12.sp * scale.font) },
                         trailingIcon = if (direction == selected) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
                         onClick = { onSelect(direction); expanded = false },
                     )
@@ -630,17 +634,18 @@ private fun ReadingDirection.chipLabel(): String = when (this) {
 
 @Composable
 private fun ChipToggle(label: String, onClick: () -> Unit, selected: Boolean = false) {
+    val scale = LocalKawabiScale.current
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(100))
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else NightSession.Chip)
             .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else NightSession.Hairline, RoundedCornerShape(100))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
     ) {
         Text(
             text = label,
-            fontSize = 10.5.sp,
+            fontSize = 10.5.sp * scale.font,
             fontWeight = FontWeight.SemiBold,
             color = if (selected) MaterialTheme.colorScheme.primary else NightSession.TextDim,
             maxLines = 1,
@@ -655,6 +660,7 @@ private fun VersionPickerChip(
     selected: String?,
     onSelect: (String?) -> Unit,
 ) {
+    val scale = LocalKawabiScale.current
     var expanded by remember { mutableStateOf(false) }
     val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: "Show both"
 
@@ -665,20 +671,20 @@ private fun VersionPickerChip(
                 .background(NightSession.Chip)
                 .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
                 .clickable { expanded = true }
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+                .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
         ) {
-            Text(text = "Version: $selectedLabel", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = NightSession.TextDim, maxLines = 1, softWrap = false)
+            Text(text = "Version: $selectedLabel", fontSize = 10.5.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.TextDim, maxLines = 1, softWrap = false)
         }
         if (expanded) {
             androidx.compose.material3.DropdownMenu(expanded = true, onDismissRequest = { expanded = false }, containerColor = NightSession.Chip) {
                 androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("Show both", color = NightSession.Text, fontSize = 12.sp) },
+                    text = { Text("Show both", color = NightSession.Text, fontSize = 12.sp * scale.font) },
                     trailingIcon = if (selected == null) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
                     onClick = { onSelect(null); expanded = false },
                 )
                 options.forEach { (value, label) ->
                     androidx.compose.material3.DropdownMenuItem(
-                        text = { Text(label, color = NightSession.Text, fontSize = 12.sp) },
+                        text = { Text(label, color = NightSession.Text, fontSize = 12.sp * scale.font) },
                         trailingIcon = if (value == selected) { { Text("✓", color = MaterialTheme.colorScheme.primary) } } else null,
                         onClick = { onSelect(value); expanded = false },
                     )
@@ -690,12 +696,13 @@ private fun VersionPickerChip(
 
 @Composable
 private fun JumpToChapterDialog(onDismiss: () -> Unit, onJump: (Double) -> Unit) {
+    val scale = LocalKawabiScale.current
     var text by remember { mutableStateOf("") }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(NightSession.RadiusMd), color = NightSession.Chip) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text("Jump to chapter", color = NightSession.Text, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(12.dp))
+            Column(modifier = Modifier.padding(20.dp * scale.spacing)) {
+                Text("Jump to chapter", color = NightSession.Text, fontWeight = FontWeight.Bold, fontSize = 14.sp * scale.font)
+                Spacer(modifier = Modifier.height(12.dp * scale.spacing))
                 TextField(
                     value = text,
                     onValueChange = { text = it },
@@ -706,7 +713,7 @@ private fun JumpToChapterDialog(onDismiss: () -> Unit, onJump: (Double) -> Unit)
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp * scale.spacing))
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onDismiss) { Text("Cancel", color = NightSession.TextDim) }
                     TextButton(onClick = { text.toDoubleOrNull()?.let(onJump) }) {
@@ -750,13 +757,14 @@ private fun MangaDetailErrorContent(
     onOpenSourcePicker: () -> Unit,
     onSelectSource: (String) -> Unit,
 ) {
+    val scale = LocalKawabiScale.current
     val reason = friendlyErrorMessage(message)
     Box(modifier = Modifier.fillMaxSize()) {
-        IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+        IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart).padding(8.dp * scale.spacing)) {
             Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
         }
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp).align(Alignment.Center),
+            modifier = Modifier.fillMaxSize().padding(24.dp * scale.spacing).align(Alignment.Center),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -764,15 +772,15 @@ private fun MangaDetailErrorContent(
                 Icons.Outlined.CloudOff,
                 contentDescription = null,
                 tint = NightSession.TextDim,
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(40.dp * scale.spacing),
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(text = "Couldn't load this source", color = NightSession.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp * scale.spacing))
+            Text(text = "Couldn't load this source", color = NightSession.Text, fontSize = 14.sp * scale.font, fontWeight = FontWeight.Bold)
             if (reason.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = reason, color = NightSession.TextDim, fontSize = 11.sp)
+                Spacer(modifier = Modifier.height(4.dp * scale.spacing))
+                Text(text = reason, color = NightSession.TextDim, fontSize = 11.sp * scale.font)
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp * scale.spacing))
             Button(
                 onClick = onRetry,
                 shape = RoundedCornerShape(NightSession.RadiusMd),
@@ -780,13 +788,13 @@ private fun MangaDetailErrorContent(
             ) { Text("Retry", fontWeight = FontWeight.Bold) }
 
             if (isLoggedIn) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp * scale.spacing))
                 Text(
                     text = "Or try a different source for this manga:",
                     color = NightSession.TextDim,
-                    fontSize = 11.sp,
+                    fontSize = 11.sp * scale.font,
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp * scale.spacing))
                 SourcePickerPill(
                     picker = sourcePicker,
                     onOpen = onOpenSourcePicker,
@@ -813,6 +821,7 @@ private fun SourcePickerPill(
     isPinned: Boolean = false,
     siteNames: Map<String, String> = emptyMap(),
 ) {
+    val scale = LocalKawabiScale.current
     var expanded by remember { mutableStateOf(false) }
     val selectedName = (picker as? SourcePickerState.Loaded)?.let { loaded ->
         loaded.options.firstOrNull { it.key == loaded.selected }?.name
@@ -842,12 +851,12 @@ private fun SourcePickerPill(
                     expanded = true
                     if (picker is SourcePickerState.Idle || picker is SourcePickerState.Error) onOpen()
                 }
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+                .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "Source: $label",
-                fontSize = 10.5.sp,
+                fontSize = 10.5.sp * scale.font,
                 fontWeight = FontWeight.SemiBold,
                 color = NightSession.TextDim,
             )
@@ -861,16 +870,16 @@ private fun SourcePickerPill(
             ) {
                 when (picker) {
                     is SourcePickerState.Loading, SourcePickerState.Idle -> {
-                        Box(Modifier.padding(24.dp), Alignment.Center) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Box(Modifier.padding(24.dp * scale.spacing), Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp * scale.spacing))
                         }
                     }
                     is SourcePickerState.Error -> {
-                        Text(picker.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
+                        Text(picker.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp * scale.spacing))
                     }
                     is SourcePickerState.Loaded -> {
                         androidx.compose.material3.DropdownMenuItem(
-                            text = { Text("Default (auto)", color = NightSession.Text, fontSize = 12.sp) },
+                            text = { Text("Default (auto)", color = NightSession.Text, fontSize = 12.sp * scale.font) },
                             trailingIcon = if (picker.selected == null) {
                                 { Text("✓", color = MaterialTheme.colorScheme.primary) }
                             } else null,
@@ -881,7 +890,7 @@ private fun SourcePickerPill(
                             androidx.compose.material3.DropdownMenuItem(
                                 text = {
                                     Column {
-                                        Text(option.name, color = if (available) NightSession.Text else NightSession.TextDim, fontSize = 12.sp)
+                                        Text(option.name, color = if (available) NightSession.Text else NightSession.TextDim, fontSize = 12.sp * scale.font)
                                         Text(
                                             text = when (option.status) {
                                                 "available" -> "Available"
@@ -889,7 +898,7 @@ private fun SourcePickerPill(
                                                 else -> "Checking…"
                                             },
                                             color = NightSession.TextDim,
-                                            fontSize = 9.5.sp,
+                                            fontSize = 9.5.sp * scale.font,
                                         )
                                     }
                                 },
@@ -931,6 +940,7 @@ private fun ChapterRow(
     onMarkRead: () -> Unit,
     onMarkPreviousRead: () -> Unit,
 ) {
+    val scale = LocalKawabiScale.current
     val enabled = localChapter != null
     val label = chapterLabel(chapter)
     val isRead = localChapter?.read == true
@@ -939,12 +949,12 @@ private fun ChapterRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
-                .padding(horizontal = 16.dp, vertical = 9.dp),
+                .padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = label,
-                fontSize = 11.5.sp,
+                fontSize = 11.5.sp * scale.font,
                 fontWeight = FontWeight.SemiBold,
                 color = if (isRead) NightSession.TextDim else NightSession.Text,
                 modifier = Modifier.weight(1f),
@@ -952,35 +962,35 @@ private fun ChapterRow(
             if (showVersionBadge) {
                 Text(
                     text = chapter.versionBadgeLabel(),
-                    fontSize = 9.5.sp,
+                    fontSize = 9.5.sp * scale.font,
                     fontWeight = FontWeight.SemiBold,
                     color = NightSession.TextDim,
                     modifier = Modifier
-                        .padding(end = 8.dp)
+                        .padding(end = 8.dp * scale.spacing)
                         .clip(RoundedCornerShape(100))
                         .background(NightSession.Chip)
                         .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
-                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                        .padding(horizontal = 7.dp * scale.spacing, vertical = 2.dp * scale.spacing),
                 )
             }
             if (isRead) {
-                Text(text = "✓", fontSize = 11.sp, color = NightSession.Read)
+                Text(text = "✓", fontSize = 11.sp * scale.font, color = NightSession.Read)
             }
         }
         if (expanded && localChapter != null) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
+                horizontalArrangement = Arrangement.spacedBy(8.dp * scale.spacing),
             ) {
                 TextButton(onClick = onMarkRead) {
-                    Text(if (localChapter.read) "Mark unread" else "Mark read", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                    Text(if (localChapter.read) "Mark unread" else "Mark read", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
                 }
                 TextButton(onClick = onMarkPreviousRead) {
-                    Text("Mark previous read", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                    Text("Mark previous read", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
                 }
             }
         }
-        HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(horizontal = 16.dp))
+        HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(horizontal = 16.dp * scale.spacing))
     }
 }
 
@@ -997,13 +1007,14 @@ private fun TrackerLinkSheetContent(
     onOpenEdit: (trackerId: String) -> Unit,
     onGoToSettings: () -> Unit,
 ) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-        Text("Tracker links", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = NightSession.Text, modifier = Modifier.padding(bottom = 8.dp))
+    val scale = LocalKawabiScale.current
+    Column(modifier = Modifier.padding(horizontal = 16.dp * scale.spacing).padding(bottom = 24.dp * scale.spacing)) {
+        Text("Tracker links", fontSize = 14.sp * scale.font, fontWeight = FontWeight.Bold, color = NightSession.Text, modifier = Modifier.padding(bottom = 8.dp * scale.spacing))
         if (rows.isEmpty()) {
-            Text("Not connected to any tracker yet.", fontSize = 11.5.sp, color = NightSession.TextDim)
-            Spacer(Modifier.height(8.dp))
+            Text("Not connected to any tracker yet.", fontSize = 11.5.sp * scale.font, color = NightSession.TextDim)
+            Spacer(Modifier.height(8.dp * scale.spacing))
             TextButton(onClick = onGoToSettings) {
-                Text("Go to Settings -> Tracking services", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                Text("Go to Settings -> Tracking services", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
             }
         } else {
             rows.forEachIndexed { index, row ->
@@ -1012,7 +1023,7 @@ private fun TrackerLinkSheetContent(
                     onClick = { if (row.linked != null) onOpenEdit(row.trackerId) else onOpenSearch(row.trackerId) },
                 )
                 if (index != rows.lastIndex) {
-                    HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(vertical = 8.dp * scale.spacing))
                 }
             }
         }
@@ -1021,12 +1032,13 @@ private fun TrackerLinkSheetContent(
 
 @Composable
 private fun TrackerLinkRowContent(row: TrackerLinkRow, onClick: () -> Unit) {
+    val scale = LocalKawabiScale.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp * scale.spacing),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(row.trackerName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+            Text(row.trackerName, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
             val linked = row.linked
             Text(
                 text = when {
@@ -1037,14 +1049,14 @@ private fun TrackerLinkRowContent(row: TrackerLinkRow, onClick: () -> Unit) {
                         if (linked.score > 0) append(" ★ ${formatChapterNumber(linked.score)}")
                     }
                 },
-                fontSize = 10.5.sp,
+                fontSize = 10.5.sp * scale.font,
                 color = NightSession.TextDim,
             )
         }
         if (row.linked != null) {
-            Icon(Icons.Outlined.Edit, contentDescription = "Edit ${row.trackerName} link", tint = NightSession.TextDim, modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.Edit, contentDescription = "Edit ${row.trackerName} link", tint = NightSession.TextDim, modifier = Modifier.size(16.dp * scale.spacing))
         } else {
-            Icon(Icons.Filled.Add, contentDescription = "Link on ${row.trackerName}", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.Add, contentDescription = "Link on ${row.trackerName}", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp * scale.spacing))
         }
     }
 }
@@ -1065,6 +1077,7 @@ private fun TrackerSearchDialog(
     onSelect: (TrackSearchResult) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val scale = LocalKawabiScale.current
     var query by remember { mutableStateOf(initialQuery) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -1083,7 +1096,7 @@ private fun TrackerSearchDialog(
             },
         ) { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(16.dp * scale.spacing)) {
                     TextField(
                         value = query,
                         onValueChange = { query = it },
@@ -1101,7 +1114,7 @@ private fun TrackerSearchDialog(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = { onSearch(query) }) {
-                        Text("Search", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                        Text("Search", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp * scale.font)
                     }
                 }
 
@@ -1110,9 +1123,9 @@ private fun TrackerSearchDialog(
                 // source site, so a plain title search alone can come up empty.
                 if (altTitleSuggestions.isNotEmpty()) {
                     LazyRow(
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp * scale.spacing),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp * scale.spacing),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp * scale.spacing),
                     ) {
                         items(altTitleSuggestions) { suggestion ->
                             Box(
@@ -1121,20 +1134,20 @@ private fun TrackerSearchDialog(
                                     .background(NightSession.Chip)
                                     .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
                                     .clickable { query = suggestion; onSearch(suggestion) }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
                             ) {
-                                Text(suggestion, fontSize = 10.5.sp, color = NightSession.TextDim)
+                                Text(suggestion, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
                             }
                         }
                     }
                 }
 
                 when {
-                    searching -> Box(Modifier.fillMaxWidth().padding(top = 24.dp), Alignment.TopCenter) {
+                    searching -> Box(Modifier.fillMaxWidth().padding(top = 24.dp * scale.spacing), Alignment.TopCenter) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
-                    error != null -> Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.padding(16.dp))
-                    results != null && results.isEmpty() -> Text("No results.", color = NightSession.TextDim, fontSize = 12.sp, modifier = Modifier.padding(16.dp))
+                    error != null -> Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp * scale.font, modifier = Modifier.padding(16.dp * scale.spacing))
+                    results != null && results.isEmpty() -> Text("No results.", color = NightSession.TextDim, fontSize = 12.sp * scale.font, modifier = Modifier.padding(16.dp * scale.spacing))
                     results != null -> LazyColumn {
                         items(results) { result ->
                             TrackSearchResultRow(result = result, onClick = { onSelect(result) })
@@ -1149,8 +1162,9 @@ private fun TrackerSearchDialog(
 
 @Composable
 private fun TrackSearchResultRow(result: TrackSearchResult, onClick: () -> Unit) {
+    val scale = LocalKawabiScale.current
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
@@ -1158,15 +1172,15 @@ private fun TrackSearchResultRow(result: TrackSearchResult, onClick: () -> Unit)
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .width(44.dp)
-                .height(62.dp)
+                .width(44.dp * scale.spacing)
+                .height(62.dp * scale.spacing)
                 .clip(RoundedCornerShape(NightSession.RadiusSm))
                 .background(NightSession.Cover),
         )
-        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(result.title, color = NightSession.Text, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp * scale.spacing)) {
+            Text(result.title, color = NightSession.Text, fontSize = 12.5.sp * scale.font, fontWeight = FontWeight.SemiBold)
             if (result.totalChapters > 0) {
-                Text("${formatChapterNumber(result.totalChapters)} chapters", color = NightSession.TextDim, fontSize = 10.5.sp, modifier = Modifier.padding(top = 2.dp))
+                Text("${formatChapterNumber(result.totalChapters)} chapters", color = NightSession.TextDim, fontSize = 10.5.sp * scale.font, modifier = Modifier.padding(top = 2.dp * scale.spacing))
             }
         }
     }
@@ -1190,6 +1204,7 @@ private fun TrackerEditDialog(
     onSave: (chaptersRead: Double, status: String, score: Double) -> Unit,
     onUnlink: () -> Unit,
 ) {
+    val scale = LocalKawabiScale.current
     var chaptersText by remember(track.id) { mutableStateOf(formatChapterNumber(track.lastChapterRead)) }
     var status by remember(track.id) { mutableStateOf(track.status) }
     var score by remember(track.id) { mutableStateOf(track.score.toInt()) }
@@ -1201,13 +1216,13 @@ private fun TrackerEditDialog(
         title = { Text("$trackerName link", color = NightSession.Text) },
         text = {
             Column {
-                Text("Status", fontSize = 10.5.sp, color = NightSession.TextDim)
-                Box(modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)) {
+                Text("Status", fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
+                Box(modifier = Modifier.padding(top = 4.dp * scale.spacing, bottom = 12.dp * scale.spacing)) {
                     TextButton(onClick = { statusMenuExpanded = true }) {
                         Text(
                             TRACK_STATUS_LABELS.firstOrNull { it.first == status }?.second ?: status,
                             color = NightSession.Text,
-                            fontSize = 12.sp,
+                            fontSize = 12.sp * scale.font,
                         )
                     }
                     androidx.compose.material3.DropdownMenu(expanded = statusMenuExpanded, onDismissRequest = { statusMenuExpanded = false }) {
@@ -1220,7 +1235,7 @@ private fun TrackerEditDialog(
                     }
                 }
 
-                Text("Chapters read" + if (track.totalChapters > 0) " (of ${formatChapterNumber(track.totalChapters)})" else "", fontSize = 10.5.sp, color = NightSession.TextDim)
+                Text("Chapters read" + if (track.totalChapters > 0) " (of ${formatChapterNumber(track.totalChapters)})" else "", fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
                 TextField(
                     value = chaptersText,
                     onValueChange = { chaptersText = it },
@@ -1234,22 +1249,22 @@ private fun TrackerEditDialog(
                         focusedTextColor = NightSession.Text,
                         unfocusedTextColor = NightSession.Text,
                     ),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp * scale.spacing, bottom = 12.dp * scale.spacing),
                 )
 
-                Text("Score", fontSize = 10.5.sp, color = NightSession.TextDim)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Text("Score", fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp * scale.spacing)) {
                     IconButton(onClick = { if (score > 0) score-- }) {
-                        Text("-", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("-", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp * scale.font, fontWeight = FontWeight.Bold)
                     }
-                    Text(if (score == 0) "None" else score.toString(), color = NightSession.Text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                    Text(if (score == 0) "None" else score.toString(), color = NightSession.Text, fontSize = 13.sp * scale.font, modifier = Modifier.padding(horizontal = 8.dp * scale.spacing))
                     IconButton(onClick = { if (score < 10) score++ }) {
-                        Text("+", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("+", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp * scale.font, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                TextButton(onClick = onUnlink, modifier = Modifier.padding(top = 12.dp)) {
-                    Text("Unlink", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                TextButton(onClick = onUnlink, modifier = Modifier.padding(top = 12.dp * scale.spacing)) {
+                    Text("Unlink", color = MaterialTheme.colorScheme.error, fontSize = 11.sp * scale.font)
                 }
             }
         },

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.app.common.MangaGridCard
 import com.mymonstervr.kawabi.app.common.NightChip
+import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
 
@@ -57,24 +58,25 @@ fun SearchScreen(
     val error by viewModel.error.collectAsState()
     val gridColumns by viewModel.gridColumns.collectAsState()
     val sources by viewModel.sources.collectAsState()
+    val scale = LocalKawabiScale.current
 
     Scaffold(
         containerColor = NightSession.Background,
         topBar = {
             TopAppBar(
-                title = { Text("Search", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = NightSession.Text) },
+                title = { Text("Search", fontWeight = FontWeight.Bold, fontSize = 15.sp * scale.font, color = NightSession.Text) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
             )
         },
     ) { padding ->
         com.mymonstervr.kawabi.app.common.ResponsiveContainer(modifier = Modifier.padding(padding)) {
         Column(modifier = Modifier.fillMaxSize().background(NightSession.Background)) {
-            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 12.dp * scale.spacing)) {
                 TextField(
                     value = query,
                     onValueChange = viewModel::onQueryChange,
-                    placeholder = { Text("Search titles", color = NightSession.TextDim, fontSize = 12.5.sp) },
-                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = NightSession.TextDim, modifier = Modifier.size(16.dp)) },
+                    placeholder = { Text("Search titles", color = NightSession.TextDim, fontSize = 12.5.sp * scale.font) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = NightSession.TextDim, modifier = Modifier.size(16.dp * scale.spacing)) },
                     singleLine = true,
                     shape = RoundedCornerShape(NightSession.RadiusMd),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -95,9 +97,9 @@ fun SearchScreen(
 
             if (sources.isNotEmpty()) {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp * scale.spacing),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp * scale.spacing),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp * scale.spacing),
                 ) {
                     items(sources, key = { it.key }) { source ->
                         NightChip(label = source.name, onClick = { onBrowseClick(source.key) })
@@ -113,13 +115,13 @@ fun SearchScreen(
                     Text(text = error.orEmpty(), color = MaterialTheme.colorScheme.error)
                 }
                 results.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = "No results yet", color = NightSession.TextDim, fontSize = 11.5.sp)
+                    Text(text = "No results yet", color = NightSession.TextDim, fontSize = 11.5.sp * scale.font)
                 }
                 else -> LazyVerticalGrid(
                     columns = GridCells.Fixed(gridColumns),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(16.dp * scale.spacing),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
+                    verticalArrangement = Arrangement.spacedBy(14.dp * scale.spacing),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(results, key = { it.url }) { result ->
