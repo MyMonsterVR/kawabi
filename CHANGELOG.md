@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-26 - 2026-08-08
+
 - Reading progress now syncs across devices right when you finish a chapter,
   not just on app startup -- fixes progress getting stuck behind on a device
   that stays open a long time (e.g. a tablet).
