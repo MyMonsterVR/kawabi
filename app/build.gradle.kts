@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.Copy
+
 plugins {
     // AGP 9+ has Kotlin support built in -- no separate
     // org.jetbrains.kotlin.android plugin needed (or allowed).
@@ -49,6 +51,19 @@ android {
 
 kotlin {
     jvmToolchain(libs.versions.java.get().toInt())
+}
+
+// The changelog shown in-app (Settings -> About -> Changelog) is bundled as an asset, but
+// hand-authored once at the repo root so it's also readable directly on GitHub without
+// digging into app internals -- this task keeps the bundled copy in sync at build time
+// instead of requiring the asset file to be edited (and kept in sync) by hand.
+val copyChangelogToAssets = tasks.register<Copy>("copyChangelogToAssets") {
+    from(rootProject.file("CHANGELOG.md"))
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+
+tasks.named("preBuild") {
+    dependsOn(copyChangelogToAssets)
 }
 
 dependencies {

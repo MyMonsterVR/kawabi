@@ -10,6 +10,10 @@ build/
 .gradle/
 .kotlin/
 
+# Copied from root CHANGELOG.md at build time (app/build.gradle.kts) -- root file is the
+# source of truth, this is a generated duplicate.
+app/src/main/assets/CHANGELOG.md
+
 # IDE
 .idea/
 *.iml

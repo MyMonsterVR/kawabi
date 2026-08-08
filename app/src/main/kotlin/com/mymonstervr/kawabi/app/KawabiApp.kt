@@ -33,6 +33,7 @@ import com.mymonstervr.kawabi.app.library.LibraryScreen
 import com.mymonstervr.kawabi.app.reader.ReaderScreen
 import com.mymonstervr.kawabi.app.search.SearchScreen
 import com.mymonstervr.kawabi.app.settings.BackupScreen
+import com.mymonstervr.kawabi.app.settings.ChangelogScreen
 import com.mymonstervr.kawabi.app.settings.SettingsScreen
 import com.mymonstervr.kawabi.app.settings.SourcesScreen
 import com.mymonstervr.kawabi.app.settings.TrackingServicesScreen
@@ -43,6 +44,7 @@ private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_SOURCES = "sources"
 private const val ROUTE_BACKUP = "backup"
 private const val ROUTE_TRACKING = "tracking"
+private const val ROUTE_CHANGELOG = "changelog"
 private const val ROUTE_LOGIN = "login"
 private const val ROUTE_MANGA_DETAIL = "manga/{url}"
 private const val ROUTE_READER = "reader/{chapterId}"
@@ -166,7 +168,11 @@ fun KawabiApp() {
                     onSourcesClick = { navController.navigateSafe(ROUTE_SOURCES) },
                     onBackupClick = { navController.navigateSafe(ROUTE_BACKUP) },
                     onTrackingClick = { navController.navigateSafe(ROUTE_TRACKING) },
+                    onChangelogClick = { navController.navigateSafe(ROUTE_CHANGELOG) },
                 )
+            }
+            composable(ROUTE_CHANGELOG) {
+                ChangelogScreen(onBack = { navController.popBackStackSafe() })
             }
             composable(ROUTE_SOURCES) {
                 SourcesScreen(onBack = { navController.popBackStackSafe() })

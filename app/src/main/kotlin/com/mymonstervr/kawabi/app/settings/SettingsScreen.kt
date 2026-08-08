@@ -56,6 +56,7 @@ fun SettingsScreen(
     onSourcesClick: () -> Unit,
     onBackupClick: () -> Unit,
     onTrackingClick: () -> Unit,
+    onChangelogClick: () -> Unit,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -138,6 +139,8 @@ fun SettingsScreen(
                     onCheckClick = viewModel::checkForUpdate,
                     onInstallClick = { info -> AppUpdateDownloadWorker.start(context, info.downloadUrl) },
                 )
+                HorizontalDivider(color = NightSession.Hairline)
+                SettingsRow(title = "Changelog", subtitle = "What's changed in each version", onClick = onChangelogClick)
             }
         }
         }
