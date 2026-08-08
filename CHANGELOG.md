@@ -12,3 +12,9 @@ Settings -> About -> Changelog.
 - Fixed blurry pages on some MangaFire chapters (mainly unofficial/scanlation
   releases) that come as one big stitched image -- these now render at full
   sharpness instead of being downscaled.
+- Library refresh is dramatically faster, especially for larger libraries --
+  no longer waits on the old one-request-per-manga limit, so it no longer
+  slows to a crawl past ~30 manga.
+- Added an in-app changelog (Settings -> About -> Changelog) -- you're
+  reading it.
+- Settings screen redesigned with grouped cards instead of a flat list.
