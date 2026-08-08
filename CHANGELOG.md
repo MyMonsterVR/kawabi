@@ -4,6 +4,12 @@ User-facing notes on what changed, most recent first. Not every commit gets an
 entry -- only things worth telling the reader about. Shown in-app under
 Settings -> About -> Changelog.
 
+The heading directly below MUST be written exactly `## Unreleased` (no date, no
+extra text) -- .github/workflows/build.yml's release step matches that exact
+string to rename it to the shipped version and open a fresh blank one above it.
+A differently-worded heading silently breaks that automation (it just skips the
+stamp, it won't fail the build).
+
 ## Unreleased
 
 - Reading progress now syncs across devices right when you finish a chapter,

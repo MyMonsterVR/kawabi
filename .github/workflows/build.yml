@@ -8,13 +8,21 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Force versionName (e.g. 1.1.0) -- updates app/build.gradle.kts and commits it. Leave blank to keep the current versionName and just re-run a normal build/deploy.'
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  # write is only actually exercised by the release commit at the end (version bump +
+  # changelog stamp) -- GitHub always forces a read-only token for pull_request runs from
+  # forks regardless of this setting, so this doesn't grant forked PRs anything extra.
+  contents: write
 
 jobs:
   build:
@@ -30,6 +38,28 @@ jobs:
           # and this workflow's manifest.json commit_count below) needs the real
           # commit count, not "1" from a depth-1 checkout.
           fetch-depth: 0
+
+      # Runs before "Build & test" -- a forced version input edits
+      # app/build.gradle.kts's versionName in place, so the build itself (and its
+      # embedded BuildConfig.VERSION_NAME) picks up the bump instead of the manifest/
+      # changelog saying one version while the built APK reports another.
+      - name: Resolve version
+        id: version
+        run: |
+          FORCE_VERSION="${{ github.event.inputs.version }}"
+          if [ -n "$FORCE_VERSION" ]; then
+            sed -i -E "s/versionName = \"[^\"]+\"/versionName = \"${FORCE_VERSION}\"/" app/build.gradle.kts
+            echo "Bumped app/build.gradle.kts versionName to ${FORCE_VERSION}"
+          fi
+          BASE_VERSION=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*versionName = "([^"]+)".*/\1/')
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          # release's versionNameSuffix (app/build.gradle.kts) appends
+          # -$COMMIT_COUNT at build time, inside Gradle -- not reflected in the
+          # raw file text this script greps, so append it here too.
+          VERSION="${BASE_VERSION}-${COMMIT_COUNT}"
+          echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "commit_count=${COMMIT_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK
         uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
@@ -62,8 +92,10 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
+      # Real releases: a normal push to main, or a manual dispatch (e.g. to force a
+      # version bump) -- both are trusted, non-fork contexts.
       - name: Sign release APK
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: r0adkll/sign-android-release@a391126403df92c6a0a3988a829dd47f79b89ed7
         id: sign
         with:
@@ -76,14 +108,11 @@ jobs:
           BUILD_TOOLS_VERSION: '35.0.1'
 
       - name: Generate update manifest
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT_COUNT: ${{ steps.version.outputs.commit_count }}
         run: |
-          BASE_VERSION=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*versionName = "([^"]+)".*/\1/')
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          # release's versionNameSuffix (app/build.gradle.kts) appends
-          # -$COMMIT_COUNT at build time, inside Gradle -- not reflected in the
-          # raw file text this script greps, so append it here too.
-          VERSION="${BASE_VERSION}-${COMMIT_COUNT}"
           cat > manifest.json <<EOF
           {
             "version": "${VERSION}",
@@ -94,7 +123,7 @@ jobs:
           EOF
 
       - name: Deploy APK to VPS
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           SIGNED_RELEASE_FILE: ${{ steps.sign.outputs.signedReleaseFile }}
         run: |
@@ -108,3 +137,44 @@ jobs:
           scp "${SIGNED_RELEASE_FILE}" \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/v2/kawabi.apk
           scp manifest.json ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/v2/manifest.json
+
+      # Renames CHANGELOG.md's "## Unreleased" section to this release's version (and
+      # opens a fresh blank "## Unreleased" above it for the next round of changes) --
+      # relies on that heading being written exactly as "## Unreleased" (see
+      # CHANGELOG.md's own header note). Also commits app/build.gradle.kts if "Resolve
+      # version" bumped it above. Both land in one commit, pushed with [skip ci] so it
+      # doesn't retrigger this same workflow.
+      - name: Commit version bump / changelog stamp
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, re, datetime
+
+          version = os.environ["VERSION"]
+          path = "CHANGELOG.md"
+          text = open(path, encoding="utf-8").read()
+          today = datetime.date.today().isoformat()
+          new_text, count = re.subn(
+              r"^## Unreleased$",
+              f"## Unreleased\n\n## {version} - {today}",
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          if count == 0:
+              print("No '## Unreleased' heading found in CHANGELOG.md -- skipping stamp")
+          else:
+              open(path, "w", encoding="utf-8").write(new_text)
+              print(f"Stamped CHANGELOG.md: Unreleased -> {version} ({today})")
+          PYEOF
+          if ! git diff --quiet -- app/build.gradle.kts CHANGELOG.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add app/build.gradle.kts CHANGELOG.md
+            git commit -m "Release ${VERSION} [skip ci]"
+            git push
+          else
+            echo "Nothing to commit"
+          fi
