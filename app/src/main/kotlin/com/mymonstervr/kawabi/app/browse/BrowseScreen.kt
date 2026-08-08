@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.common.LoadingStateBox
 import com.mymonstervr.kawabi.app.common.MangaGridCard
 import com.mymonstervr.kawabi.app.common.NightChip
 import com.mymonstervr.kawabi.app.common.ResponsiveContainer
@@ -103,17 +104,13 @@ fun BrowseScreen(
                     }
                 }
 
-                when {
-                    isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    }
-                    error != null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = error.orEmpty(), color = MaterialTheme.colorScheme.error)
-                    }
-                    items.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "No results", color = NightSession.TextDim, fontSize = 11.5.sp)
-                    }
-                    else -> LazyVerticalGrid(
+                LoadingStateBox(
+                    isLoading = isLoading,
+                    error = error,
+                    isEmpty = items.isEmpty(),
+                    emptyMessage = "No results",
+                ) {
+                    LazyVerticalGrid(
                         state = gridState,
                         columns = GridCells.Fixed(gridColumns),
                         contentPadding = PaddingValues(16.dp),

@@ -140,7 +140,13 @@ fun SettingsScreen(
             }
             item {
                 SettingsGroup("Library") {
-                    GridColumnsRow(columns = libraryGridColumns, onColumnsChange = viewModel::setLibraryGridColumns)
+                    SettingsSliderRow(
+                        title = "Grid columns",
+                        subtitle = "$libraryGridColumns per row -- applies to Library and Search",
+                        value = libraryGridColumns,
+                        range = LIBRARY_GRID_COLUMNS_MIN..LIBRARY_GRID_COLUMNS_MAX,
+                        onValueChange = viewModel::setLibraryGridColumns,
+                    )
                 }
             }
             item {
@@ -176,7 +182,13 @@ fun SettingsScreen(
                         onCheckedChange = viewModel::setMarkReadOnScroll,
                     )
                     HorizontalDivider(color = NightSession.Hairline)
-                    MarkReadThresholdRow(threshold = markReadThreshold, onThresholdChange = viewModel::setMarkReadThreshold)
+                    SettingsSliderRow(
+                        title = "Mark read at",
+                        subtitle = "$markReadThreshold% scrolled -- lower marks a chapter read sooner",
+                        value = markReadThreshold,
+                        range = MARK_READ_THRESHOLD_MIN..MARK_READ_THRESHOLD_MAX,
+                        onValueChange = viewModel::setMarkReadThreshold,
+                    )
                     HorizontalDivider(color = NightSession.Hairline)
                     SettingsSwitchRow(
                         title = "Keep screen awake while reading",
@@ -237,46 +249,27 @@ private fun ThemePalette.label(): String = when (this) {
 }
 
 @Composable
-private fun MarkReadThresholdRow(threshold: Int, onThresholdChange: (Int) -> Unit) {
+private fun SettingsSliderRow(
+    title: String,
+    subtitle: String,
+    value: Int,
+    range: IntRange,
+    onValueChange: (Int) -> Unit,
+) {
     val scale = LocalKawabiScale.current
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing)) {
-        Text(text = "Mark read at", fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+        Text(text = title, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
         Text(
-            text = "$threshold% scrolled -- lower marks a chapter read sooner",
+            text = subtitle,
             fontSize = 10.5.sp * scale.font,
             color = NightSession.TextDim,
             modifier = Modifier.padding(top = 1.dp),
         )
         Slider(
-            value = threshold.toFloat(),
-            onValueChange = { onThresholdChange(it.toInt()) },
-            valueRange = MARK_READ_THRESHOLD_MIN.toFloat()..MARK_READ_THRESHOLD_MAX.toFloat(),
-            steps = MARK_READ_THRESHOLD_MAX - MARK_READ_THRESHOLD_MIN - 1,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = NightSession.Chip,
-            ),
-        )
-    }
-}
-
-@Composable
-private fun GridColumnsRow(columns: Int, onColumnsChange: (Int) -> Unit) {
-    val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing)) {
-        Text(text = "Grid columns", fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
-        Text(
-            text = "$columns per row -- applies to Library and Search",
-            fontSize = 10.5.sp * scale.font,
-            color = NightSession.TextDim,
-            modifier = Modifier.padding(top = 1.dp),
-        )
-        Slider(
-            value = columns.toFloat(),
-            onValueChange = { onColumnsChange(it.toInt()) },
-            valueRange = LIBRARY_GRID_COLUMNS_MIN.toFloat()..LIBRARY_GRID_COLUMNS_MAX.toFloat(),
-            steps = LIBRARY_GRID_COLUMNS_MAX - LIBRARY_GRID_COLUMNS_MIN - 1,
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.toInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            steps = range.last - range.first - 1,
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.primary,
                 activeTrackColor = MaterialTheme.colorScheme.primary,

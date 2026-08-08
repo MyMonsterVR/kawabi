@@ -20,10 +20,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -33,12 +31,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.common.LoadingStateBox
 import com.mymonstervr.kawabi.app.common.MangaGridCard
 import com.mymonstervr.kawabi.app.common.NightChip
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
@@ -107,17 +105,14 @@ fun SearchScreen(
                 }
             }
 
-            when {
-                isSearching -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-                error != null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = error.orEmpty(), color = MaterialTheme.colorScheme.error)
-                }
-                results.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = "No results yet", color = NightSession.TextDim, fontSize = 11.5.sp * scale.font)
-                }
-                else -> LazyVerticalGrid(
+            LoadingStateBox(
+                isLoading = isSearching,
+                error = error,
+                isEmpty = results.isEmpty(),
+                emptyMessage = "No results yet",
+                emptyFontSize = 11.5.sp * scale.font,
+            ) {
+                LazyVerticalGrid(
                     columns = GridCells.Fixed(gridColumns),
                     contentPadding = PaddingValues(16.dp * scale.spacing),
                     horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),

@@ -1,11 +1,7 @@
 package com.mymonstervr.kawabi.app.work
 
 import android.content.Context
-import androidx.work.Constraints
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
 import com.mymonstervr.kawabi.data.usecase.SyncClient
 import java.util.concurrent.TimeUnit
@@ -38,11 +34,7 @@ class SyncWorker(context: Context, params: WorkerParameters) :
 
     companion object {
         fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<SyncWorker>(REPEAT_INTERVAL_MINUTES, TimeUnit.MINUTES)
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .build()
-            androidx.work.WorkManager.getInstance(context)
-                .enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+            schedulePeriodic<SyncWorker>(context, WORK_NAME, REPEAT_INTERVAL_MINUTES, TimeUnit.MINUTES)
         }
     }
 }

@@ -9,20 +9,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.common.BackScaffold
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.SourceToggleDto
@@ -41,21 +35,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SourcesScreen(onBack: () -> Unit, viewModel: SourcesViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
 
-    Scaffold(
-        containerColor = NightSession.Background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Sources", fontWeight = FontWeight.Bold, color = NightSession.Text) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
-            )
-        },
-    ) { padding ->
-        com.mymonstervr.kawabi.app.common.ResponsiveContainer(modifier = Modifier.padding(padding)) {
+    BackScaffold(title = "Sources", onBack = onBack) {
         Box(modifier = Modifier.fillMaxSize().background(NightSession.Background)) {
             when (val current = state) {
                 is SourcesState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -71,7 +51,6 @@ fun SourcesScreen(onBack: () -> Unit, viewModel: SourcesViewModel = koinViewMode
                     }
                 }
             }
-        }
         }
     }
 }

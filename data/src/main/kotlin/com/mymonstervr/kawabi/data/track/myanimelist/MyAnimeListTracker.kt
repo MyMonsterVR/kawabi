@@ -4,10 +4,9 @@ import android.net.Uri
 import com.mymonstervr.kawabi.data.BuildConfig
 import com.mymonstervr.kawabi.data.network.TrackerApi
 import com.mymonstervr.kawabi.data.network.TrackerTokenStore
+import com.mymonstervr.kawabi.data.track.AccountTracker
 import com.mymonstervr.kawabi.data.track.PkceUtil
-import com.mymonstervr.kawabi.data.track.Tracker
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 /**
  * Account-level MyAnimeList connection (Settings -> Tracking services).
@@ -19,16 +18,13 @@ import kotlinx.coroutines.launch
  * the authorization code.
  */
 class MyAnimeListTracker(
-    private val trackerApi: TrackerApi,
-    private val tokenStore: TrackerTokenStore,
-    private val scope: CoroutineScope,
-) : Tracker {
+    trackerApi: TrackerApi,
+    tokenStore: TrackerTokenStore,
+    scope: CoroutineScope,
+) : AccountTracker(trackerApi, tokenStore, scope) {
 
     override val id: String = TrackerTokenStore.TRACKER_MAL
     override val name: String = "MyAnimeList"
-
-    override val userName: String?
-        get() = tokenStore.getProfile(id)
 
     // MAL's PKCE only supports the "plain" code_challenge_method (challenge ==
     // verifier), not S256 -- not an oversight. Stashed here since exchangeCode
@@ -58,11 +54,6 @@ class MyAnimeListTracker(
         check(state.isNotEmpty() && state == receivedState) { "MyAnimeList login rejected (state mismatch)" }
         val userName = trackerApi.connectMal(code, codeVerifier)
         tokenStore.saveProfile(id, userName)
-    }
-
-    override fun logout() {
-        tokenStore.clearProfile(id)
-        scope.launch { runCatching { trackerApi.disconnect(id) } }
     }
 
     private companion object {

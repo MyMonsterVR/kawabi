@@ -54,6 +54,7 @@ import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
 import com.mymonstervr.kawabi.domain.model.Manga
 import com.mymonstervr.kawabi.domain.model.MangaWithUnreadCount
+import com.mymonstervr.kawabi.domain.model.formatChapterNumber
 import org.koin.androidx.compose.koinViewModel
 
 // Mirrors the standard LibrarySortMode.Type shape -- only a few have real backing data right
@@ -281,6 +282,3 @@ private fun MangaCard(entry: MangaWithUnreadCount, onClick: () -> Unit) {
         }
     }
 }
-
-private fun formatChapterNumber(number: Double): String =
-    if (number == number.toLong().toDouble()) number.toLong().toString() else number.toString()

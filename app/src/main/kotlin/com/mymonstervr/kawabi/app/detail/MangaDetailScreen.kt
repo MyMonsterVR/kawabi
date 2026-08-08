@@ -85,6 +85,7 @@ import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.domain.model.Chapter
 import com.mymonstervr.kawabi.domain.model.Track
+import com.mymonstervr.kawabi.domain.model.formatChapterNumber
 import com.mymonstervr.kawabi.domain.model.normalizedScanlator
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -996,9 +997,6 @@ private fun ChapterRow(
 
 private fun chapterLabel(chapter: ChapterDto): String =
     chapter.title.ifBlank { "Chapter ${formatChapterNumber(chapter.number)}" }
-
-private fun formatChapterNumber(number: Double): String =
-    if (number == number.toLong().toDouble()) number.toLong().toString() else number.toString()
 
 @Composable
 private fun TrackerLinkSheetContent(

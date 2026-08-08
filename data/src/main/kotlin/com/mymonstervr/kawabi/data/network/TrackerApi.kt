@@ -10,16 +10,10 @@ import com.mymonstervr.kawabi.data.network.dto.TrackerStatusDto
 import com.mymonstervr.kawabi.data.network.dto.TrackerUpsertEntryRequest
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.encodeToString
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-
-private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
 data class TrackerStatus(val tracker: String, val userName: String)
 
@@ -32,9 +26,9 @@ data class TrackEntry(
 )
 
 class TrackerApi(
-    private val client: OkHttpClient,
-    private val dispatchers: AppDispatchers,
-) {
+    client: OkHttpClient,
+    dispatchers: AppDispatchers,
+) : BackendApiClient(client, dispatchers) {
     suspend fun connectMal(code: String, codeVerifier: String): String = withContext(dispatchers.io) {
         val request = postRequest("tracker/mal/connect", TrackerConnectMalRequest(code, codeVerifier), TrackerConnectMalRequest.serializer())
         execute(request, TrackerConnectResponse.serializer()).userName
@@ -90,21 +84,4 @@ class TrackerApi(
                 if (!response.isSuccessful) error(errorMessageFor(response))
             }
         }
-
-    private inline fun getRequest(path: String, block: okhttp3.HttpUrl.Builder.() -> Unit = {}): Request {
-        val url = "$BASE_URL/$path".toHttpUrl().newBuilder().apply(block).build()
-        return Request.Builder().url(url).get().build()
-    }
-
-    private fun <T> postRequest(path: String, body: T, serializer: KSerializer<T>): Request {
-        val requestBody = networkJson.encodeToString(serializer, body).toRequestBody(JSON_MEDIA_TYPE)
-        return Request.Builder().url("$BASE_URL/$path").post(requestBody).build()
-    }
-
-    private fun <T> execute(request: Request, serializer: KSerializer<T>): T {
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error(errorMessageFor(response))
-            return networkJson.decodeFromString(serializer, response.body.string())
-        }
-    }
 }

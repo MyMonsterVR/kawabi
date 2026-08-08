@@ -9,6 +9,7 @@ import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.domain.model.Chapter
+import com.mymonstervr.kawabi.domain.model.formatChapterNumber
 import com.mymonstervr.kawabi.domain.model.normalizedScanlator
 import com.mymonstervr.kawabi.domain.model.versionBadgeLabel
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
@@ -304,6 +305,3 @@ class ReaderViewModel(
     private fun chapterLabel(chapter: Chapter): String =
         chapter.name.ifBlank { "Chapter ${formatChapterNumber(chapter.chapterNumber)}" }
 }
-
-private fun formatChapterNumber(number: Double): String =
-    if (number == number.toLong().toDouble()) number.toLong().toString() else number.toString()

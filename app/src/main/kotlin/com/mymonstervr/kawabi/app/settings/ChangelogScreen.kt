@@ -10,16 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -28,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.common.BackScaffold
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 
@@ -75,32 +68,17 @@ fun ChangelogScreen(onBack: () -> Unit) {
             .getOrDefault(emptyList())
     }
 
-    Scaffold(
-        containerColor = NightSession.Background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Changelog", fontWeight = FontWeight.Bold, color = NightSession.Text) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
-            )
-        },
-    ) { padding ->
-        com.mymonstervr.kawabi.app.common.ResponsiveContainer(modifier = Modifier.padding(padding)) {
-            if (entries.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize().background(NightSession.Background), contentAlignment = Alignment.Center) {
-                    Text("No changelog yet", color = NightSession.TextDim)
-                }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    modifier = Modifier.fillMaxSize().background(NightSession.Background),
-                ) {
-                    items(entries) { entry -> ChangelogEntryCard(entry) }
-                }
+    BackScaffold(title = "Changelog", onBack = onBack) {
+        if (entries.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().background(NightSession.Background), contentAlignment = Alignment.Center) {
+                Text("No changelog yet", color = NightSession.TextDim)
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                modifier = Modifier.fillMaxSize().background(NightSession.Background),
+            ) {
+                items(entries) { entry -> ChangelogEntryCard(entry) }
             }
         }
     }

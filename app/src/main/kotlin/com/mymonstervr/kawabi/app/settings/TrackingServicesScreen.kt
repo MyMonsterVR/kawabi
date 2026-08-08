@@ -8,24 +8,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.common.BackScaffold
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
@@ -67,38 +61,23 @@ fun TrackingServicesScreen(onBack: () -> Unit, viewModel: TrackingServicesViewMo
         )
     }
 
-    Scaffold(
-        containerColor = NightSession.Background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Tracking services", fontWeight = FontWeight.Bold, color = NightSession.Text) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
-            )
-        },
-    ) { padding ->
-        com.mymonstervr.kawabi.app.common.ResponsiveContainer(modifier = Modifier.padding(padding)) {
-            LazyColumn(modifier = Modifier.background(NightSession.Background)) {
-                items(rows, key = { it.id }) { row ->
-                    TrackerRow(
-                        row = row,
-                        onConnect = {
-                            when (row.id) {
-                                com.mymonstervr.kawabi.data.network.TrackerTokenStore.TRACKER_MAL -> {
-                                    val intent = Intent(Intent.ACTION_VIEW, viewModel.malAuthUrl())
-                                    context.startActivity(intent)
-                                }
-                                com.mymonstervr.kawabi.data.network.TrackerTokenStore.TRACKER_KITSU -> showKitsuDialog = true
+    BackScaffold(title = "Tracking services", onBack = onBack) {
+        LazyColumn(modifier = Modifier.background(NightSession.Background)) {
+            items(rows, key = { it.id }) { row ->
+                TrackerRow(
+                    row = row,
+                    onConnect = {
+                        when (row.id) {
+                            com.mymonstervr.kawabi.data.network.TrackerTokenStore.TRACKER_MAL -> {
+                                val intent = Intent(Intent.ACTION_VIEW, viewModel.malAuthUrl())
+                                context.startActivity(intent)
                             }
-                        },
-                        onDisconnect = { viewModel.logout(row.id) },
-                    )
-                    HorizontalDivider(color = NightSession.Hairline)
-                }
+                            com.mymonstervr.kawabi.data.network.TrackerTokenStore.TRACKER_KITSU -> showKitsuDialog = true
+                        }
+                    },
+                    onDisconnect = { viewModel.logout(row.id) },
+                )
+                HorizontalDivider(color = NightSession.Hairline)
             }
         }
     }

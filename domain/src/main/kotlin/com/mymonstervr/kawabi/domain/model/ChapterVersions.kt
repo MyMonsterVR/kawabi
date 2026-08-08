@@ -53,3 +53,7 @@ fun List<Chapter>.hasMultipleChapterVersions(): Boolean = chapterVersionOptions(
 /** Badge text for one chapter row -- only meaningful to show when the manga is multi-version. */
 fun Chapter.versionBadgeLabel(): String =
     scanlator?.trim()?.ifBlank { null }?.replaceFirstChar { it.titlecase() } ?: "Unknown"
+
+/** Renders a chapter number without a trailing ".0" for whole numbers (e.g. "12" not "12.5" -> "12"). */
+fun formatChapterNumber(number: Double): String =
+    if (number == number.toLong().toDouble()) number.toLong().toString() else number.toString()

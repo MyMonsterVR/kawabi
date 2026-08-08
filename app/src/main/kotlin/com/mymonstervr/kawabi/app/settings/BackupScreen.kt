@@ -10,19 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.common.BackScaffold
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import java.text.SimpleDateFormat
@@ -66,21 +60,7 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = koinViewModel(
         }
     }
 
-    Scaffold(
-        containerColor = NightSession.Background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Backup & Restore", fontWeight = FontWeight.Bold, color = NightSession.Text) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
-            )
-        },
-    ) { padding ->
-        com.mymonstervr.kawabi.app.common.ResponsiveContainer(modifier = Modifier.padding(padding)) {
+    BackScaffold(title = "Backup & Restore", onBack = onBack) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(
                 text = "Exports your library, categories, and read/progress state as a JSON file. Doesn't include account/tracker login.",
@@ -116,7 +96,6 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = koinViewModel(
                 is BackupOpState.Error -> Text(current.message, color = MaterialTheme.colorScheme.error)
                 BackupOpState.Idle -> {}
             }
-        }
         }
     }
 }

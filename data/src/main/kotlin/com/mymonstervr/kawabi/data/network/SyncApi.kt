@@ -9,34 +9,16 @@ import com.mymonstervr.kawabi.data.network.dto.LibraryAddResponse
 import com.mymonstervr.kawabi.data.network.dto.ProgressDto
 import com.mymonstervr.kawabi.data.network.dto.ProgressRequest
 import com.mymonstervr.kawabi.data.network.dto.ProgressResponse
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.encodeToString
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 
-private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-
-// Backend's JSON-endpoint limiter is a token bucket refilling 1 req/2s, burst 30
-// (internal/middleware/ratelimit.go). Pulling per-chapter progress has no batch
-// alternative (GET /progress?url= is one manga at a time) -- a library much past ~30
-// entries reliably drains the burst mid-pull on every sync. The 429 response's
-// Retry-After header is hardcoded to 60s server-side (full bucket reset, not the actual
-// per-token refill), which would make a normal sync feel like it hung -- retry against
-// the real refill rate instead.
-private const val RATE_LIMIT_RETRY_DELAY_MS = 2_100L
-private const val RATE_LIMIT_MAX_RETRIES = 5
-
-private class RateLimitedException : Exception()
-
+// Pulling per-chapter progress has no batch alternative (GET /progress?url= is one manga
+// at a time) -- a library much past ~30 entries reliably drains the backend's rate-limit
+// burst mid-pull on every sync, so every call here opts into BackendApiClient's retry.
 class SyncApi(
-    private val client: OkHttpClient,
-    private val dispatchers: AppDispatchers,
-) {
+    client: OkHttpClient,
+    dispatchers: AppDispatchers,
+) : BackendApiClient(client, dispatchers) {
     suspend fun getEntries(): Result<EntriesResponse> = withContext(dispatchers.io) {
         runCatching { executeWithRetry(getRequest("entries"), EntriesResponse.serializer()) }
     }
@@ -81,34 +63,4 @@ class SyncApi(
         }
     }
 
-    private inline fun getRequest(path: String, block: okhttp3.HttpUrl.Builder.() -> Unit = {}): Request {
-        val url = "$BASE_URL/$path".toHttpUrl().newBuilder().apply(block).build()
-        return Request.Builder().url(url).get().build()
-    }
-
-    private fun <T> postRequest(path: String, body: T, serializer: KSerializer<T>): Request {
-        val requestBody = networkJson.encodeToString(serializer, body).toRequestBody(JSON_MEDIA_TYPE)
-        return Request.Builder().url("$BASE_URL/$path").post(requestBody).build()
-    }
-
-    private suspend fun <T> executeWithRetry(request: Request, serializer: KSerializer<T>): T {
-        repeat(RATE_LIMIT_MAX_RETRIES) {
-            try {
-                return execute(request, serializer)
-            } catch (e: RateLimitedException) {
-                delay(RATE_LIMIT_RETRY_DELAY_MS)
-            }
-        }
-        return execute(request, serializer)
-    }
-
-    private fun <T> execute(request: Request, serializer: KSerializer<T>): T {
-        client.newCall(request).execute().use { response ->
-            if (response.code == 429) throw RateLimitedException()
-            if (!response.isSuccessful) {
-                error(errorMessageFor(response))
-            }
-            return networkJson.decodeFromString(serializer, response.body.string())
-        }
-    }
 }
