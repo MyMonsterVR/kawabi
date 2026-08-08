@@ -158,9 +158,10 @@ class SourceApi(
 
     private val longReadClient by lazy { client.newBuilder().readTimeout(20, TimeUnit.SECONDS).build() }
 
-    // Headroom past Manga.Batch's own 20s internal deadline (mihon-sync-server/main.go's
-    // WriteTimeout is 30s for the same reason).
-    private val batchClient by lazy { client.newBuilder().readTimeout(25, TimeUnit.SECONDS).build() }
+    // Headroom past Manga.Batch's own worst-case ~105s (fully-cold batch, see
+    // mihon-sync-server's internal/handler/manga.go) -- mihon-sync-server/main.go's
+    // WriteTimeout is 120s for the same reason.
+    private val batchClient by lazy { client.newBuilder().readTimeout(110, TimeUnit.SECONDS).build() }
 
     private inline fun requestFor(path: String, block: okhttp3.HttpUrl.Builder.() -> Unit): Request {
         val url = "$BASE_URL/$path".toHttpUrl().newBuilder().apply(block).build()
