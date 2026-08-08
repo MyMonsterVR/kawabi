@@ -1,6 +1,12 @@
 package com.mymonstervr.kawabi.app.reader
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.BitmapRegionDecoder
+import android.graphics.Rect
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +59,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.imageLoader
@@ -65,9 +73,11 @@ import com.mymonstervr.kawabi.data.network.resolveImageUrl
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import org.koin.androidx.compose.koinViewModel
 
@@ -406,23 +416,11 @@ private fun ContinuousVerticalScreen(
                         // stretched across a 10"+ tablet reads worse than one capped to a
                         // sane reading width and centered; a phone never hits this cap.
                         is FlatItem.PageItem -> {
-                            // The min-height placeholder must only hold space open before
-                            // the real image reports its size -- some sources (confirmed:
-                            // MangaFire official chapters) split one tall panel across
-                            // several page files, each individually much shorter than a
-                            // normal page. A permanent floor here left dead black space
-                            // below every such fragment once it *had* loaded, which read as
-                            // "the image is split/missing a chunk" -- the actual content
-                            // was just a sliver at the top of an oversized empty box.
-                            var hasLoaded by remember(item.key) { mutableStateOf(false) }
-                            AsyncImage(
-                                model = pageImageRequest(resolveImageUrl(item.page.proxied_image_url)),
-                                contentDescription = null,
-                                contentScale = ContentScale.FillWidth,
-                                onState = { state -> hasLoaded = state is AsyncImagePainter.State.Success },
-                                modifier = Modifier.fillMaxWidth()
-                                    .widthIn(max = READER_MAX_PAGE_WIDTH * LocalKawabiScale.current.spacing)
-                                    .then(if (hasLoaded) Modifier else Modifier.defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT)),
+                            VerticalPageImage(
+                                key = item.key,
+                                url = resolveImageUrl(item.page.proxied_image_url),
+                                widthModifier = Modifier.fillMaxWidth()
+                                    .widthIn(max = READER_MAX_PAGE_WIDTH * LocalKawabiScale.current.spacing),
                             )
                         }
                         is FlatItem.ChapterDivider -> ChapterDividerRow(item.label)
@@ -702,7 +700,18 @@ private val READER_MAX_PAGE_WIDTH = 720.dp
 // pointed, and with the backend's catalog routes now login-optional, an attacker doesn't
 // need an account to make this app decode whatever that param resolves to -- a cap here
 // (rather than uncapped) also bounds that as an unbounded-allocation DoS.
-private const val PAGE_MAX_BITMAP_WIDTH = 2048
+//
+// Width was previously capped at 2048 (half the height cap) with no crash evidence behind
+// that number -- the only observed corruption was on tall pages exceeding the height cap.
+// High-res raw scan pages (seen on some MangaFire scanlation releases, e.g. wide double-page
+// spreads) routinely exceed 2048px wide, so that cap was downsampling them at decode time and
+// then upscaling back to fill the reader width, causing visible blur not present on
+// mangafire.to itself or on narrower official-release pages. Raised to match the height cap.
+//
+// Also reused below as the per-tile safe size for oversized-page splitting (see
+// `loadOversizedTiles`) -- same crash-tested ceiling, so a single tile never risks the same
+// black-band corruption a full-size decode would.
+private const val PAGE_MAX_BITMAP_WIDTH = 4096
 private const val PAGE_MAX_BITMAP_HEIGHT = 4096
 
 @Composable
@@ -713,4 +722,105 @@ private fun pageImageRequest(url: String): ImageRequest {
         .size(Size.ORIGINAL)
         .maxBitmapSize(Size(PAGE_MAX_BITMAP_WIDTH, PAGE_MAX_BITMAP_HEIGHT))
         .build()
+}
+
+// Some sources (confirmed: MangaFire unofficial/scanlation releases) return a single page
+// as one giant stitched vertical strip -- e.g. 1200x11585px for a whole chapter's worth of
+// panels merged into one file, well past PAGE_MAX_BITMAP_HEIGHT. Rendering that through
+// pageImageRequest's maxBitmapSize cap downsamples it ~3x before it ever reaches the screen,
+// which read as "blurry compared to mangafire.to itself" (a browser has no such cap). Raising
+// the cap isn't an option (see the PAGE_MAX_BITMAP_HEIGHT comment -- higher caps reintroduced
+// a real render crash), so instead: render normally first (cheap, immediate), then once Coil
+// reports success, check the *native* decoded bounds of the file it already wrote to its own
+// disk cache (no extra network fetch). If that native size is within the safe cap, do nothing
+// -- the common case (normal-sized pages) pays only a fast local bounds-check. If it's
+// oversized, split it into several near-native-resolution tiles via BitmapRegionDecoder (each
+// individually within the crash-tested safe size) and swap the single AsyncImage for a stack
+// of tiles that reads as one continuous page.
+private fun samplePow2For(nativePx: Int, capPx: Int): Int {
+    var sample = 1
+    while (nativePx / sample > capPx) sample *= 2
+    return sample
+}
+
+private suspend fun loadOversizedTiles(context: Context, diskCacheKey: String): List<Bitmap>? =
+    withContext(Dispatchers.IO) {
+        val diskCache = context.imageLoader.diskCache ?: return@withContext null
+        val snapshot = diskCache.openSnapshot(diskCacheKey) ?: return@withContext null
+        try {
+            val path = snapshot.data.toString()
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            val nativeWidth = bounds.outWidth
+            val nativeHeight = bounds.outHeight
+            if (nativeWidth <= 0 || nativeHeight <= 0) return@withContext null
+            if (nativeHeight <= PAGE_MAX_BITMAP_HEIGHT && nativeWidth <= PAGE_MAX_BITMAP_WIDTH) return@withContext null
+
+            val regionDecoder = runCatching { BitmapRegionDecoder.newInstance(path) }.getOrNull()
+                ?: return@withContext null
+            val widthSample = samplePow2For(nativeWidth, PAGE_MAX_BITMAP_WIDTH)
+            val tileHeightPx = PAGE_MAX_BITMAP_HEIGHT * widthSample
+            val options = BitmapFactory.Options().apply {
+                inPreferredConfig = Bitmap.Config.RGB_565
+                inSampleSize = widthSample
+            }
+            val tiles = mutableListOf<Bitmap>()
+            var y = 0
+            while (y < nativeHeight) {
+                val bottom = (y + tileHeightPx).coerceAtMost(nativeHeight)
+                val tile = regionDecoder.decodeRegion(Rect(0, y, nativeWidth, bottom), options) ?: break
+                tiles += tile
+                y = bottom
+            }
+            regionDecoder.recycle()
+            tiles.takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            null
+        } finally {
+            snapshot.close()
+        }
+    }
+
+@Composable
+private fun VerticalPageImage(key: String, url: String, widthModifier: Modifier) {
+    val context = LocalContext.current
+    // The min-height placeholder must only hold space open before the real image reports
+    // its size -- some sources (confirmed: MangaFire official chapters) split one tall
+    // panel across several page files, each individually much shorter than a normal page.
+    // A permanent floor here left dead black space below every such fragment once it *had*
+    // loaded, which read as "the image is split/missing a chunk" -- the actual content was
+    // just a sliver at the top of an oversized empty box.
+    var hasLoaded by remember(key) { mutableStateOf(false) }
+    var diskCacheKey by remember(key) { mutableStateOf<String?>(null) }
+    var tiles by remember(key) { mutableStateOf<List<ImageBitmap>?>(null) }
+
+    LaunchedEffect(diskCacheKey) {
+        val cacheKey = diskCacheKey ?: return@LaunchedEffect
+        tiles = loadOversizedTiles(context, cacheKey)?.map { it.asImageBitmap() }
+    }
+
+    if (tiles == null) {
+        AsyncImage(
+            model = pageImageRequest(url),
+            contentDescription = null,
+            contentScale = ContentScale.FillWidth,
+            onState = { state ->
+                hasLoaded = state is AsyncImagePainter.State.Success
+                if (state is AsyncImagePainter.State.Success) diskCacheKey = state.result.diskCacheKey
+            },
+            modifier = widthModifier
+                .then(if (hasLoaded) Modifier else Modifier.defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT)),
+        )
+    } else {
+        Column(modifier = widthModifier) {
+            tiles!!.forEach { tile ->
+                Image(
+                    bitmap = tile,
+                    contentDescription = null,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
 }
