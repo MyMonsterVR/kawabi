@@ -24,3 +24,7 @@ Settings -> About -> Changelog.
 - New theming options (Settings -> Appearance): a Catppuccin Mocha palette
   alongside the original look, an AMOLED true-black toggle, and Material You
   dynamic color on Android 12+.
+- Fixed missing cover art on roughly half your library -- covers in WebP
+  format (common on AsuraScans and some other sources) were failing to load
+  entirely. If you still see a missing cover, opening that manga once and
+  going back should refresh it.
