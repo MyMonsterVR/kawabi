@@ -18,6 +18,8 @@ enum class ReadingDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT, VERTICAL }
 
 enum class PageFitMode { FIT_WIDTH, FIT_HEIGHT, ORIGINAL }
 
+enum class ThemePalette { NIGHT_SESSION, CATPPUCCIN_MOCHA }
+
 // A page counts as "reached" once scroll position has covered at least this fraction of
 // its height -- not only at a pixel-perfect bottom edge. 95 approximates the old fixed
 // 48dp-slack behavior closely enough for a typical page/viewport size while being an
@@ -55,6 +57,9 @@ class AppPreferences(private val context: Context) {
     private val chapterSortAscendingKey = booleanPreferencesKey("chapter_sort_ascending")
     private val pageFitModeKey = stringPreferencesKey("page_fit_mode")
     private val markReadThresholdKey = intPreferencesKey("mark_read_threshold")
+    private val themePaletteKey = stringPreferencesKey("theme_palette")
+    private val amoledBlackKey = booleanPreferencesKey("amoled_black")
+    private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -184,4 +189,33 @@ class AppPreferences(private val context: Context) {
     }
 
     private fun readingDirectionOverrideKey(mangaUrl: String) = stringPreferencesKey("reading_direction_override_$mangaUrl")
+
+    val themePalette: Flow<ThemePalette> = context.settingsDataStore.data.map { prefs ->
+        prefs[themePaletteKey]?.let { runCatching { ThemePalette.valueOf(it) }.getOrNull() } ?: ThemePalette.NIGHT_SESSION
+    }
+
+    suspend fun setThemePalette(palette: ThemePalette) {
+        context.settingsDataStore.edit { it[themePaletteKey] = palette.name }
+    }
+
+    // Forces the background back to pure black regardless of the selected palette --
+    // meaningful even for Night Session (whose background already IS black, so this is a
+    // no-op there) once a non-black palette like Catppuccin Mocha exists to override.
+    val amoledBlack: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[amoledBlackKey] ?: false
+    }
+
+    suspend fun setAmoledBlack(enabled: Boolean) {
+        context.settingsDataStore.edit { it[amoledBlackKey] = enabled }
+    }
+
+    // Material You dynamic color (Android 12+) -- overrides the selected palette entirely
+    // when both this is on and the OS actually supports it (KawabiTheme checks SDK_INT).
+    val dynamicColor: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[dynamicColorKey] ?: false
+    }
+
+    suspend fun setDynamicColor(enabled: Boolean) {
+        context.settingsDataStore.edit { it[dynamicColorKey] = enabled }
+    }
 }

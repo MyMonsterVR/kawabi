@@ -11,6 +11,7 @@ import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
+import com.mymonstervr.kawabi.data.settings.ThemePalette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -93,5 +94,26 @@ class SettingsViewModel(
 
     fun setMarkReadThreshold(percent: Int) {
         viewModelScope.launch { preferences.setMarkReadThreshold(percent) }
+    }
+
+    val themePalette: StateFlow<ThemePalette> = preferences.themePalette
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemePalette.NIGHT_SESSION)
+
+    fun setThemePalette(palette: ThemePalette) {
+        viewModelScope.launch { preferences.setThemePalette(palette) }
+    }
+
+    val amoledBlack: StateFlow<Boolean> = preferences.amoledBlack
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setAmoledBlack(enabled: Boolean) {
+        viewModelScope.launch { preferences.setAmoledBlack(enabled) }
+    }
+
+    val dynamicColor: StateFlow<Boolean> = preferences.dynamicColor
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch { preferences.setDynamicColor(enabled) }
     }
 }

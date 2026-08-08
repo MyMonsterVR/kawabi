@@ -1,5 +1,6 @@
 package com.mymonstervr.kawabi.app.settings
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,6 +53,7 @@ import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_MAX
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_MIN
 import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
+import com.mymonstervr.kawabi.data.settings.ThemePalette
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,6 +75,9 @@ fun SettingsScreen(
     val updateCheckState by viewModel.updateCheckState.collectAsState()
     val pageFitMode by viewModel.pageFitMode.collectAsState()
     val markReadThreshold by viewModel.markReadThreshold.collectAsState()
+    val themePalette by viewModel.themePalette.collectAsState()
+    val amoledBlack by viewModel.amoledBlack.collectAsState()
+    val dynamicColor by viewModel.dynamicColor.collectAsState()
     val context = LocalContext.current
 
     Scaffold(
@@ -107,6 +112,30 @@ fun SettingsScreen(
             item {
                 SettingsGroup("Appearance") {
                     AccentRow(selectedIndex = accentIndex, onSelect = viewModel::setAccentIndex)
+                    HorizontalDivider(color = NightSession.Hairline)
+                    ThemePalette.entries.forEach { palette ->
+                        SettingsRadioRow(
+                            label = palette.label(),
+                            selected = palette == themePalette,
+                            onClick = { viewModel.setThemePalette(palette) },
+                        )
+                    }
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsSwitchRow(
+                        title = "AMOLED true black",
+                        subtitle = "Force pure black background, any palette",
+                        checked = amoledBlack,
+                        onCheckedChange = viewModel::setAmoledBlack,
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        HorizontalDivider(color = NightSession.Hairline)
+                        SettingsSwitchRow(
+                            title = "Material You dynamic color",
+                            subtitle = "Use your device wallpaper's colors instead of the palette above",
+                            checked = dynamicColor,
+                            onCheckedChange = viewModel::setDynamicColor,
+                        )
+                    }
                 }
             }
             item {
@@ -200,6 +229,11 @@ private fun PageFitMode.label(): String = when (this) {
     PageFitMode.FIT_WIDTH -> "Fit width"
     PageFitMode.FIT_HEIGHT -> "Fit height"
     PageFitMode.ORIGINAL -> "Original size"
+}
+
+private fun ThemePalette.label(): String = when (this) {
+    ThemePalette.NIGHT_SESSION -> "Night Session"
+    ThemePalette.CATPPUCCIN_MOCHA -> "Catppuccin Mocha"
 }
 
 @Composable
