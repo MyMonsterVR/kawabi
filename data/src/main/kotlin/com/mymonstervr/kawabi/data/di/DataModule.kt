@@ -24,6 +24,7 @@ import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
 import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListTracker
 import com.mymonstervr.kawabi.data.usecase.AddMangaToLibrary
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
+import com.mymonstervr.kawabi.data.usecase.RefreshLibraryBatch
 import com.mymonstervr.kawabi.data.usecase.RefreshMangaChapters
 import com.mymonstervr.kawabi.data.usecase.SyncClient
 import com.mymonstervr.kawabi.data.usecase.TrackerSyncClient
@@ -55,6 +56,7 @@ val dataModule = module {
     single { SourceApi(get(), get()) }
     single { SyncApi(get(), get()) }
     single { RefreshMangaChapters(get(), get(), get()) }
+    single { RefreshLibraryBatch(get(), get()) }
     single { AddMangaToLibrary(get(), get(), get()) }
     single { SyncClient(get(), get(), get(), get(), get()) }
     single { LibraryUpdateManager(get(), get()) }

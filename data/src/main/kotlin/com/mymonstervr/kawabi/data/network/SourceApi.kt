@@ -3,6 +3,9 @@ package com.mymonstervr.kawabi.data.network
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.network.dto.AltTitlesResponse
 import com.mymonstervr.kawabi.data.network.dto.BrowseResponse
+import com.mymonstervr.kawabi.data.network.dto.MangaBatchRequest
+import com.mymonstervr.kawabi.data.network.dto.MangaBatchResponse
+import com.mymonstervr.kawabi.data.network.dto.MangaBatchResult
 import com.mymonstervr.kawabi.data.network.dto.MangaResponse
 import com.mymonstervr.kawabi.data.network.dto.MangaSourcesResponse
 import com.mymonstervr.kawabi.data.network.dto.PageDto
@@ -46,6 +49,21 @@ class SourceApi(
         runCatching {
             val request = requestFor("manga") { addQueryParameter("url", url) }
             executeWithRetry(request, MangaResponse.serializer())
+        }
+    }
+
+    // POST /manga/batch fans out server-side (Manga.Batch, internal 20s deadline) instead
+    // of the client hitting GET /manga once per favorite -- a full-library refresh
+    // otherwise drains the burst above and falls into the sustained 1-req/2s trickle (see
+    // the retry comment above). Uses its own client with headroom past the server's 20s
+    // deadline so a slow-but-still-responding batch isn't cut off by our own read timeout
+    // right as the server would've answered.
+    suspend fun getMangaBatch(urls: List<String>): Result<List<MangaBatchResult>> = withContext(dispatchers.io) {
+        runCatching {
+            val body = networkJson.encodeToString(MangaBatchRequest.serializer(), MangaBatchRequest(urls))
+                .toRequestBody(JSON_MEDIA_TYPE)
+            val request = Request.Builder().url("$BASE_URL/manga/batch").post(body).build()
+            executeWithRetry(request, MangaBatchResponse.serializer(), batchClient).results
         }
     }
 
@@ -139,6 +157,10 @@ class SourceApi(
     }
 
     private val longReadClient by lazy { client.newBuilder().readTimeout(20, TimeUnit.SECONDS).build() }
+
+    // Headroom past Manga.Batch's own 20s internal deadline (mihon-sync-server/main.go's
+    // WriteTimeout is 30s for the same reason).
+    private val batchClient by lazy { client.newBuilder().readTimeout(25, TimeUnit.SECONDS).build() }
 
     private inline fun requestFor(path: String, block: okhttp3.HttpUrl.Builder.() -> Unit): Request {
         val url = "$BASE_URL/$path".toHttpUrl().newBuilder().apply(block).build()

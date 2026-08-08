@@ -2,13 +2,7 @@ package com.mymonstervr.kawabi.data.usecase
 
 import com.mymonstervr.kawabi.domain.model.Manga
 import com.mymonstervr.kawabi.domain.repository.MangaRepository
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 
-private const val UPDATE_CONCURRENCY = 6
 private const val DEFAULT_INTERVAL_DAYS = 3
 private const val MIN_INTERVAL_DAYS = 1
 private const val MAX_INTERVAL_DAYS = 14
@@ -21,9 +15,11 @@ private const val DAY_MS = 24 * 60 * 60 * 1000L
  *    actually due get refreshed. Finding new chapters halves the interval (it's an active
  *    ongoing series, check again sooner); finding none doubles it, up to a cap (it's
  *    probably hiatus/slow, don't waste WARP/Suwayomi egress polling it every run).
- * 2. Bounded concurrency (same `Semaphore` pattern as `LibraryViewModel.refreshAll`) so a
- *    scheduled run doesn't hammer the backend's rate limiter any harder than a manual
- *    pull-to-refresh does.
+ * 2. One batched fetch instead of one HTTP call per manga ([RefreshLibraryBatch], backed by
+ *    `POST /manga/batch`) -- previously a client-side `Semaphore` here rationed concurrency
+ *    against the backend's per-request rate limiter; batching sidesteps that limiter
+ *    entirely (one request in, server fans out with its own bounded concurrency), so the
+ *    semaphore no longer does anything useful.
  *
  * This is the actual cost-control mechanism PLAN.md's "Background update job" section
  * calls out -- Suwayomi/WARP egress isn't free, so an unthrottled "refresh everything
@@ -31,19 +27,18 @@ private const val DAY_MS = 24 * 60 * 60 * 1000L
  */
 class LibraryUpdateManager(
     private val mangaRepository: MangaRepository,
-    private val refreshMangaChapters: RefreshMangaChapters,
+    private val refreshLibraryBatch: RefreshLibraryBatch,
 ) {
-    suspend fun updateDue(now: Long = System.currentTimeMillis()): Int = coroutineScope {
+    suspend fun updateDue(now: Long = System.currentTimeMillis()): Int {
         val due = mangaRepository.getDueForUpdate(now)
-        val semaphore = Semaphore(UPDATE_CONCURRENCY)
-        due.map { manga ->
-            async { semaphore.withPermit { updateOne(manga, now) } }
-        }.awaitAll()
-        due.size
+        val results = refreshLibraryBatch.refresh(due)
+        for (manga in due) {
+            updateSchedule(manga, now, foundNew = results[manga.id]?.getOrNull()?.isNotEmpty() == true)
+        }
+        return due.size
     }
 
-    private suspend fun updateOne(manga: Manga, now: Long) {
-        val foundNew = refreshMangaChapters.refresh(manga).getOrNull()?.isNotEmpty() == true
+    private suspend fun updateSchedule(manga: Manga, now: Long, foundNew: Boolean) {
         val currentInterval = manga.calculateInterval.takeIf { it > 0 } ?: DEFAULT_INTERVAL_DAYS
         val nextInterval = if (foundNew) {
             (currentInterval / 2).coerceAtLeast(MIN_INTERVAL_DAYS)

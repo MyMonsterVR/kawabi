@@ -1,6 +1,7 @@
 package com.mymonstervr.kawabi.data.usecase
 
 import com.mymonstervr.kawabi.data.network.SourceApi
+import com.mymonstervr.kawabi.data.network.dto.MangaResponse
 import com.mymonstervr.kawabi.domain.interactor.SyncChaptersWithSource
 import com.mymonstervr.kawabi.domain.model.Chapter
 import com.mymonstervr.kawabi.domain.model.Manga
@@ -20,7 +21,13 @@ class RefreshMangaChapters(
 ) {
     suspend fun refresh(manga: Manga): Result<List<Chapter>> {
         val response = sourceApi.getManga(manga.url).getOrElse { return Result.failure(it) }
+        return applyResponse(manga, response)
+    }
 
+    // Split out of refresh() so a batch-fetched MangaResponse (RefreshLibraryBatch, backed
+    // by POST /manga/batch) can reconcile against local storage the same way a single
+    // GET /manga response does, without a second network round trip.
+    suspend fun applyResponse(manga: Manga, response: MangaResponse): Result<List<Chapter>> {
         if (response.source != manga.source) {
             mangaRepository.updateSource(manga.id, response.source)
         }
