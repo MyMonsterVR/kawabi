@@ -5,6 +5,7 @@ import com.mymonstervr.kawabi.app.di.appModule
 import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateNotifier
 import com.mymonstervr.kawabi.app.work.LibraryUpdateWorker
+import com.mymonstervr.kawabi.app.work.SyncWorker
 import com.mymonstervr.kawabi.core.di.coreModule
 import com.mymonstervr.kawabi.data.di.dataModule
 import com.mymonstervr.kawabi.domain.di.domainModule
@@ -30,6 +31,7 @@ class KawabiApplication : Application() {
             get<SyncClient>().sync()
         }
         LibraryUpdateWorker.schedule(this)
+        SyncWorker.schedule(this)
 
         // Silent, throttled (AppPreferences.isUpdateCheckDue) -- Settings also exposes a
         // manual "Check for updates" button for an explicit forceCheck.

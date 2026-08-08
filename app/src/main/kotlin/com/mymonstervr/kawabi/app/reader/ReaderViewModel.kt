@@ -11,6 +11,7 @@ import com.mymonstervr.kawabi.domain.model.normalizedScanlator
 import com.mymonstervr.kawabi.domain.model.versionBadgeLabel
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
 import com.mymonstervr.kawabi.domain.repository.MangaRepository
+import com.mymonstervr.kawabi.data.usecase.SyncClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -51,6 +52,7 @@ class ReaderViewModel(
     private val chapterRepository: ChapterRepository,
     private val mangaRepository: MangaRepository,
     private val preferences: AppPreferences,
+    private val syncClient: SyncClient,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
@@ -256,9 +258,18 @@ class ReaderViewModel(
     fun onPageChanged(chapterId: Long, index: Int, totalPages: Int, reachedEnd: Boolean) {
         if (totalPages == 0) return
         lastKnownProgress = ReaderProgress(chapterId, index, totalPages, reachedEnd)
+        val justMarkedRead = reachedEnd && markReadOnScroll
         viewModelScope.launch {
-            chapterRepository.setProgress(chapterId, read = reachedEnd && markReadOnScroll, lastPageRead = index)
+            chapterRepository.setProgress(chapterId, read = justMarkedRead, lastPageRead = index)
             mangaRepository.touchLastRead(mangaId, System.currentTimeMillis())
+            // A long-lived reading session (tablet processes especially can stay alive for
+            // days without a cold start) would otherwise only ever push progress at
+            // KawabiApplication's startup sync -- meaning chapters read mid-session never
+            // reach the backend until the process happens to restart. Push right when a
+            // chapter is actually completed instead of waiting on that. Not on every
+            // scroll tick (only justMarkedRead, debounced upstream to ~1/400ms already) --
+            // a full push+pull on every tick would hammer the backend's rate limiter.
+            if (justMarkedRead) syncClient.sync()
         }
     }
 
