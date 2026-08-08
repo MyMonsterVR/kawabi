@@ -18,3 +18,6 @@ Settings -> About -> Changelog.
 - Added an in-app changelog (Settings -> About -> Changelog) -- you're
   reading it.
 - Settings screen redesigned with grouped cards instead of a flat list.
+- New reader settings: page fit mode (fit width / fit height / original
+  size), an adjustable "mark read at N% scrolled" threshold, and a per-manga
+  reading-direction override (accessible from the manga's own page).
