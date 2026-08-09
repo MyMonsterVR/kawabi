@@ -187,6 +187,14 @@ class MangaDetailViewModel(
         }
     }
 
+    // Called on screen resume (e.g. returning from the reader) -- local-only, no
+    // network hit, so it's cheap enough to fire every time. Reflects the read/progress
+    // state the reader just wrote to the DB, which the earlier load()'s snapshot misses.
+    fun onResume() {
+        if (localMangaId == null) return
+        viewModelScope.launch { refreshLocalChapters() }
+    }
+
     fun refresh(url: String) {
         if (_isRefreshing.value) return
         viewModelScope.launch {

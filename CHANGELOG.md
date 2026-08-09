@@ -12,6 +12,10 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Manga detail page now updates automatically (chapter checkmarks, resume
+  point) when returning from the reader -- previously needed a trip back to
+  Library and in again to see it.
+
 ## 0.1.0-28 - 2026-08-08
 
 ## 0.1.0-26 - 2026-08-08
