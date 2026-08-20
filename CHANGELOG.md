@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-32 - 2026-08-20
+
 - Chapter list now shows how long ago each chapter was released (e.g. "3d
   ago") when the source provides that info.
 
