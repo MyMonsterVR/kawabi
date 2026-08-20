@@ -90,6 +90,7 @@ import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.domain.model.Chapter
 import com.mymonstervr.kawabi.domain.model.Track
 import com.mymonstervr.kawabi.domain.model.formatChapterNumber
+import com.mymonstervr.kawabi.domain.model.formatRelativeTime
 import com.mymonstervr.kawabi.domain.model.normalizedScanlator
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -966,13 +967,24 @@ private fun ChapterRow(
                 .padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = label,
-                fontSize = 11.5.sp * scale.font,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isRead) NightSession.TextDim else NightSession.Text,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    fontSize = 11.5.sp * scale.font,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isRead) NightSession.TextDim else NightSession.Text,
+                )
+                val relativeTime = remember(chapter.date_upload) {
+                    chapter.date_upload?.let { formatRelativeTime(it) }
+                }
+                if (relativeTime != null) {
+                    Text(
+                        text = relativeTime,
+                        fontSize = 9.5.sp * scale.font,
+                        color = NightSession.TextDim,
+                    )
+                }
+            }
             if (showVersionBadge) {
                 Text(
                     text = chapter.versionBadgeLabel(),
