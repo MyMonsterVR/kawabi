@@ -89,8 +89,13 @@ class SourceApi(
         }
     }
 
+    // Fires once from SearchViewModel.init with no retry on failure -- same longReadClient
+    // as search()/browse() so a slow-but-alive network doesn't silently drop the source
+    // chip row for the rest of the session (the bare 10s default client was timing this
+    // out under normal source-fetch latency, indistinguishable from the logged-out case
+    // this endpoint's silent-failure UX was actually designed for).
     suspend fun getSources(): Result<SourceTogglesResponse> = withContext(dispatchers.io) {
-        runCatching { executeWithRetry(getRequest("sources") {}, SourceTogglesResponse.serializer()) }
+        runCatching { executeWithRetry(getRequest("sources") {}, SourceTogglesResponse.serializer(), longReadClient) }
     }
 
     // Backs the tracker-linking search dialog's alt-name suggestions -- a manga
