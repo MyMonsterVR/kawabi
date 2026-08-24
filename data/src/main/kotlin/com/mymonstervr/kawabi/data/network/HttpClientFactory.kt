@@ -8,6 +8,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
+import java.util.concurrent.TimeUnit
 
 val networkJson: Json = Json {
     ignoreUnknownKeys = true
@@ -70,4 +71,19 @@ fun createOkHttpClient(authInterceptor: AuthInterceptor): OkHttpClient =
                 addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
             }
         }
+        .build()
+
+// `/image` can legitimately take up to ~60s to answer (mihon-sync-server's fetchValidImage
+// retries a slow source CDN up to 3x, each with its own ~20s upstream timeout, before it
+// ever starts writing a response) -- confirmed live via server logs showing routine
+// single-attempt fetches sitting right around 10s against asurascans' CDN. Coil's default
+// ImageLoader falls back to a bare `OkHttpClient()` with stock 10s connect/read/write
+// timeouts, which raced that ~10s fetch time almost exactly -- confirmed as the cause of
+// intermittent "images not loading", not a server bug: the client gave up right as the
+// server was about to deliver, then Coil/OkHttp retried into the same race again.
+fun createImageOkHttpClient(): OkHttpClient =
+    OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(75, TimeUnit.SECONDS)
+        .writeTimeout(75, TimeUnit.SECONDS)
         .build()
