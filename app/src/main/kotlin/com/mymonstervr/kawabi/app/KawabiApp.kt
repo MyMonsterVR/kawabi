@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -26,12 +28,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.mymonstervr.kawabi.app.anime.AnimeBrowseScreen
+import com.mymonstervr.kawabi.app.anime.AnimeDetailScreen
+import com.mymonstervr.kawabi.app.anime.AnimeLibraryScreen
+import com.mymonstervr.kawabi.app.anime.AnimeSearchScreen
+import com.mymonstervr.kawabi.app.anime.PlayerScreen
 import com.mymonstervr.kawabi.app.auth.LoginScreen
 import com.mymonstervr.kawabi.app.browse.BrowseScreen
 import com.mymonstervr.kawabi.app.detail.MangaDetailScreen
 import com.mymonstervr.kawabi.app.library.LibraryScreen
 import com.mymonstervr.kawabi.app.reader.ReaderScreen
 import com.mymonstervr.kawabi.app.search.SearchScreen
+import com.mymonstervr.kawabi.app.settings.AnimeSourcesScreen
 import com.mymonstervr.kawabi.app.settings.BackupScreen
 import com.mymonstervr.kawabi.app.settings.ChangelogScreen
 import com.mymonstervr.kawabi.app.settings.SettingsScreen
@@ -42,6 +50,7 @@ private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_SEARCH = "search"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_SOURCES = "sources"
+private const val ROUTE_ANIME_SOURCES = "anime-sources"
 private const val ROUTE_BACKUP = "backup"
 private const val ROUTE_TRACKING = "tracking"
 private const val ROUTE_CHANGELOG = "changelog"
@@ -49,8 +58,17 @@ private const val ROUTE_LOGIN = "login"
 private const val ROUTE_MANGA_DETAIL = "manga/{url}"
 private const val ROUTE_READER = "reader/{chapterId}"
 private const val ROUTE_BROWSE = "browse/{sourceKey}"
+private const val ROUTE_ANIME_LIBRARY = "anime-library"
+private const val ROUTE_ANIME_SEARCH = "anime-search"
+private const val ROUTE_ANIME_DETAIL = "anime/{key}"
+private const val ROUTE_ANIME_BROWSE = "anime-browse/{sourceKey}"
+// Reserved for the Media3 player (PLAN-anime.md P4) -- the placeholder composable behind
+// it just shows the episode key so the nav path is testable before the player lands.
+private const val ROUTE_PLAYER = "player/{episodeKey}"
 private const val ARG_URL = "url"
+private const val ARG_KEY = "key"
 private const val ARG_CHAPTER_ID = "chapterId"
+private const val ARG_EPISODE_KEY = "episodeKey"
 private const val ARG_SOURCE_KEY = "sourceKey"
 
 private data class BottomNavItem(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector)
@@ -58,6 +76,7 @@ private data class BottomNavItem(val route: String, val label: String, val selec
 private val bottomNavRoutes = listOf(
     BottomNavItem(ROUTE_LIBRARY, "Library", Icons.AutoMirrored.Filled.LibraryBooks, Icons.AutoMirrored.Outlined.LibraryBooks),
     BottomNavItem(ROUTE_SEARCH, "Search", Icons.Filled.Search, Icons.Outlined.Search),
+    BottomNavItem(ROUTE_ANIME_LIBRARY, "Anime", Icons.Filled.Movie, Icons.Outlined.Movie),
     BottomNavItem(ROUTE_SETTINGS, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 )
 
@@ -87,6 +106,18 @@ private fun navigateToMangaDetail(navController: androidx.navigation.NavControll
 
 private fun navigateToBrowse(navController: androidx.navigation.NavController, sourceKey: String) {
     navController.navigateSafe("browse/${Uri.encode(sourceKey)}")
+}
+
+private fun navigateToAnimeDetail(navController: androidx.navigation.NavController, key: String) {
+    navController.navigateSafe("anime/${Uri.encode(key)}")
+}
+
+private fun navigateToAnimeBrowse(navController: androidx.navigation.NavController, sourceKey: String) {
+    navController.navigateSafe("anime-browse/${Uri.encode(sourceKey)}")
+}
+
+private fun navigateToPlayer(navController: androidx.navigation.NavController, episodeKey: String) {
+    navController.navigateSafe("player/${Uri.encode(episodeKey)}")
 }
 
 private fun navigateToReader(navController: androidx.navigation.NavController, chapterId: Long) {
@@ -166,6 +197,7 @@ fun KawabiApp() {
                 SettingsScreen(
                     onAccountClick = { navController.navigateSafe(ROUTE_LOGIN) },
                     onSourcesClick = { navController.navigateSafe(ROUTE_SOURCES) },
+                    onAnimeSourcesClick = { navController.navigateSafe(ROUTE_ANIME_SOURCES) },
                     onBackupClick = { navController.navigateSafe(ROUTE_BACKUP) },
                     onTrackingClick = { navController.navigateSafe(ROUTE_TRACKING) },
                     onChangelogClick = { navController.navigateSafe(ROUTE_CHANGELOG) },
@@ -176,6 +208,51 @@ fun KawabiApp() {
             }
             composable(ROUTE_SOURCES) {
                 SourcesScreen(onBack = { navController.popBackStackSafe() })
+            }
+            composable(ROUTE_ANIME_SOURCES) {
+                AnimeSourcesScreen(onBack = { navController.popBackStackSafe() })
+            }
+            composable(ROUTE_ANIME_LIBRARY) {
+                AnimeLibraryScreen(
+                    onAnimeClick = { key -> navigateToAnimeDetail(navController, key) },
+                    onSearchClick = { navController.navigateSafe(ROUTE_ANIME_SEARCH) },
+                )
+            }
+            composable(ROUTE_ANIME_SEARCH) {
+                AnimeSearchScreen(
+                    onResultClick = { key -> navigateToAnimeDetail(navController, key) },
+                    onBrowseClick = { sourceKey -> navigateToAnimeBrowse(navController, sourceKey) },
+                )
+            }
+            composable(
+                route = ROUTE_ANIME_DETAIL,
+                arguments = listOf(navArgument(ARG_KEY) { type = NavType.StringType }),
+            ) { entry ->
+                val key = Uri.decode(entry.arguments?.getString(ARG_KEY).orEmpty())
+                AnimeDetailScreen(
+                    animeKey = key,
+                    onBack = { navController.popBackStackSafe() },
+                    onEpisodeClick = { episodeKey -> navigateToPlayer(navController, episodeKey) },
+                    onOpenTrackingSettings = { navController.navigateSafe(ROUTE_TRACKING) },
+                )
+            }
+            composable(
+                route = ROUTE_ANIME_BROWSE,
+                arguments = listOf(navArgument(ARG_SOURCE_KEY) { type = NavType.StringType }),
+            ) { entry ->
+                val sourceKey = Uri.decode(entry.arguments?.getString(ARG_SOURCE_KEY).orEmpty())
+                AnimeBrowseScreen(
+                    sourceKey = sourceKey,
+                    onBack = { navController.popBackStackSafe() },
+                    onResultClick = { key -> navigateToAnimeDetail(navController, key) },
+                )
+            }
+            composable(
+                route = ROUTE_PLAYER,
+                arguments = listOf(navArgument(ARG_EPISODE_KEY) { type = NavType.StringType }),
+            ) { entry ->
+                val episodeKey = Uri.decode(entry.arguments?.getString(ARG_EPISODE_KEY).orEmpty())
+                PlayerScreen(episodeKey = episodeKey, onBack = { navController.popBackStackSafe() })
             }
             composable(ROUTE_BACKUP) {
                 BackupScreen(onBack = { navController.popBackStackSafe() })

@@ -12,6 +12,9 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Anime tab (preview): browse, search, library and episode lists from anime
+  sources; playback coming next.
+
 ## 0.1.0-36 - 2026-08-24
 
 ## 0.1.0-34 - 2026-08-24

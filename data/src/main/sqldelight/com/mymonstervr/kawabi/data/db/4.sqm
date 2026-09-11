@@ -1,0 +1,108 @@
+CREATE TABLE animes (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    key TEXT NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL,
+    author TEXT,
+    description TEXT,
+    genre TEXT,
+    status TEXT NOT NULL DEFAULT '',
+    thumbnail_url TEXT,
+    favorite INTEGER NOT NULL DEFAULT 0,
+    last_update INTEGER,
+    next_update INTEGER,
+    initialized INTEGER NOT NULL DEFAULT 0,
+    date_added INTEGER NOT NULL DEFAULT 0,
+    calculate_interval INTEGER NOT NULL DEFAULT 0,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER NOT NULL DEFAULT 0,
+    total_episodes REAL NOT NULL DEFAULT 0,
+    last_watched_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX animes_key_idx ON animes(key);
+CREATE INDEX animes_favorite_idx ON animes(favorite) WHERE favorite = 1;
+
+CREATE TRIGGER update_last_modified_at_animes
+AFTER UPDATE ON animes
+FOR EACH ROW
+WHEN new.last_modified_at == old.last_modified_at AND new.is_syncing = 0
+BEGIN
+    UPDATE animes SET last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000) WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_anime_version
+AFTER UPDATE ON animes
+FOR EACH ROW
+WHEN new.version == old.version AND new.is_syncing = 0
+BEGIN
+    UPDATE animes SET version = version + 1 WHERE _id = new._id;
+END;
+
+CREATE TABLE episodes (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    anime_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    watched INTEGER NOT NULL DEFAULT 0,
+    position_ms INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    episode_number REAL NOT NULL DEFAULT -1,
+    source_order INTEGER NOT NULL DEFAULT 0,
+    date_upload INTEGER NOT NULL DEFAULT 0,
+    date_fetch INTEGER NOT NULL DEFAULT 0,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(anime_id) REFERENCES animes(_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX episodes_anime_url_idx ON episodes(anime_id, url);
+CREATE INDEX episodes_anime_id_idx ON episodes(anime_id);
+CREATE INDEX episodes_key_idx ON episodes(key);
+
+CREATE TRIGGER update_last_modified_at_episodes
+AFTER UPDATE ON episodes
+FOR EACH ROW
+WHEN new.last_modified_at == old.last_modified_at AND new.is_syncing = 0
+BEGIN
+    UPDATE episodes SET last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000) WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_episode_and_anime_version
+AFTER UPDATE ON episodes
+FOR EACH ROW
+WHEN new.version == old.version AND new.is_syncing = 0
+BEGIN
+    UPDATE episodes SET version = version + 1 WHERE _id = new._id;
+    UPDATE animes SET version = version + 1, last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+        WHERE _id = new.anime_id AND is_syncing = 0;
+END;
+
+CREATE TABLE anime_tracks (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    anime_id INTEGER NOT NULL,
+    tracker_id TEXT NOT NULL,
+    remote_id TEXT NOT NULL,
+    library_id TEXT,
+    title TEXT NOT NULL,
+    tracking_url TEXT NOT NULL,
+    total_episodes REAL NOT NULL DEFAULT 0,
+    last_episode_watched REAL NOT NULL DEFAULT 0,
+    score REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'watching',
+    FOREIGN KEY(anime_id) REFERENCES animes(_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX anime_tracks_anime_tracker_idx ON anime_tracks(anime_id, tracker_id);
+
+CREATE TABLE anime_history (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    episode_id INTEGER NOT NULL UNIQUE,
+    last_watched INTEGER,
+    time_watched INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(episode_id) REFERENCES episodes(_id) ON DELETE CASCADE
+);

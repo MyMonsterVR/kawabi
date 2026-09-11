@@ -1,0 +1,16 @@
+CREATE TABLE anime_history (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    episode_id INTEGER NOT NULL UNIQUE,
+    last_watched INTEGER,
+    time_watched INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(episode_id) REFERENCES episodes(_id) ON DELETE CASCADE
+);
+
+insertAnimeHistory:
+INSERT INTO anime_history(episode_id, last_watched, time_watched) VALUES (?, ?, ?);
+
+updateAnimeHistory:
+UPDATE anime_history SET last_watched = ?, time_watched = time_watched + ? WHERE episode_id = ?;
+
+selectByEpisode:
+SELECT * FROM anime_history WHERE episode_id = ?;

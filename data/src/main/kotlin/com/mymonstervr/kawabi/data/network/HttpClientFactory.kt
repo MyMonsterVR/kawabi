@@ -17,6 +17,9 @@ val networkJson: Json = Json {
 
 const val BASE_URL: String = BuildConfig.BASE_URL
 
+/** Site-key prefix every anime source carries in the backend contract ("anime:<engineSourceId>"). */
+const val ANIME_SOURCE_PREFIX: String = "anime:"
+
 /** `/pages` returns `proxied_image_url` as a path relative to [BASE_URL], not an absolute URL. */
 fun resolveImageUrl(proxiedImageUrl: String): String =
     if (proxiedImageUrl.startsWith("http")) proxiedImageUrl else "$BASE_URL$proxiedImageUrl"
@@ -31,8 +34,13 @@ fun resolveImageUrl(proxiedImageUrl: String): String =
  * routing through it. Everything else (MAL/Kitsu CDNs, etc.) is hotlink-friendly and loads
  * directly.
  */
-fun resolveCoverUrl(url: String?): String? {
+fun resolveCoverUrl(url: String?, source: String? = null): String? {
     if (url.isNullOrBlank()) return url
+    // Anime covers always go through the proxy: the engine's sources hand back CDN urls
+    // that need the extension's own Referer/UA, which only the backend's /image handler
+    // (delegating to the engine's /image) has. `source` is the contract's "anime:<id>"
+    // site key, passed straight through as the proxy's source parameter.
+    if (source != null && source.startsWith(ANIME_SOURCE_PREFIX)) return proxiedImageUrl(source, url)
     if (url.startsWith("/api/")) return proxiedImageUrl("suwayomi", url)
     val host = runCatching { url.toHttpUrl().host }.getOrNull() ?: return url
     if (host.endsWith("asurascans.com") || host.endsWith("asuracomic.net")) {

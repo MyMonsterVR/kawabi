@@ -16,4 +16,5 @@ val genreListAdapter = object : ColumnAdapter<List<String>, String> {
 fun createDatabase(driver: SqlDriver): KawabiDatabase = KawabiDatabase(
     driver = driver,
     mangasAdapter = Mangas.Adapter(genreAdapter = genreListAdapter),
+    animesAdapter = Animes.Adapter(genreAdapter = genreListAdapter),
 )

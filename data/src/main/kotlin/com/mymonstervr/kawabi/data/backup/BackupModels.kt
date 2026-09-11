@@ -2,7 +2,7 @@ package com.mymonstervr.kawabi.data.backup
 
 import kotlinx.serialization.Serializable
 
-private const val BACKUP_VERSION = 2
+private const val BACKUP_VERSION = 3
 
 @Serializable
 data class BackupData(
@@ -10,6 +10,50 @@ data class BackupData(
     val exportedAt: Long,
     val categories: List<BackupCategory>,
     val manga: List<BackupManga>,
+    // Defaulted so a v2 (or v1) file -- which has no anime key at all -- still decodes
+    // and restores its manga library exactly as before.
+    val anime: List<BackupAnime> = emptyList(),
+)
+
+@Serializable
+data class BackupAnime(
+    val source: String,
+    val key: String,
+    val url: String,
+    val title: String,
+    val author: String?,
+    val description: String?,
+    val genres: List<String>,
+    val status: String,
+    val thumbnailUrl: String?,
+    val episodes: List<BackupEpisode> = emptyList(),
+    val tracks: List<BackupAnimeTrack> = emptyList(),
+)
+
+@Serializable
+data class BackupEpisode(
+    val key: String,
+    val url: String,
+    val name: String,
+    val watched: Boolean,
+    val positionMs: Long,
+    val durationMs: Long,
+    val episodeNumber: Double,
+    val sourceOrder: Int,
+    val dateUpload: Long,
+)
+
+@Serializable
+data class BackupAnimeTrack(
+    val trackerId: String,
+    val remoteId: String,
+    val libraryId: String?,
+    val title: String,
+    val trackingUrl: String,
+    val totalEpisodes: Double,
+    val lastEpisodeWatched: Double,
+    val score: Double = 0.0,
+    val status: String = "watching",
 )
 
 @Serializable

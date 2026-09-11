@@ -3,6 +3,7 @@ package com.mymonstervr.kawabi.data.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -39,6 +40,13 @@ const val LIBRARY_GRID_COLUMNS_MIN = 2
 const val LIBRARY_GRID_COLUMNS_MAX = 8
 const val LIBRARY_GRID_COLUMNS_DEFAULT = 3
 
+// Fraction of an episode's duration that counts as "watched" for auto-marking. 0.85
+// matches PLAN-anime.md's C2 default -- most anime episodes end with ~90s of outro/next-
+// episode preview, so waiting for the literal end would rarely fire at all.
+const val ANIME_AUTO_MARK_WATCHED_THRESHOLD_MIN = 0.5f
+const val ANIME_AUTO_MARK_WATCHED_THRESHOLD_MAX = 1.0f
+const val ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT = 0.85f
+
 /**
  * Tier 1 Settings (PLAN.md step 8) that actually affect app behavior today. Global
  * defaults only -- per-series override (reading direction) isn't built yet, same for
@@ -60,6 +68,9 @@ class AppPreferences(private val context: Context) {
     private val themePaletteKey = stringPreferencesKey("theme_palette")
     private val amoledBlackKey = booleanPreferencesKey("amoled_black")
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
+    private val animeAutoMarkWatchedThresholdKey = floatPreferencesKey("anime_auto_mark_watched_threshold")
+    private val animePreferredQualityKey = stringPreferencesKey("anime_preferred_quality")
+    private val animeAutoSkipIntroKey = booleanPreferencesKey("anime_auto_skip_intro")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -217,5 +228,37 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setDynamicColor(enabled: Boolean) {
         context.settingsDataStore.edit { it[dynamicColorKey] = enabled }
+    }
+
+    // Player preferences (PLAN-anime.md C2). Stored and settable now, but nothing reads
+    // them yet -- the player itself is the next slice, and having the keys already in
+    // place means a stored choice survives from before it lands.
+    val animeAutoMarkWatchedThreshold: Flow<Float> = context.settingsDataStore.data.map { prefs ->
+        (prefs[animeAutoMarkWatchedThresholdKey] ?: ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT)
+            .coerceIn(ANIME_AUTO_MARK_WATCHED_THRESHOLD_MIN, ANIME_AUTO_MARK_WATCHED_THRESHOLD_MAX)
+    }
+
+    suspend fun setAnimeAutoMarkWatchedThreshold(fraction: Float) {
+        context.settingsDataStore.edit {
+            it[animeAutoMarkWatchedThresholdKey] =
+                fraction.coerceIn(ANIME_AUTO_MARK_WATCHED_THRESHOLD_MIN, ANIME_AUTO_MARK_WATCHED_THRESHOLD_MAX)
+        }
+    }
+
+    /** Empty string means "best available" -- the player picks the highest resolution. */
+    val animePreferredQuality: Flow<String> = context.settingsDataStore.data.map { prefs ->
+        prefs[animePreferredQualityKey].orEmpty()
+    }
+
+    suspend fun setAnimePreferredQuality(quality: String) {
+        context.settingsDataStore.edit { it[animePreferredQualityKey] = quality }
+    }
+
+    val animeAutoSkipIntro: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeAutoSkipIntroKey] ?: false
+    }
+
+    suspend fun setAnimeAutoSkipIntro(enabled: Boolean) {
+        context.settingsDataStore.edit { it[animeAutoSkipIntroKey] = enabled }
     }
 }

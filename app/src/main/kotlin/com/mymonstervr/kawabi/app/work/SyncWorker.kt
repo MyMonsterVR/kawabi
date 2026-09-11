@@ -3,6 +3,7 @@ package com.mymonstervr.kawabi.app.work
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.SyncClient
 import java.util.concurrent.TimeUnit
 import org.koin.core.component.KoinComponent
@@ -23,9 +24,11 @@ class SyncWorker(context: Context, params: WorkerParameters) :
     KoinComponent {
 
     private val syncClient: SyncClient by inject()
+    private val animeSyncClient: AnimeSyncClient by inject()
 
     override suspend fun doWork(): Result {
         syncClient.sync()
+        animeSyncClient.sync()
         // sync() already swallows its own failures (runCatching) rather than throwing --
         // never retry aggressively here, same reasoning as LibraryUpdateWorker: this runs
         // again on its own schedule regardless.

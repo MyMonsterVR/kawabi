@@ -2,8 +2,8 @@ package com.mymonstervr.kawabi.data.usecase
 
 import com.mymonstervr.kawabi.data.network.TrackEntry
 import com.mymonstervr.kawabi.data.network.TrackerApi
-import com.mymonstervr.kawabi.data.network.TrackerTokenStore
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
+import com.mymonstervr.kawabi.data.track.trackingUrlFor
 import com.mymonstervr.kawabi.domain.model.Track
 import com.mymonstervr.kawabi.domain.model.TrackStatus
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
@@ -129,10 +129,4 @@ class TrackerSyncClient(
 
     private fun statusFor(chaptersRead: Double, totalChapters: Double): String =
         if (totalChapters > 0 && chaptersRead >= totalChapters) TrackStatus.COMPLETED else TrackStatus.READING
-
-    private fun trackingUrlFor(trackerId: String, remoteId: String): String = when (trackerId) {
-        TrackerTokenStore.TRACKER_MAL -> "https://myanimelist.net/manga/$remoteId"
-        TrackerTokenStore.TRACKER_KITSU -> "https://kitsu.app/manga/$remoteId"
-        else -> error("Unknown tracker: $trackerId")
-    }
 }

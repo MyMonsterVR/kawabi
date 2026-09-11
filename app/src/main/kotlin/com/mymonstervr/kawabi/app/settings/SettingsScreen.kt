@@ -61,6 +61,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SettingsScreen(
     onAccountClick: () -> Unit,
     onSourcesClick: () -> Unit,
+    onAnimeSourcesClick: () -> Unit,
     onBackupClick: () -> Unit,
     onTrackingClick: () -> Unit,
     onChangelogClick: () -> Unit,
@@ -103,6 +104,8 @@ fun SettingsScreen(
                     )
                     HorizontalDivider(color = NightSession.Hairline)
                     SettingsRow(title = "Sources", subtitle = "Enable or disable catalog sources", onClick = onSourcesClick)
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsRow(title = "Anime sources", subtitle = "Enable or disable anime sources", onClick = onAnimeSourcesClick)
                     HorizontalDivider(color = NightSession.Hairline)
                     SettingsRow(title = "Backup & Restore", subtitle = "Export or import your library as JSON", onClick = onBackupClick)
                     HorizontalDivider(color = NightSession.Hairline)

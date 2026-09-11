@@ -1,7 +1,11 @@
 package com.mymonstervr.kawabi.data.db
 
+import com.mymonstervr.kawabi.domain.model.Anime as DomainAnime
+import com.mymonstervr.kawabi.domain.model.AnimeTrack as DomainAnimeTrack
+import com.mymonstervr.kawabi.domain.model.AnimeWithUnwatchedCount as DomainAnimeWithUnwatchedCount
 import com.mymonstervr.kawabi.domain.model.Category as DomainCategory
 import com.mymonstervr.kawabi.domain.model.Chapter as DomainChapter
+import com.mymonstervr.kawabi.domain.model.Episode as DomainEpisode
 import com.mymonstervr.kawabi.domain.model.History as DomainHistory
 import com.mymonstervr.kawabi.domain.model.Manga as DomainManga
 import com.mymonstervr.kawabi.domain.model.MangaWithUnreadCount as DomainMangaWithUnreadCount
@@ -127,6 +131,106 @@ fun Tracks.toDomain() = DomainTrack(
     trackingUrl = tracking_url,
     totalChapters = total_chapters,
     lastChapterRead = last_chapter_read,
+    score = score,
+    status = status,
+)
+
+private fun animeFields(
+    id: Long,
+    source: String,
+    key: String,
+    url: String,
+    title: String,
+    author: String?,
+    description: String?,
+    genre: List<String>?,
+    status: String,
+    thumbnailUrl: String?,
+    favorite: Boolean,
+    lastUpdate: Long?,
+    nextUpdate: Long?,
+    initialized: Boolean,
+    dateAdded: Long,
+    calculateInterval: Long,
+    lastModifiedAt: Long,
+    version: Long,
+    isSyncing: Boolean,
+    totalEpisodes: Double,
+    lastWatchedAt: Long,
+) = DomainAnime(
+    id = id,
+    source = source,
+    key = key,
+    url = url,
+    title = title,
+    author = author,
+    description = description,
+    genres = genre.orEmpty(),
+    status = status,
+    thumbnailUrl = thumbnailUrl,
+    favorite = favorite,
+    lastUpdate = lastUpdate,
+    nextUpdate = nextUpdate,
+    initialized = initialized,
+    dateAdded = dateAdded,
+    calculateInterval = calculateInterval.toInt(),
+    lastModifiedAt = lastModifiedAt,
+    version = version,
+    isSyncing = isSyncing,
+    totalEpisodes = totalEpisodes,
+    lastWatchedAt = lastWatchedAt,
+)
+
+fun Animes.toDomain() = animeFields(
+    id = _id, source = source, key = key, url = url, title = title, author = author,
+    description = description, genre = genre, status = status, thumbnailUrl = thumbnail_url,
+    favorite = favorite, lastUpdate = last_update, nextUpdate = next_update,
+    initialized = initialized, dateAdded = date_added, calculateInterval = calculate_interval,
+    lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
+    totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
+)
+
+fun SelectFavoritesWithUnwatchedCount.toDomain() = DomainAnimeWithUnwatchedCount(
+    anime = animeFields(
+        id = _id, source = source, key = key, url = url, title = title, author = author,
+        description = description, genre = genre, status = status, thumbnailUrl = thumbnail_url,
+        favorite = favorite, lastUpdate = last_update, nextUpdate = next_update,
+        initialized = initialized, dateAdded = date_added, calculateInterval = calculate_interval,
+        lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
+        totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
+    ),
+    unwatchedCount = unwatched_count.toInt(),
+    lastWatchedEpisodeNumber = last_watched_episode,
+)
+
+fun Episodes.toDomain() = DomainEpisode(
+    id = _id,
+    animeId = anime_id,
+    key = key,
+    url = url,
+    name = name,
+    watched = watched,
+    positionMs = position_ms,
+    durationMs = duration_ms,
+    episodeNumber = episode_number,
+    sourceOrder = source_order.toInt(),
+    dateUpload = date_upload,
+    dateFetch = date_fetch,
+    lastModifiedAt = last_modified_at,
+    version = version,
+    isSyncing = is_syncing,
+)
+
+fun Anime_tracks.toDomain() = DomainAnimeTrack(
+    id = _id,
+    animeId = anime_id,
+    trackerId = tracker_id,
+    remoteId = remote_id,
+    libraryId = library_id,
+    title = title,
+    trackingUrl = tracking_url,
+    totalEpisodes = total_episodes,
+    lastEpisodeWatched = last_episode_watched,
     score = score,
     status = status,
 )

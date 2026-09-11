@@ -1,0 +1,81 @@
+CREATE TABLE episodes (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    anime_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    watched INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    position_ms INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    episode_number REAL NOT NULL DEFAULT -1,
+    source_order INTEGER NOT NULL DEFAULT 0,
+    date_upload INTEGER NOT NULL DEFAULT 0,
+    date_fetch INTEGER NOT NULL DEFAULT 0,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    FOREIGN KEY(anime_id) REFERENCES animes(_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX episodes_anime_url_idx ON episodes(anime_id, url);
+CREATE INDEX episodes_anime_id_idx ON episodes(anime_id);
+CREATE INDEX episodes_key_idx ON episodes(key);
+
+CREATE TRIGGER update_last_modified_at_episodes
+AFTER UPDATE ON episodes
+FOR EACH ROW
+WHEN new.last_modified_at == old.last_modified_at AND new.is_syncing = 0
+BEGIN
+    UPDATE episodes SET last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000) WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_episode_and_anime_version
+AFTER UPDATE ON episodes
+FOR EACH ROW
+WHEN new.version == old.version AND new.is_syncing = 0
+BEGIN
+    UPDATE episodes SET version = version + 1 WHERE _id = new._id;
+    UPDATE animes SET version = version + 1, last_modified_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+        WHERE _id = new.anime_id AND is_syncing = 0;
+END;
+
+insertEpisode:
+INSERT INTO episodes(anime_id, key, url, name, watched, position_ms, duration_ms,
+    episode_number, source_order, date_upload, date_fetch, last_modified_at, version, is_syncing)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectByAnime:
+SELECT * FROM episodes WHERE anime_id = ? ORDER BY source_order DESC;
+
+selectByAnimeAndUrl:
+SELECT * FROM episodes WHERE anime_id = ? AND url = ?;
+
+selectEpisodeById:
+SELECT * FROM episodes WHERE _id = ?;
+
+selectByKey:
+SELECT * FROM episodes WHERE key = ? LIMIT 1;
+
+updateWatchedState:
+UPDATE episodes SET watched = ? WHERE _id = ?;
+
+updateProgress:
+UPDATE episodes SET watched = ?, position_ms = ?, duration_ms = ? WHERE _id = ?;
+
+markWatchedUpToNumber:
+UPDATE episodes SET watched = 1 WHERE anime_id = ? AND episode_number != -1 AND episode_number <= ?;
+
+updateDetails:
+UPDATE episodes SET key = ?, name = ?, episode_number = ?, source_order = ?, date_upload = ? WHERE _id = ?;
+
+setEpisodeSyncing:
+UPDATE episodes SET is_syncing = ? WHERE _id = ?;
+
+deleteEpisodesByAnime:
+DELETE FROM episodes WHERE anime_id = ?;
+
+deleteEpisodesByIds:
+DELETE FROM episodes WHERE _id IN ?;
+
+lastInsertEpisodeRowId:
+SELECT last_insert_rowid();

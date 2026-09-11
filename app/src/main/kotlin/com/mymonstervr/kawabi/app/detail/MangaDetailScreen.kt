@@ -27,11 +27,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.AlertDialog
@@ -57,7 +55,6 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -80,15 +77,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.mymonstervr.kawabi.app.common.TrackerEditDialog
+import com.mymonstervr.kawabi.app.common.TrackerLinkSheetContent
+import com.mymonstervr.kawabi.app.common.TrackerSearchDialog
+import com.mymonstervr.kawabi.app.common.TrackerSheetLink
+import com.mymonstervr.kawabi.app.common.TrackerSheetRow
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.ChapterDto
 import com.mymonstervr.kawabi.data.network.dto.MangaResponse
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
-import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.domain.model.Chapter
-import com.mymonstervr.kawabi.domain.model.Track
+import com.mymonstervr.kawabi.domain.model.MediaType
 import com.mymonstervr.kawabi.domain.model.formatChapterNumber
 import com.mymonstervr.kawabi.domain.model.formatRelativeTime
 import com.mymonstervr.kawabi.domain.model.normalizedScanlator
@@ -144,7 +145,7 @@ fun MangaDetailScreen(
     if (trackerSheetShown != null) {
         ModalBottomSheet(onDismissRequest = viewModel::closeTrackerSheet, containerColor = NightSession.Chip) {
             TrackerLinkSheetContent(
-                rows = trackerSheetShown.rows,
+                rows = trackerSheetShown.rows.map { it.toSheetRow() },
                 onOpenSearch = { trackerId -> searchingTrackerId = trackerId },
                 onOpenEdit = { trackerId -> editingTrackerId = trackerId },
                 onGoToSettings = { viewModel.closeTrackerSheet(); onOpenTrackingSettings() },
@@ -168,6 +169,7 @@ fun MangaDetailScreen(
             results = searchRow.searchResults,
             error = searchRow.searchError,
             altTitleSuggestions = altTitleSuggestions,
+            mediaType = MediaType.MANGA,
             onSearch = { query -> viewModel.searchTracker(searchRow.trackerId, query) },
             onSelect = { result ->
                 viewModel.linkTracker(searchRow.trackerId, result)
@@ -182,7 +184,8 @@ fun MangaDetailScreen(
     if (editingTrack != null) {
         TrackerEditDialog(
             trackerName = editRow.trackerName,
-            track = editingTrack,
+            link = editRow.toSheetRow().linked!!,
+            mediaType = MediaType.MANGA,
             onDismiss = { editingTrackerId = null },
             onSave = { chaptersRead, status, score ->
                 viewModel.updateTrackDetails(editingTrack, chaptersRead, status, score) { editingTrackerId = null }
@@ -1023,279 +1026,10 @@ private fun ChapterRow(
 private fun chapterLabel(chapter: ChapterDto): String =
     chapter.title.ifBlank { "Chapter ${formatChapterNumber(chapter.number)}" }
 
-@Composable
-private fun TrackerLinkSheetContent(
-    rows: List<TrackerLinkRow>,
-    onOpenSearch: (trackerId: String) -> Unit,
-    onOpenEdit: (trackerId: String) -> Unit,
-    onGoToSettings: () -> Unit,
-) {
-    val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.padding(horizontal = 16.dp * scale.spacing).padding(bottom = 24.dp * scale.spacing)) {
-        Text("Tracker links", fontSize = 14.sp * scale.font, fontWeight = FontWeight.Bold, color = NightSession.Text, modifier = Modifier.padding(bottom = 8.dp * scale.spacing))
-        if (rows.isEmpty()) {
-            Text("Not connected to any tracker yet.", fontSize = 11.5.sp * scale.font, color = NightSession.TextDim)
-            Spacer(Modifier.height(8.dp * scale.spacing))
-            TextButton(onClick = onGoToSettings) {
-                Text("Go to Settings -> Tracking services", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
-            }
-        } else {
-            rows.forEachIndexed { index, row ->
-                TrackerLinkRowContent(
-                    row = row,
-                    onClick = { if (row.linked != null) onOpenEdit(row.trackerId) else onOpenSearch(row.trackerId) },
-                )
-                if (index != rows.lastIndex) {
-                    HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(vertical = 8.dp * scale.spacing))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackerLinkRowContent(row: TrackerLinkRow, onClick: () -> Unit) {
-    val scale = LocalKawabiScale.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp * scale.spacing),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(row.trackerName, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
-            val linked = row.linked
-            Text(
-                text = when {
-                    linked == null -> "Not linked"
-                    else -> buildString {
-                        append(formatChapterNumber(linked.lastChapterRead))
-                        if (linked.totalChapters > 0) append(" / ${formatChapterNumber(linked.totalChapters)}")
-                        if (linked.score > 0) append(" ★ ${formatChapterNumber(linked.score)}")
-                    }
-                },
-                fontSize = 10.5.sp * scale.font,
-                color = NightSession.TextDim,
-            )
-        }
-        if (row.linked != null) {
-            Icon(Icons.Outlined.Edit, contentDescription = "Edit ${row.trackerName} link", tint = NightSession.TextDim, modifier = Modifier.size(16.dp * scale.spacing))
-        } else {
-            Icon(Icons.Filled.Add, contentDescription = "Link on ${row.trackerName}", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp * scale.spacing))
-        }
-    }
-}
-
-// Full-screen so a cover-thumbnail result list has room to actually be useful --
-// a same-title-different-language/region manga is otherwise indistinguishable
-// from text alone (owner feedback after testing the inline version).
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TrackerSearchDialog(
-    trackerName: String,
-    initialQuery: String,
-    searching: Boolean,
-    results: List<TrackSearchResult>?,
-    error: String?,
-    altTitleSuggestions: List<String>,
-    onSearch: (String) -> Unit,
-    onSelect: (TrackSearchResult) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val scale = LocalKawabiScale.current
-    var query by remember { mutableStateOf(initialQuery) }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Scaffold(
-            containerColor = NightSession.Background,
-            topBar = {
-                TopAppBar(
-                    title = { Text("Link on $trackerName", fontWeight = FontWeight.Bold, color = NightSession.Text) },
-                    navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Close", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
-                )
-            },
-        ) { padding ->
-            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(16.dp * scale.spacing)) {
-                    TextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = NightSession.Chip,
-                            unfocusedContainerColor = NightSession.Chip,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedTextColor = NightSession.Text,
-                            unfocusedTextColor = NightSession.Text,
-                        ),
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { onSearch(query) }) {
-                        Text("Search", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp * scale.font)
-                    }
-                }
-
-                // Alt names from MangaUpdates -- a manga can be listed under a
-                // different localized/translated title on MAL/Kitsu than on its
-                // source site, so a plain title search alone can come up empty.
-                if (altTitleSuggestions.isNotEmpty()) {
-                    LazyRow(
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp * scale.spacing),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp * scale.spacing),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp * scale.spacing),
-                    ) {
-                        items(altTitleSuggestions) { suggestion ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(100))
-                                    .background(NightSession.Chip)
-                                    .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
-                                    .clickable { query = suggestion; onSearch(suggestion) }
-                                    .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
-                            ) {
-                                Text(suggestion, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
-                            }
-                        }
-                    }
-                }
-
-                when {
-                    searching -> Box(Modifier.fillMaxWidth().padding(top = 24.dp * scale.spacing), Alignment.TopCenter) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    }
-                    error != null -> Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp * scale.font, modifier = Modifier.padding(16.dp * scale.spacing))
-                    results != null && results.isEmpty() -> Text("No results.", color = NightSession.TextDim, fontSize = 12.sp * scale.font, modifier = Modifier.padding(16.dp * scale.spacing))
-                    results != null -> LazyColumn {
-                        items(results) { result ->
-                            TrackSearchResultRow(result = result, onClick = { onSelect(result) })
-                            HorizontalDivider(color = NightSession.Hairline)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackSearchResultRow(result: TrackSearchResult, onClick: () -> Unit) {
-    val scale = LocalKawabiScale.current
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = result.coverUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .width(44.dp * scale.spacing)
-                .height(62.dp * scale.spacing)
-                .clip(RoundedCornerShape(NightSession.RadiusSm))
-                .background(NightSession.Cover),
-        )
-        Column(modifier = Modifier.weight(1f).padding(start = 12.dp * scale.spacing)) {
-            Text(result.title, color = NightSession.Text, fontSize = 12.5.sp * scale.font, fontWeight = FontWeight.SemiBold)
-            if (result.totalChapters > 0) {
-                Text("${formatChapterNumber(result.totalChapters)} chapters", color = NightSession.TextDim, fontSize = 10.5.sp * scale.font, modifier = Modifier.padding(top = 2.dp * scale.spacing))
-            }
-        }
-    }
-}
-
-private val TRACK_STATUS_LABELS = listOf(
-    "reading" to "Reading",
-    "completed" to "Completed",
-    "on_hold" to "On hold",
-    "dropped" to "Dropped",
-    "plan_to_read" to "Plan to read",
+private fun TrackerLinkRow.toSheetRow(): TrackerSheetRow = TrackerSheetRow(
+    trackerId = trackerId,
+    trackerName = trackerName,
+    linked = linked?.let {
+        TrackerSheetLink(progress = it.lastChapterRead, total = it.totalChapters, score = it.score, status = it.status)
+    },
 )
-
-// Standard tracker edit dialog: status, chapter progress, and a 0-10 score
-// all editable in one place, distinct from the lightweight linking flow above.
-@Composable
-private fun TrackerEditDialog(
-    trackerName: String,
-    track: Track,
-    onDismiss: () -> Unit,
-    onSave: (chaptersRead: Double, status: String, score: Double) -> Unit,
-    onUnlink: () -> Unit,
-) {
-    val scale = LocalKawabiScale.current
-    var chaptersText by remember(track.id) { mutableStateOf(formatChapterNumber(track.lastChapterRead)) }
-    var status by remember(track.id) { mutableStateOf(track.status) }
-    var score by remember(track.id) { mutableStateOf(track.score.toInt()) }
-    var statusMenuExpanded by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = NightSession.Chip,
-        title = { Text("$trackerName link", color = NightSession.Text) },
-        text = {
-            Column {
-                Text("Status", fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
-                Box(modifier = Modifier.padding(top = 4.dp * scale.spacing, bottom = 12.dp * scale.spacing)) {
-                    TextButton(onClick = { statusMenuExpanded = true }) {
-                        Text(
-                            TRACK_STATUS_LABELS.firstOrNull { it.first == status }?.second ?: status,
-                            color = NightSession.Text,
-                            fontSize = 12.sp * scale.font,
-                        )
-                    }
-                    androidx.compose.material3.DropdownMenu(expanded = statusMenuExpanded, onDismissRequest = { statusMenuExpanded = false }) {
-                        TRACK_STATUS_LABELS.forEach { (value, label) ->
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(label) },
-                                onClick = { status = value; statusMenuExpanded = false },
-                            )
-                        }
-                    }
-                }
-
-                Text("Chapters read" + if (track.totalChapters > 0) " (of ${formatChapterNumber(track.totalChapters)})" else "", fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
-                TextField(
-                    value = chaptersText,
-                    onValueChange = { chaptersText = it },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = NightSession.Background,
-                        unfocusedContainerColor = NightSession.Background,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = NightSession.Text,
-                        unfocusedTextColor = NightSession.Text,
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp * scale.spacing, bottom = 12.dp * scale.spacing),
-                )
-
-                Text("Score", fontSize = 10.5.sp * scale.font, color = NightSession.TextDim)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp * scale.spacing)) {
-                    IconButton(onClick = { if (score > 0) score-- }) {
-                        Text("-", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp * scale.font, fontWeight = FontWeight.Bold)
-                    }
-                    Text(if (score == 0) "None" else score.toString(), color = NightSession.Text, fontSize = 13.sp * scale.font, modifier = Modifier.padding(horizontal = 8.dp * scale.spacing))
-                    IconButton(onClick = { if (score < 10) score++ }) {
-                        Text("+", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp * scale.font, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                TextButton(onClick = onUnlink, modifier = Modifier.padding(top = 12.dp * scale.spacing)) {
-                    Text("Unlink", color = MaterialTheme.colorScheme.error, fontSize = 11.sp * scale.font)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(chaptersText.toDoubleOrNull() ?: track.lastChapterRead, status, score.toDouble()) }) {
-                Text("Save", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = NightSession.TextDim) } },
-    )
-}

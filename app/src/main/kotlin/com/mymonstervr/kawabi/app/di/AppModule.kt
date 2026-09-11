@@ -1,11 +1,16 @@
 package com.mymonstervr.kawabi.app.di
 
+import com.mymonstervr.kawabi.app.anime.AnimeBrowseViewModel
+import com.mymonstervr.kawabi.app.anime.AnimeDetailViewModel
+import com.mymonstervr.kawabi.app.anime.AnimeLibraryViewModel
+import com.mymonstervr.kawabi.app.anime.AnimeSearchViewModel
 import com.mymonstervr.kawabi.app.auth.LoginViewModel
 import com.mymonstervr.kawabi.app.browse.BrowseViewModel
 import com.mymonstervr.kawabi.app.detail.MangaDetailViewModel
 import com.mymonstervr.kawabi.app.library.LibraryViewModel
 import com.mymonstervr.kawabi.app.reader.ReaderViewModel
 import com.mymonstervr.kawabi.app.search.SearchViewModel
+import com.mymonstervr.kawabi.app.settings.AnimeSourcesViewModel
 import com.mymonstervr.kawabi.app.settings.BackupViewModel
 import com.mymonstervr.kawabi.app.settings.SettingsViewModel
 import com.mymonstervr.kawabi.app.settings.SourcesViewModel
@@ -28,4 +33,9 @@ val appModule = module {
     viewModel { SourcesViewModel(get()) }
     viewModel { BackupViewModel(get()) }
     viewModel { TrackingServicesViewModel(get()) }
+    viewModel { AnimeLibraryViewModel(get(), get(), get(), get()) }
+    viewModel { AnimeSearchViewModel(get(), get()) }
+    viewModel { AnimeBrowseViewModel(get(), get()) }
+    viewModel { AnimeDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AnimeSourcesViewModel(get()) }
 }
