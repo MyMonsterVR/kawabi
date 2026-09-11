@@ -13,7 +13,12 @@ stamp, it won't fail the build).
 ## Unreleased
 
 - Anime tab (preview): browse, search, library and episode lists from anime
-  sources; playback coming next.
+  sources.
+- Episodes now play in-app: full-screen landscape video player with server and
+  quality switching, subtitle track picker, playback speed, skip
+  intro/ending, resume where you left off, auto-mark watched, and auto-advance
+  to the next episode. New Settings -> Playback group for the mark-watched
+  point, preferred quality and auto-skip.
 
 ## 0.1.0-36 - 2026-08-24
 

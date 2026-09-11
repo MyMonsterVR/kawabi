@@ -7,6 +7,7 @@ import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.PageFitMode
@@ -108,6 +109,27 @@ class SettingsViewModel(
 
     fun setAmoledBlack(enabled: Boolean) {
         viewModelScope.launch { preferences.setAmoledBlack(enabled) }
+    }
+
+    val animeAutoMarkWatchedThreshold: StateFlow<Float> = preferences.animeAutoMarkWatchedThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT)
+
+    fun setAnimeAutoMarkWatchedThreshold(fraction: Float) {
+        viewModelScope.launch { preferences.setAnimeAutoMarkWatchedThreshold(fraction) }
+    }
+
+    val animePreferredQuality: StateFlow<String> = preferences.animePreferredQuality
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    fun setAnimePreferredQuality(quality: String) {
+        viewModelScope.launch { preferences.setAnimePreferredQuality(quality) }
+    }
+
+    val animeAutoSkipIntro: StateFlow<Boolean> = preferences.animeAutoSkipIntro
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setAnimeAutoSkipIntro(enabled: Boolean) {
+        viewModelScope.launch { preferences.setAnimeAutoSkipIntro(enabled) }
     }
 
     val dynamicColor: StateFlow<Boolean> = preferences.dynamicColor

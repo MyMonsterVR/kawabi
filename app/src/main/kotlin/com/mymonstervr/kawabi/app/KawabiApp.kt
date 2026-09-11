@@ -62,8 +62,6 @@ private const val ROUTE_ANIME_LIBRARY = "anime-library"
 private const val ROUTE_ANIME_SEARCH = "anime-search"
 private const val ROUTE_ANIME_DETAIL = "anime/{key}"
 private const val ROUTE_ANIME_BROWSE = "anime-browse/{sourceKey}"
-// Reserved for the Media3 player (PLAN-anime.md P4) -- the placeholder composable behind
-// it just shows the episode key so the nav path is testable before the player lands.
 private const val ROUTE_PLAYER = "player/{episodeKey}"
 private const val ARG_URL = "url"
 private const val ARG_KEY = "key"
@@ -118,6 +116,15 @@ private fun navigateToAnimeBrowse(navController: androidx.navigation.NavControll
 
 private fun navigateToPlayer(navController: androidx.navigation.NavController, episodeKey: String) {
     navController.navigateSafe("player/${Uri.encode(episodeKey)}")
+}
+
+private fun navigateToEpisode(navController: androidx.navigation.NavController, episodeKey: String) {
+    // Next/previous episode from inside the player replaces the current entry instead of
+    // stacking another one, exactly like the reader's chapter hop -- Back returns to the
+    // episode list, not through every episode watched this session.
+    navController.navigateSafe("player/${Uri.encode(episodeKey)}") {
+        popUpTo(ROUTE_PLAYER) { inclusive = true }
+    }
 }
 
 private fun navigateToReader(navController: androidx.navigation.NavController, chapterId: Long) {
@@ -252,7 +259,11 @@ fun KawabiApp() {
                 arguments = listOf(navArgument(ARG_EPISODE_KEY) { type = NavType.StringType }),
             ) { entry ->
                 val episodeKey = Uri.decode(entry.arguments?.getString(ARG_EPISODE_KEY).orEmpty())
-                PlayerScreen(episodeKey = episodeKey, onBack = { navController.popBackStackSafe() })
+                PlayerScreen(
+                    episodeKey = episodeKey,
+                    onBack = { navController.popBackStackSafe() },
+                    onNavigateEpisode = { targetKey -> navigateToEpisode(navController, targetKey) },
+                )
             }
             composable(ROUTE_BACKUP) {
                 BackupScreen(onBack = { navController.popBackStackSafe() })

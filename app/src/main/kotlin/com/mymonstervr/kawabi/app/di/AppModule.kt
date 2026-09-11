@@ -4,6 +4,7 @@ import com.mymonstervr.kawabi.app.anime.AnimeBrowseViewModel
 import com.mymonstervr.kawabi.app.anime.AnimeDetailViewModel
 import com.mymonstervr.kawabi.app.anime.AnimeLibraryViewModel
 import com.mymonstervr.kawabi.app.anime.AnimeSearchViewModel
+import com.mymonstervr.kawabi.app.anime.PlayerViewModel
 import com.mymonstervr.kawabi.app.auth.LoginViewModel
 import com.mymonstervr.kawabi.app.browse.BrowseViewModel
 import com.mymonstervr.kawabi.app.detail.MangaDetailViewModel
@@ -17,6 +18,7 @@ import com.mymonstervr.kawabi.app.settings.SourcesViewModel
 import com.mymonstervr.kawabi.app.settings.TrackingServicesViewModel
 import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateNotifier
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -37,5 +39,6 @@ val appModule = module {
     viewModel { AnimeSearchViewModel(get(), get()) }
     viewModel { AnimeBrowseViewModel(get(), get()) }
     viewModel { AnimeDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { PlayerViewModel(androidContext(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AnimeSourcesViewModel(get()) }
 }

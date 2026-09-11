@@ -13,6 +13,7 @@ import com.mymonstervr.kawabi.data.network.SyncApi
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.network.TrackerApi
 import com.mymonstervr.kawabi.data.network.TrackerTokenStore
+import com.mymonstervr.kawabi.data.network.PlayerHttpClient
 import com.mymonstervr.kawabi.data.network.createOkHttpClient
 import com.mymonstervr.kawabi.data.repository.SqlDelightAnimeRepository
 import com.mymonstervr.kawabi.data.repository.SqlDelightAnimeTrackRepository
@@ -66,6 +67,7 @@ val dataModule = module {
     single { SessionExpiryNotifier() }
     single { AuthInterceptor(get(), get()) }
     single { createOkHttpClient(get()) }
+    single { PlayerHttpClient(get()) }
     single { AuthApi(get(), get(), get()) }
     single { AppReleaseApi(get()) }
     single { SourceApi(get(), get()) }

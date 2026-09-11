@@ -52,9 +52,13 @@ import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_MIN
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_MAX
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_MIN
 import com.mymonstervr.kawabi.data.settings.PageFitMode
+import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_MAX
+import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_MIN
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
 import com.mymonstervr.kawabi.data.settings.ThemePalette
 import org.koin.androidx.compose.koinViewModel
+
+private val PREFERRED_QUALITIES = listOf("", "1080p", "720p", "480p")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,6 +83,9 @@ fun SettingsScreen(
     val themePalette by viewModel.themePalette.collectAsState()
     val amoledBlack by viewModel.amoledBlack.collectAsState()
     val dynamicColor by viewModel.dynamicColor.collectAsState()
+    val animeAutoMarkWatchedThreshold by viewModel.animeAutoMarkWatchedThreshold.collectAsState()
+    val animePreferredQuality by viewModel.animePreferredQuality.collectAsState()
+    val animeAutoSkipIntro by viewModel.animeAutoSkipIntro.collectAsState()
     val context = LocalContext.current
 
     Scaffold(
@@ -199,6 +206,39 @@ fun SettingsScreen(
                         checked = keepScreenAwake,
                         onCheckedChange = viewModel::setKeepScreenAwake,
                     )
+                }
+            }
+            item {
+                SettingsGroup("Playback") {
+                    SettingsSliderRow(
+                        title = "Mark watched at",
+                        subtitle = "${(animeAutoMarkWatchedThreshold * 100).toInt()}% of an episode -- lower marks it watched sooner",
+                        value = (animeAutoMarkWatchedThreshold * 100).toInt(),
+                        range = (ANIME_AUTO_MARK_WATCHED_THRESHOLD_MIN * 100).toInt()..(ANIME_AUTO_MARK_WATCHED_THRESHOLD_MAX * 100).toInt(),
+                        onValueChange = { percent -> viewModel.setAnimeAutoMarkWatchedThreshold(percent / 100f) },
+                    )
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsSwitchRow(
+                        title = "Skip intros and endings",
+                        subtitle = "Auto-skip when the source marks them -- otherwise a Skip button appears",
+                        checked = animeAutoSkipIntro,
+                        onCheckedChange = viewModel::setAnimeAutoSkipIntro,
+                    )
+                }
+            }
+            item {
+                SettingsGroup("Preferred quality") {
+                    // Matched against each stream's title rather than a numeric field:
+                    // extensions label variants ("1080p") far more reliably than they fill
+                    // in a resolution, and "Auto" (empty) just takes the highest available.
+                    PREFERRED_QUALITIES.forEachIndexed { index, quality ->
+                        if (index > 0) HorizontalDivider(color = NightSession.Hairline)
+                        SettingsRadioRow(
+                            label = quality.ifBlank { "Auto (best available)" },
+                            selected = quality == animePreferredQuality,
+                            onClick = { viewModel.setAnimePreferredQuality(quality) },
+                        )
+                    }
                 }
             }
             item {
