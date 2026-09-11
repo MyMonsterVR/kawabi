@@ -1,6 +1,9 @@
 package com.mymonstervr.kawabi.data.network
 
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
+import com.mymonstervr.kawabi.data.network.dto.AnimeTrackerEntryDto
+import com.mymonstervr.kawabi.data.network.dto.AnimeTrackerSearchResultDto
+import com.mymonstervr.kawabi.data.network.dto.AnimeTrackerUpsertEntryRequest
 import com.mymonstervr.kawabi.data.network.dto.TrackerConnectKitsuRequest
 import com.mymonstervr.kawabi.data.network.dto.TrackerConnectMalRequest
 import com.mymonstervr.kawabi.data.network.dto.TrackerConnectResponse
@@ -61,15 +64,27 @@ class TrackerApi(
                 addQueryParameter("q", query)
                 mediaType.wireValue?.let { addQueryParameter("type", it) }
             }
-            execute(request, ListSerializer(TrackerSearchResultDto.serializer()))
-                .map { dto ->
-                    TrackSearchResult(
-                        remoteId = dto.remoteId,
-                        title = dto.title,
-                        totalChapters = maxOf(dto.totalEpisodes, dto.total_episodes),
-                        coverUrl = dto.coverUrl,
-                    )
-                }
+            if (mediaType == MediaType.ANIME) {
+                execute(request, ListSerializer(AnimeTrackerSearchResultDto.serializer()))
+                    .map { dto ->
+                        TrackSearchResult(
+                            remoteId = dto.remote_id,
+                            title = dto.title,
+                            totalChapters = dto.total_episodes,
+                            coverUrl = dto.cover_url,
+                        )
+                    }
+            } else {
+                execute(request, ListSerializer(TrackerSearchResultDto.serializer()))
+                    .map { dto ->
+                        TrackSearchResult(
+                            remoteId = dto.remoteId,
+                            title = dto.title,
+                            totalChapters = dto.totalEpisodes,
+                            coverUrl = dto.coverUrl,
+                        )
+                    }
+            }
         }
 
     /**
@@ -87,8 +102,14 @@ class TrackerApi(
             client.newCall(request).execute().use { response ->
                 if (response.code == 204) return@use null
                 if (!response.isSuccessful) error(errorMessageFor(response))
-                val dto = networkJson.decodeFromString(TrackerEntryDto.serializer(), response.body.string())
-                TrackEntry(dto.remoteId, dto.status, progressOf(dto), totalOf(dto), dto.score)
+                val body = response.body.string()
+                if (mediaType == MediaType.ANIME) {
+                    val dto = networkJson.decodeFromString(AnimeTrackerEntryDto.serializer(), body)
+                    TrackEntry(dto.remote_id, dto.status, dto.episodes_watched, dto.total_episodes, dto.score)
+                } else {
+                    val dto = networkJson.decodeFromString(TrackerEntryDto.serializer(), body)
+                    TrackEntry(dto.remoteId, dto.status, dto.chaptersRead, dto.totalChapters, dto.score)
+                }
             }
         }
 
@@ -100,30 +121,26 @@ class TrackerApi(
         score: Double?,
         mediaType: MediaType = MediaType.MANGA,
     ): Unit = withContext(dispatchers.io) {
-        val anime = mediaType == MediaType.ANIME
-        val body = TrackerUpsertEntryRequest(
-            remoteId = remoteId,
-            status = status,
-            chaptersRead = chaptersRead,
-            score = score,
-            type = mediaType.wireValue,
-            episodesWatched = chaptersRead.takeIf { anime },
-            episodes_watched = chaptersRead.takeIf { anime },
-        )
-        val request = postRequest("tracker/$tracker/entry", body, TrackerUpsertEntryRequest.serializer())
+        val request = if (mediaType == MediaType.ANIME) {
+            val body = AnimeTrackerUpsertEntryRequest(
+                remote_id = remoteId,
+                type = mediaType.wireValue!!,
+                status = status,
+                episodes_watched = chaptersRead,
+                score = score,
+            )
+            postRequest("tracker/$tracker/entry", body, AnimeTrackerUpsertEntryRequest.serializer())
+        } else {
+            val body = TrackerUpsertEntryRequest(
+                remoteId = remoteId,
+                status = status,
+                chaptersRead = chaptersRead,
+                score = score,
+            )
+            postRequest("tracker/$tracker/entry", body, TrackerUpsertEntryRequest.serializer())
+        }
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(errorMessageFor(response))
         }
     }
-
-    // The contract names anime progress `episodes_watched`/`total_episodes` while the
-    // manga wire this endpoint already speaks is camelCase `chaptersRead`/`totalChapters`.
-    // Taking the max across every spelling reads whichever the backend actually emits
-    // (all the others decode to their 0.0 default) instead of guessing one and silently
-    // reporting no progress at all if the guess is wrong.
-    private fun progressOf(dto: TrackerEntryDto): Double =
-        maxOf(dto.chaptersRead, dto.episodesWatched, dto.episodes_watched)
-
-    private fun totalOf(dto: TrackerEntryDto): Double =
-        maxOf(dto.totalChapters, dto.totalEpisodes, dto.total_episodes)
 }
