@@ -5,6 +5,7 @@ import com.mymonstervr.kawabi.data.BuildConfig
 import com.mymonstervr.kawabi.data.network.TrackerApi
 import com.mymonstervr.kawabi.data.network.TrackerTokenStore
 import com.mymonstervr.kawabi.data.track.AccountTracker
+import com.mymonstervr.kawabi.data.track.BrowserOAuthTracker
 import com.mymonstervr.kawabi.data.track.PkceUtil
 import kotlinx.coroutines.CoroutineScope
 
@@ -21,10 +22,11 @@ class MyAnimeListTracker(
     trackerApi: TrackerApi,
     tokenStore: TrackerTokenStore,
     scope: CoroutineScope,
-) : AccountTracker(trackerApi, tokenStore, scope) {
+) : AccountTracker(trackerApi, tokenStore, scope), BrowserOAuthTracker {
 
     override val id: String = TrackerTokenStore.TRACKER_MAL
     override val name: String = "MyAnimeList"
+    override val redirectHost: String = "myanimelist-auth"
 
     // MAL's PKCE only supports the "plain" code_challenge_method (challenge ==
     // verifier), not S256 -- not an oversight. Stashed here since exchangeCode
@@ -38,7 +40,7 @@ class MyAnimeListTracker(
     // own authorization code and get it silently bound to this device's session.
     private var state: String = ""
 
-    fun authUrl(): Uri {
+    override fun authUrl(): Uri {
         codeVerifier = PkceUtil.generateCodeVerifier()
         state = PkceUtil.generateCodeVerifier()
         return Uri.parse("$BASE_OAUTH_URL/authorize").buildUpon()
@@ -50,7 +52,7 @@ class MyAnimeListTracker(
             .build()
     }
 
-    suspend fun exchangeCode(code: String, receivedState: String?): Result<Unit> = runCatching {
+    override suspend fun exchangeCode(code: String, receivedState: String?): Result<Unit> = runCatching {
         check(state.isNotEmpty() && state == receivedState) { "MyAnimeList login rejected (state mismatch)" }
         val userName = trackerApi.connectMal(code, codeVerifier)
         tokenStore.saveProfile(id, userName)

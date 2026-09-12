@@ -9,6 +9,9 @@ data class TrackerConnectMalRequest(val code: String, val codeVerifier: String)
 data class TrackerConnectKitsuRequest(val email: String, val password: String)
 
 @Serializable
+data class TrackerConnectAniListRequest(val code: String)
+
+@Serializable
 data class TrackerConnectResponse(val userName: String)
 
 @Serializable

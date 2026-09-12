@@ -81,6 +81,7 @@ jobs:
           # see that file's comment) -- set these to build against real
           # tracker credentials.
           KAWABI_MAL_CLIENT_ID: ${{ secrets.KAWABI_MAL_CLIENT_ID }}
+          KAWABI_ANILIST_CLIENT_ID: ${{ secrets.KAWABI_ANILIST_CLIENT_ID }}
           KAWABI_KITSU_CLIENT_ID: ${{ secrets.KAWABI_KITSU_CLIENT_ID }}
           KAWABI_KITSU_CLIENT_SECRET: ${{ secrets.KAWABI_KITSU_CLIENT_SECRET }}
         run: ./gradlew assembleDebug assembleRelease

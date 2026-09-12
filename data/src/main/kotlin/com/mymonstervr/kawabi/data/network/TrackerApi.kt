@@ -4,6 +4,7 @@ import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.network.dto.AnimeTrackerEntryDto
 import com.mymonstervr.kawabi.data.network.dto.AnimeTrackerSearchResultDto
 import com.mymonstervr.kawabi.data.network.dto.AnimeTrackerUpsertEntryRequest
+import com.mymonstervr.kawabi.data.network.dto.TrackerConnectAniListRequest
 import com.mymonstervr.kawabi.data.network.dto.TrackerConnectKitsuRequest
 import com.mymonstervr.kawabi.data.network.dto.TrackerConnectMalRequest
 import com.mymonstervr.kawabi.data.network.dto.TrackerConnectResponse
@@ -40,6 +41,16 @@ class TrackerApi(
 
     suspend fun connectKitsu(email: String, password: String): String = withContext(dispatchers.io) {
         val request = postRequest("tracker/kitsu/connect", TrackerConnectKitsuRequest(email, password), TrackerConnectKitsuRequest.serializer())
+        execute(request, TrackerConnectResponse.serializer()).userName
+    }
+
+    /**
+     * AniList's code-for-token exchange needs the client secret, so it happens on the backend
+     * (PLAN-anime.md section 15) -- the app only forwards the authorization code the browser
+     * redirect handed it. No code verifier: AniList's flow is plain OAuth2, not PKCE.
+     */
+    suspend fun connectAniList(code: String): String = withContext(dispatchers.io) {
+        val request = postRequest("tracker/anilist/connect", TrackerConnectAniListRequest(code), TrackerConnectAniListRequest.serializer())
         execute(request, TrackerConnectResponse.serializer()).userName
     }
 

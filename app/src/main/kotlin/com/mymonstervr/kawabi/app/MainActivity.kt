@@ -15,7 +15,7 @@ import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSiz
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.core.content.ContextCompat
 import com.mymonstervr.kawabi.app.theme.KawabiTheme
-import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListTracker
+import com.mymonstervr.kawabi.data.track.TrackerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
                 KawabiApp()
             }
         }
-        handleMalRedirect(intent)
+        handleOAuthRedirect(intent)
     }
 
     private fun requestNotificationPermission() {
@@ -59,17 +59,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleMalRedirect(intent)
+        handleOAuthRedirect(intent)
     }
 
-    // MAL's browser OAuth redirect (kawabi://myanimelist-auth?code=...) lands here
-    // because MainActivity is singleTask + BROWSABLE for that scheme/host (manifest).
-    // The Settings -> Tracking services screen doesn't need to be open or even
-    // exist yet -- TrackerManager's loggedInTrackerIds is a StateFlow, so the
-    // screen picks up the new connection reactively whenever it's next shown.
-    private fun handleMalRedirect(intent: Intent) {
+    // A tracker's browser OAuth redirect (kawabi://<host>?code=...) lands here because
+    // MainActivity is singleTask + BROWSABLE for those scheme/hosts (manifest). The host
+    // picks the tracker, so adding one needs no branch here -- only a manifest entry and
+    // a matching BrowserOAuthTracker.redirectHost. The Settings -> Tracking services
+    // screen doesn't need to be open or even exist yet: TrackerManager's
+    // loggedInTrackerIds is a StateFlow, so the screen picks up the new connection
+    // reactively whenever it's next shown.
+    private fun handleOAuthRedirect(intent: Intent) {
         val data = intent.data ?: return
-        if (data.scheme != "kawabi" || data.host != "myanimelist-auth") return
+        if (data.scheme != "kawabi") return
+        val tracker = get<TrackerManager>().oAuthTrackerFor(data.host.orEmpty()) ?: return
         val code = data.getQueryParameter("code") ?: return
         val state = data.getQueryParameter("state")
 
@@ -86,10 +89,10 @@ class MainActivity : ComponentActivity() {
             // lambda previously ran the Toast on this scope's Dispatchers.IO
             // thread, which has no Looper -- Toast.show() there crashes the app
             // (flagged by security review). Main-dispatch it explicitly instead.
-            val result = get<MyAnimeListTracker>().exchangeCode(code, state)
+            val result = tracker.exchangeCode(code, state)
             result.exceptionOrNull()?.let { error ->
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, error.message ?: "MyAnimeList login failed", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, error.message ?: "${tracker.name} login failed", Toast.LENGTH_LONG).show()
                 }
             }
         }

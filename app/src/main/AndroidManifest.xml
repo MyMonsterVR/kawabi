@@ -22,13 +22,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- MAL OAuth redirect (Settings -> Tracking services), registered
-                 against kawabi's own MAL app (planning/TODO.md). -->
+            <!-- Browser OAuth redirects (Settings -> Tracking services), each
+                 registered against kawabi's own tracker app (planning/TODO.md).
+                 Hosts must match the trackers' BrowserOAuthTracker.redirectHost. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="kawabi" android:host="myanimelist-auth" />
+                <data android:scheme="kawabi" android:host="anilist-auth" />
             </intent-filter>
         </activity>
 

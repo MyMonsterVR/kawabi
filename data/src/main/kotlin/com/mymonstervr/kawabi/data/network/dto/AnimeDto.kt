@@ -157,3 +157,26 @@ data class AnimeProgressRequest(val entries: List<AnimeProgressDto>)
 
 @Serializable
 data class AnimeOkResponse(val ok: Boolean = false)
+
+@Serializable
+data class AnimeImportRequest(
+    val tracker: String,
+    val statuses: List<String>,
+)
+
+@Serializable
+data class AnimeImportResultDto(
+    val remote_id: String,
+    val title: String = "",
+    val status: String = "",
+    val episodes_watched: Double = 0.0,
+    val total_episodes: Double = 0.0,
+    val score: Double = 0.0,
+    val match: AnimeCardDto? = null,
+)
+
+@Serializable
+data class AnimeImportResponse(
+    val results: List<AnimeImportResultDto> = emptyList(),
+    val truncated: Boolean = false,
+)

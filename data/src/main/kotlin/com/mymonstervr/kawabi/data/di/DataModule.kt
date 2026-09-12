@@ -25,6 +25,8 @@ import com.mymonstervr.kawabi.data.repository.SqlDelightMangaRepository
 import com.mymonstervr.kawabi.data.repository.SqlDelightTrackRepository
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.TrackerManager
+import com.mymonstervr.kawabi.data.track.Tracker
+import com.mymonstervr.kawabi.data.track.anilist.AniListTracker
 import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
 import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListTracker
 import com.mymonstervr.kawabi.data.usecase.AddAnimeToLibrary
@@ -33,6 +35,7 @@ import com.mymonstervr.kawabi.data.usecase.AnimeLibraryUpdateManager
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.AnimeTrackerSyncClient
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
+import com.mymonstervr.kawabi.data.usecase.ImportAnimeFromTracker
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
 import com.mymonstervr.kawabi.data.usecase.RefreshLibraryBatch
 import com.mymonstervr.kawabi.data.usecase.RefreshMangaChapters
@@ -88,7 +91,12 @@ val dataModule = module {
     single { TrackerApi(get(), get()) }
     single { MyAnimeListTracker(get(), get(), get()) }
     single { KitsuTracker(get(), get(), get()) }
-    single { TrackerManager(get(), get(), get(), get(), get()) }
+    single { AniListTracker(get(), get(), get()) }
+    // Declaration order is the order trackers are listed in the UI -- one line per new
+    // tracker, which is the whole point of TrackerManager taking a list (PLAN-tracker-abstraction.md).
+    single<List<Tracker>> { listOf(get<MyAnimeListTracker>(), get<KitsuTracker>(), get<AniListTracker>()) }
+    single { TrackerManager(get(), get(), get(), get()) }
     single { TrackerSyncClient(get(), get(), get()) }
     single { AnimeTrackerSyncClient(get(), get(), get()) }
+    single { ImportAnimeFromTracker(get(), get(), get(), get(), get(), get(), get()) }
 }

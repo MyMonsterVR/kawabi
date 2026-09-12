@@ -37,6 +37,15 @@ val malClientId = (localProperties.getProperty("kawabi.malClientId"))
     ?: System.getenv("KAWABI_MAL_CLIENT_ID")
     ?: "REPLACE-MAL-CLIENT-ID"
 
+// Same mechanism again for AniList (anilist.co/settings/developer, redirect
+// `kawabi://anilist-auth`): set `kawabi.anilistClientId` locally or the
+// KAWABI_ANILIST_CLIENT_ID CI secret. Client-side for the same
+// reason as MAL's -- only the browser authorize URL is built here; the
+// code-for-token exchange (which needs the client secret) is the backend's job.
+val anilistClientId = (localProperties.getProperty("kawabi.anilistClientId"))
+    ?: System.getenv("KAWABI_ANILIST_CLIENT_ID")
+    ?: ""
+
 android {
     namespace = "com.mymonstervr.kawabi.data"
     compileSdk = libs.versions.android.compile.sdk.get().toInt()
@@ -45,6 +54,7 @@ android {
         minSdk = libs.versions.android.min.sdk.get().toInt()
         buildConfigField("String", "BASE_URL", "\"$kawabiBaseUrl\"")
         buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"")
+        buildConfigField("String", "ANILIST_CLIENT_ID", "\"$anilistClientId\"")
     }
 
     buildFeatures {

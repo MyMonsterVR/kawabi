@@ -54,6 +54,20 @@ class AnimeSearchViewModel(
         }
     }
 
+    /**
+     * One-shot prefill for the route's optional `q` argument (the tracker-list import's
+     * unmatched titles open search this way). Guarded so a recomposition/rotation doesn't
+     * re-run the search or stomp a query the user has since edited.
+     */
+    fun prefillAndSearch(value: String) {
+        if (prefilled || value.isBlank()) return
+        prefilled = true
+        _query.value = value
+        search()
+    }
+
+    private var prefilled = false
+
     fun onQueryChange(value: String) {
         _query.value = value
     }

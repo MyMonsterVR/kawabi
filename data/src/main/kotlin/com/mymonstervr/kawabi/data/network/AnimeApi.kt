@@ -6,6 +6,8 @@ import com.mymonstervr.kawabi.data.network.dto.AnimeDetailResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntriesRequest
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntriesResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntryDto
+import com.mymonstervr.kawabi.data.network.dto.AnimeImportRequest
+import com.mymonstervr.kawabi.data.network.dto.AnimeImportResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeProgressDto
 import com.mymonstervr.kawabi.data.network.dto.AnimeProgressRequest
 import com.mymonstervr.kawabi.data.network.dto.AnimeProgressResponse
@@ -138,6 +140,19 @@ class AnimeApi(
         }
     }
 
+    /**
+     * Tracker-list import: the backend fetches the whole MAL/Kitsu list and then title-searches
+     * every item across the anime sources, with a documented total cap of 120s before it gives up
+     * and answers `truncated` (PLAN-anime.md section 14) -- so the client has to outwait that cap.
+     */
+    suspend fun importFromTracker(tracker: String, statuses: List<String>): Result<AnimeImportResponse> =
+        withContext(dispatchers.io) {
+            runCatching {
+                val request = postRequest("anime/import", AnimeImportRequest(tracker, statuses), AnimeImportRequest.serializer())
+                executeWithRetry(request, AnimeImportResponse.serializer(), importClient)
+            }
+        }
+
     private val longReadClient by lazy { client.newBuilder().readTimeout(20, TimeUnit.SECONDS).build() }
 
     // /anime/videos walks every hoster's extractor inside the engine (documented 5-20s,
@@ -149,4 +164,6 @@ class AnimeApi(
             .readTimeout(100, TimeUnit.SECONDS)
             .build()
     }
+
+    private val importClient by lazy { client.newBuilder().readTimeout(150, TimeUnit.SECONDS).build() }
 }

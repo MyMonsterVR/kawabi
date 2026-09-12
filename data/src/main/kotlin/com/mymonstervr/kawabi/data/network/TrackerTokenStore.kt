@@ -13,7 +13,7 @@ import kotlinx.coroutines.runBlocking
 private val Context.trackerDataStore by preferencesDataStore(name = "kawabi_tracker_auth")
 
 /**
- * Per-tracker (MAL, Kitsu, ...) connection cache -- display name only, no
+ * Per-tracker (MAL, Kitsu, AniList) connection cache -- display name only, no
  * credentials or OAuth tokens (those are held by the backend now). Populated
  * from [TrackerManager]'s [TrackerApi.status] refresh and kept in sync
  * on-device by connect/logout so [loggedInTrackerIds] updates immediately.
@@ -59,6 +59,7 @@ class TrackerTokenStore(private val context: Context) {
     companion object {
         const val TRACKER_MAL = "mal"
         const val TRACKER_KITSU = "kitsu"
-        private val SUPPORTED_TRACKERS = listOf(TRACKER_MAL, TRACKER_KITSU)
+        const val TRACKER_ANILIST = "anilist"
+        private val SUPPORTED_TRACKERS = listOf(TRACKER_MAL, TRACKER_KITSU, TRACKER_ANILIST)
     }
 }

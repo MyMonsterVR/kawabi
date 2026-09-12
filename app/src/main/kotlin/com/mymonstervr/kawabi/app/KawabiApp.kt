@@ -59,7 +59,9 @@ private const val ROUTE_MANGA_DETAIL = "manga/{url}"
 private const val ROUTE_READER = "reader/{chapterId}"
 private const val ROUTE_BROWSE = "browse/{sourceKey}"
 private const val ROUTE_ANIME_LIBRARY = "anime-library"
-private const val ROUTE_ANIME_SEARCH = "anime-search"
+// Optional prefill query (tracker-list import's unmatched titles tap straight into a
+// search for that title); navigating to the bare "anime-search" still matches.
+private const val ROUTE_ANIME_SEARCH = "anime-search?q={q}"
 private const val ROUTE_ANIME_DETAIL = "anime/{key}"
 private const val ROUTE_ANIME_BROWSE = "anime-browse/{sourceKey}"
 private const val ROUTE_PLAYER = "player/{episodeKey}"
@@ -68,6 +70,7 @@ private const val ARG_KEY = "key"
 private const val ARG_CHAPTER_ID = "chapterId"
 private const val ARG_EPISODE_KEY = "episodeKey"
 private const val ARG_SOURCE_KEY = "sourceKey"
+private const val ARG_QUERY = "q"
 
 private data class BottomNavItem(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector)
 
@@ -108,6 +111,10 @@ private fun navigateToBrowse(navController: androidx.navigation.NavController, s
 
 private fun navigateToAnimeDetail(navController: androidx.navigation.NavController, key: String) {
     navController.navigateSafe("anime/${Uri.encode(key)}")
+}
+
+private fun navigateToAnimeSearch(navController: androidx.navigation.NavController, query: String = "") {
+    navController.navigateSafe("anime-search?q=${Uri.encode(query)}")
 }
 
 private fun navigateToAnimeBrowse(navController: androidx.navigation.NavController, sourceKey: String) {
@@ -222,11 +229,16 @@ fun KawabiApp() {
             composable(ROUTE_ANIME_LIBRARY) {
                 AnimeLibraryScreen(
                     onAnimeClick = { key -> navigateToAnimeDetail(navController, key) },
-                    onSearchClick = { navController.navigateSafe(ROUTE_ANIME_SEARCH) },
+                    onSearchClick = { navigateToAnimeSearch(navController) },
                 )
             }
-            composable(ROUTE_ANIME_SEARCH) {
+            composable(
+                route = ROUTE_ANIME_SEARCH,
+                arguments = listOf(navArgument(ARG_QUERY) { type = NavType.StringType; defaultValue = "" }),
+            ) { entry ->
+                val initialQuery = Uri.decode(entry.arguments?.getString(ARG_QUERY).orEmpty())
                 AnimeSearchScreen(
+                    initialQuery = initialQuery,
                     onResultClick = { key -> navigateToAnimeDetail(navController, key) },
                     onBrowseClick = { sourceKey -> navigateToAnimeBrowse(navController, sourceKey) },
                 )
@@ -269,7 +281,10 @@ fun KawabiApp() {
                 BackupScreen(onBack = { navController.popBackStackSafe() })
             }
             composable(ROUTE_TRACKING) {
-                TrackingServicesScreen(onBack = { navController.popBackStackSafe() })
+                TrackingServicesScreen(
+                    onBack = { navController.popBackStackSafe() },
+                    onOpenAnimeSearch = { title -> navigateToAnimeSearch(navController, title) },
+                )
             }
             composable(
                 route = ROUTE_MANGA_DETAIL,

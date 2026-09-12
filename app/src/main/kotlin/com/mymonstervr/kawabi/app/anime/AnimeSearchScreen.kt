@@ -31,6 +31,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +49,7 @@ import org.koin.androidx.compose.koinViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnimeSearchScreen(
+    initialQuery: String = "",
     onResultClick: (String) -> Unit,
     onBrowseClick: (String) -> Unit,
     viewModel: AnimeSearchViewModel = koinViewModel(),
@@ -59,6 +61,8 @@ fun AnimeSearchScreen(
     val gridColumns by viewModel.gridColumns.collectAsState()
     val sources by viewModel.sources.collectAsState()
     val scale = LocalKawabiScale.current
+
+    LaunchedEffect(initialQuery) { viewModel.prefillAndSearch(initialQuery) }
 
     Scaffold(
         containerColor = NightSession.Background,

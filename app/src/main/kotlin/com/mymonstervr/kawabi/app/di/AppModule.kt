@@ -34,7 +34,7 @@ val appModule = module {
     viewModel { SettingsViewModel(get(), get(), get()) }
     viewModel { SourcesViewModel(get()) }
     viewModel { BackupViewModel(get()) }
-    viewModel { TrackingServicesViewModel(get()) }
+    viewModel { TrackingServicesViewModel(get(), get()) }
     viewModel { AnimeLibraryViewModel(get(), get(), get(), get()) }
     viewModel { AnimeSearchViewModel(get(), get()) }
     viewModel { AnimeBrowseViewModel(get(), get()) }
