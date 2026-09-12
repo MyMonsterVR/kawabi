@@ -52,7 +52,7 @@ class SqlDelightAnimeRepository(
                     genre = anime.genres,
                     status = anime.status,
                     thumbnail_url = anime.thumbnailUrl,
-                    _id = existing._id,
+                    id = existing._id,
                 )
                 queries.setAnimeSyncing(anime.isSyncing, existing._id)
                 existing._id
@@ -94,6 +94,10 @@ class SqlDelightAnimeRepository(
 
     override suspend fun touchLastWatched(id: Long, timestamp: Long): Unit = withContext<Unit>(dispatchers.io) {
         queries.touchLastWatched(timestamp, id)
+    }
+
+    override suspend fun fillMissingThumbnail(id: Long, thumbnailUrl: String): Unit = withContext<Unit>(dispatchers.io) {
+        if (thumbnailUrl.isNotBlank()) queries.fillMissingThumbnail(thumbnailUrl, id)
     }
 
     override suspend fun getDueForUpdate(now: Long): List<Anime> = withContext(dispatchers.io) {

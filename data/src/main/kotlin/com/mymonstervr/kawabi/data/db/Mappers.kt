@@ -233,4 +233,5 @@ fun Anime_tracks.toDomain() = DomainAnimeTrack(
     lastEpisodeWatched = last_episode_watched,
     score = score,
     status = status,
+    updatedAt = updated_at,
 )

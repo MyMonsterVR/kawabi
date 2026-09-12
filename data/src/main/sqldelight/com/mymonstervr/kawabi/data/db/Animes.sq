@@ -74,9 +74,17 @@ UPDATE animes SET total_episodes = ? WHERE _id = ?;
 
 -- Metadata that legitimately drifts over time from the source -- excludes local-only
 -- state (favorite, dates) which upsert must not clobber, same split as Mangas.sq.
+-- An empty/absent incoming cover leaves the stored one alone: the engine's details page
+-- often has no thumbnail while the search/browse card for the same key does.
 updateMetadata:
-UPDATE animes SET source = ?, url = ?, title = ?, author = ?, description = ?, genre = ?,
-    status = ?, thumbnail_url = ? WHERE _id = ?;
+UPDATE animes SET source = :source, url = :url, title = :title, author = :author,
+    description = :description, genre = :genre, status = :status,
+    thumbnail_url = CASE WHEN :thumbnail_url IS NULL OR :thumbnail_url = '' THEN thumbnail_url ELSE :thumbnail_url END
+WHERE _id = :id;
+
+fillMissingThumbnail:
+UPDATE animes SET thumbnail_url = :thumbnail_url
+WHERE _id = :id AND (thumbnail_url IS NULL OR thumbnail_url = '');
 
 setAnimeSyncing:
 UPDATE animes SET is_syncing = ? WHERE _id = ?;

@@ -4,7 +4,13 @@ import com.mymonstervr.kawabi.data.network.AnimeApi
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntryDto
 import com.mymonstervr.kawabi.data.network.dto.AnimeProgressDto
+import com.mymonstervr.kawabi.data.network.dto.AnimeTrackDto
+import com.mymonstervr.kawabi.data.track.trackingUrlFor
+import com.mymonstervr.kawabi.domain.model.AnimeTrack
+import com.mymonstervr.kawabi.domain.model.MediaType
+import com.mymonstervr.kawabi.domain.model.TrackStatus
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
+import com.mymonstervr.kawabi.domain.repository.AnimeTrackRepository
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
 
 /**
@@ -23,6 +29,7 @@ class AnimeSyncClient(
     private val animeApi: AnimeApi,
     private val animeRepository: AnimeRepository,
     private val episodeRepository: EpisodeRepository,
+    private val animeTrackRepository: AnimeTrackRepository,
     private val addAnimeToLibrary: AddAnimeToLibrary,
     private val tokenStore: TokenStore,
 ) {
@@ -33,6 +40,7 @@ class AnimeSyncClient(
     }
 
     private suspend fun push() {
+        val now = System.currentTimeMillis()
         val favorites = animeRepository.getFavorites()
         val entries = favorites.map { anime ->
             val episodes = episodeRepository.getForAnime(anime.id)
@@ -47,6 +55,19 @@ class AnimeSyncClient(
                 episodes_watched = episodes.filter { it.watched }.maxOfOrNull { it.episodeNumber } ?: 0.0,
                 favorite = true,
                 last_watched_at = anime.lastWatchedAt.takeIf { it > 0 },
+                tracks = animeTrackRepository.getForAnime(anime.id).map { track ->
+                    AnimeTrackDto(
+                        tracker = track.trackerId,
+                        remote_id = track.remoteId,
+                        status = track.status,
+                        progress = track.lastEpisodeWatched,
+                        total = track.totalEpisodes,
+                        score = track.score,
+                        updated_at = track.updatedAt.takeIf { it > 0 }
+                            ?: anime.lastModifiedAt.takeIf { it > 0 }
+                            ?: now,
+                    )
+                },
             )
         }
         if (entries.isNotEmpty()) animeApi.postEntries(entries)
@@ -75,16 +96,61 @@ class AnimeSyncClient(
             if (entry.deleted_at != null) continue
 
             val anime = animeRepository.getByKey(entry.key)
-                ?: addAnimeToLibrary.add(entry.key).getOrNull()
+                ?: addAnimeToLibrary.add(entry.key, entry.cover_url).getOrNull()
                 ?: continue
 
             if (entry.episodes_watched > 0) {
                 episodeRepository.markWatchedUpToNumber(anime.id, entry.episodes_watched)
             }
             entry.last_watched_at?.let { animeRepository.touchLastWatched(anime.id, it) }
+            entry.cover_url?.let { animeRepository.fillMissingThumbnail(anime.id, it) }
+            applyTracks(anime.id, entry)
             animeIdByKey[entry.key] = anime.id
         }
         applyAllProgress(animeIdByKey)
+    }
+
+    /**
+     * Restores/merges the server's tracker links for one anime, so a fresh device gets its
+     * MAL/Kitsu/AniList links back from `/anime/entries` instead of needing a re-import.
+     * `progress` is monotonic-max like everywhere else; the rest is last-write-wins on the
+     * row's `updated_at`, and a tombstoned row unlinks locally.
+     */
+    private suspend fun applyTracks(animeId: Long, entry: AnimeEntryDto) {
+        for (dto in entry.tracks) {
+            if (dto.tracker.isBlank()) continue
+            val existing = animeTrackRepository.getByAnimeAndTracker(animeId, dto.tracker)
+            if (dto.deleted_at != null) {
+                if (existing != null) animeTrackRepository.unlink(animeId, dto.tracker)
+                continue
+            }
+            val remoteWins = existing == null || dto.updated_at > existing.updatedAt
+            val remoteId = (if (remoteWins) dto.remote_id else existing!!.remoteId).ifBlank { existing?.remoteId.orEmpty() }
+            if (remoteId.isBlank()) continue
+            val trackingUrl = runCatching { trackingUrlFor(dto.tracker, remoteId, MediaType.ANIME) }.getOrNull()
+                ?: existing?.trackingUrl
+                ?: continue
+            animeTrackRepository.link(
+                AnimeTrack(
+                    id = existing?.id ?: 0,
+                    animeId = animeId,
+                    trackerId = dto.tracker,
+                    remoteId = remoteId,
+                    libraryId = existing?.libraryId,
+                    title = existing?.title?.takeIf { it.isNotBlank() } ?: entry.title,
+                    trackingUrl = trackingUrl,
+                    totalEpisodes = if (remoteWins) dto.total else existing!!.totalEpisodes,
+                    lastEpisodeWatched = maxOf(dto.progress, existing?.lastEpisodeWatched ?: 0.0),
+                    score = if (remoteWins) dto.score else existing!!.score,
+                    status = if (remoteWins) {
+                        dto.status.ifBlank { existing?.status?.takeIf { it.isNotBlank() } ?: TrackStatus.WATCHING }
+                    } else {
+                        existing!!.status
+                    },
+                    updatedAt = maxOf(dto.updated_at, existing?.updatedAt ?: 0L),
+                ),
+            )
+        }
     }
 
     private suspend fun applyAllProgress(animeIdByKey: Map<String, Long>) {

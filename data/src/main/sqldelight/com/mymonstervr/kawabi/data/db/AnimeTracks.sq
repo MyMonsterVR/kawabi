@@ -10,6 +10,7 @@ CREATE TABLE anime_tracks (
     last_episode_watched REAL NOT NULL DEFAULT 0,
     score REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'watching',
+    updated_at INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(anime_id) REFERENCES animes(_id) ON DELETE CASCADE
 );
 
@@ -19,8 +20,8 @@ CREATE UNIQUE INDEX anime_tracks_anime_tracker_idx ON anime_tracks(anime_id, tra
 -- replaces the row instead of erroring on the unique index.
 insertAnimeTrack:
 INSERT OR REPLACE INTO anime_tracks(anime_id, tracker_id, remote_id, library_id, title,
-    tracking_url, total_episodes, last_episode_watched, score, status)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    tracking_url, total_episodes, last_episode_watched, score, status, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectByAnime:
 SELECT * FROM anime_tracks WHERE anime_id = ?;
@@ -33,14 +34,14 @@ DELETE FROM anime_tracks WHERE anime_id = ? AND tracker_id = ?;
 
 -- Monotonic-max, same rule as Tracks.sq's updateChaptersRead.
 updateEpisodesWatched:
-UPDATE anime_tracks SET last_episode_watched = MAX(last_episode_watched, ?) WHERE _id = ?;
+UPDATE anime_tracks SET last_episode_watched = MAX(last_episode_watched, ?), updated_at = ? WHERE _id = ?;
 
 updateTotalEpisodes:
-UPDATE anime_tracks SET total_episodes = ? WHERE _id = ?;
+UPDATE anime_tracks SET total_episodes = ?, updated_at = ? WHERE _id = ?;
 
 -- Explicit user edit -- deliberately NOT monotonic-max, see Tracks.sq's updateTrackDetails.
 updateTrackDetails:
-UPDATE anime_tracks SET last_episode_watched = ?, status = ?, score = ? WHERE _id = ?;
+UPDATE anime_tracks SET last_episode_watched = ?, status = ?, score = ?, updated_at = ? WHERE _id = ?;
 
 lastInsertAnimeTrackRowId:
 SELECT last_insert_rowid();

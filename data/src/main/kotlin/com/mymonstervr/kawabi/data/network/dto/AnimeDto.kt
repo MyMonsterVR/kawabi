@@ -127,6 +127,19 @@ data class AnimeEntryDto(
     val last_watched_at: Long? = null,
     val updated_at: Long = 0,
     val deleted_at: Long? = null,
+    val tracks: List<AnimeTrackDto> = emptyList(),
+)
+
+@Serializable
+data class AnimeTrackDto(
+    val tracker: String,
+    val remote_id: String = "",
+    val status: String = "",
+    val progress: Double = 0.0,
+    val total: Double = 0.0,
+    val score: Double = 0.0,
+    val updated_at: Long = 0,
+    val deleted_at: Long? = null,
 )
 
 @Serializable
@@ -182,6 +195,7 @@ data class AnimeImportResultDto(
     val episodes_watched: Double = 0.0,
     val total_episodes: Double = 0.0,
     val score: Double = 0.0,
+    val tracker_updated_at: Long = 0,
     val match: AnimeCardDto? = null,
 )
 

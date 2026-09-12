@@ -14,4 +14,6 @@ data class AnimeTrack(
     // Canonical internal values, anime variants of TrackStatus: "watching" | "completed" |
     // "on_hold" | "dropped" | "plan_to_watch".
     val status: String,
+    /** Wire clock for cross-device track sync (`/anime/entries` `tracks[].updated_at`). */
+    val updatedAt: Long = 0,
 )

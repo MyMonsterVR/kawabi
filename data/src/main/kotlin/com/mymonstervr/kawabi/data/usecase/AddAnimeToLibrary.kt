@@ -11,16 +11,26 @@ class AddAnimeToLibrary(
     private val animeRepository: AnimeRepository,
     private val refreshAnimeEpisodes: RefreshAnimeEpisodes,
 ) {
-    suspend fun add(key: String): Result<Anime> {
+    suspend fun add(key: String, cardCover: String? = null): Result<Anime> {
         val response = animeApi.getAnime(key).getOrElse { return Result.failure(it) }
-        return addWithDetail(response)
+        return addWithDetail(response, cardCover)
     }
 
-    /** Same as [add], but for a detail payload the caller already fetched (e.g. a batch import). */
-    suspend fun addWithDetail(response: AnimeDetailResponse): Result<Anime> = runCatching {
-        val anime = response.toDomain()
+    /**
+     * Same as [add], but for a detail payload the caller already fetched (e.g. a batch import).
+     * [cardCover] is the cover of the search/browse/import card the caller came from: engine
+     * details pages frequently carry no thumbnail at all, and an empty cover must never win
+     * over one we already know (stored row first, then the card).
+     */
+    suspend fun addWithDetail(response: AnimeDetailResponse, cardCover: String? = null): Result<Anime> = runCatching {
+        val fetched = response.toDomain()
+        val anime = fetched.copy(
+            thumbnailUrl = fetched.thumbnailUrl?.takeIf { it.isNotBlank() }
+                ?: cardCover?.takeIf { it.isNotBlank() },
+        )
         val id = animeRepository.upsert(anime)
         animeRepository.setFavorite(id, true)
+        anime.thumbnailUrl?.let { animeRepository.fillMissingThumbnail(id, it) }
         val stored = anime.copy(id = id)
         refreshAnimeEpisodes.applyResponse(stored, response)
         stored

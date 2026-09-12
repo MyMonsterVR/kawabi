@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Anime covers and last-watched dates now come through from imports; tracker
+  links sync across devices.
 - Tracker connections are verified on launch; a tracker whose login expired
   shows 'Needs reconnect' instead of 'Connected'.
 - Anime tab (preview): browse, search, library and episode lists from anime

@@ -35,6 +35,7 @@ class SqlDelightAnimeTrackRepository(
                 track.lastEpisodeWatched,
                 track.score,
                 track.status,
+                track.updatedAt.takeIf { it > 0 } ?: System.currentTimeMillis(),
             )
             trackQueries.lastInsertAnimeTrackRowId().executeAsOne()
         }
@@ -45,15 +46,15 @@ class SqlDelightAnimeTrackRepository(
     }
 
     override suspend fun updateEpisodesWatched(trackId: Long, episodesWatched: Double): Unit = withContext(dispatchers.io) {
-        trackQueries.updateEpisodesWatched(episodesWatched, trackId)
+        trackQueries.updateEpisodesWatched(episodesWatched, System.currentTimeMillis(), trackId)
     }
 
     override suspend fun updateTotalEpisodes(trackId: Long, totalEpisodes: Double): Unit = withContext(dispatchers.io) {
-        trackQueries.updateTotalEpisodes(totalEpisodes, trackId)
+        trackQueries.updateTotalEpisodes(totalEpisodes, System.currentTimeMillis(), trackId)
     }
 
     override suspend fun updateTrackDetails(trackId: Long, episodesWatched: Double, status: String, score: Double): Unit =
         withContext(dispatchers.io) {
-            trackQueries.updateTrackDetails(episodesWatched, status, score, trackId)
+            trackQueries.updateTrackDetails(episodesWatched, status, score, System.currentTimeMillis(), trackId)
         }
 }

@@ -20,6 +20,7 @@ class RefreshAnimeEpisodes(
     }
 
     suspend fun applyResponse(anime: Anime, response: AnimeDetailResponse): Result<List<Episode>> {
+        response.cover_url?.let { animeRepository.fillMissingThumbnail(anime.id, it) }
         val sourceEpisodes = response.toSourceEpisodes()
         return runCatching { syncEpisodesWithSource.await(anime.id, sourceEpisodes) }
             .onSuccess { animeRepository.setTotalEpisodes(anime.id, sourceEpisodes.size.toDouble()) }

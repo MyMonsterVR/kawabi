@@ -87,7 +87,7 @@ val dataModule = module {
     single { AnimeApi(get(), get()) }
     single { RefreshAnimeEpisodes(get(), get(), get()) }
     single { AddAnimeToLibrary(get(), get(), get()) }
-    single { AnimeSyncClient(get(), get(), get(), get(), get()) }
+    single { AnimeSyncClient(get(), get(), get(), get(), get(), get()) }
     single { AnimeLibraryUpdateManager(get(), get()) }
 
     single { TrackerAuthNotifier() }

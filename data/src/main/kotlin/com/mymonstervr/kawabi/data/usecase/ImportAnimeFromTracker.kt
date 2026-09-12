@@ -73,9 +73,17 @@ class ImportAnimeFromTracker(
                 continue
             }
             val existing = animeRepository.getByKey(match.key)
-            if (existing != null && animeTrackRepository.getByAnimeAndTracker(existing.id, trackerId) != null) {
-                alreadyPresent++
-                continue
+            if (existing != null) {
+                // Repair pass for rows imported before the cover/last-watched fixes: both are
+                // local no-ops when already populated, so this costs nothing on a healthy row.
+                match.cover_url?.let { animeRepository.fillMissingThumbnail(existing.id, it) }
+                if (result.tracker_updated_at > 0) {
+                    animeRepository.touchLastWatched(existing.id, result.tracker_updated_at)
+                }
+                if (animeTrackRepository.getByAnimeAndTracker(existing.id, trackerId) != null) {
+                    alreadyPresent++
+                    continue
+                }
             }
             pending.add(Pending(result, existing?.favorite == true))
         }
@@ -103,11 +111,11 @@ class ImportAnimeFromTracker(
             val anime = run {
                 val detail = detailsByKey[match.key]
                 if (detail != null) {
-                    addAnimeToLibrary.addWithDetail(detail)
+                    addAnimeToLibrary.addWithDetail(detail, match.cover_url)
                 } else if (match.key in batchErrors || batch == null) {
                     // Fell out of the batch (either reported as an individual error, or the whole
                     // batch call failed) -- fall back to the per-anime path for just this one.
-                    addAnimeToLibrary.add(match.key)
+                    addAnimeToLibrary.add(match.key, match.cover_url)
                 } else {
                     Result.failure(IllegalStateException("missing from batch response"))
                 }
@@ -116,6 +124,9 @@ class ImportAnimeFromTracker(
                 continue
             }
 
+            if (result.tracker_updated_at > 0) {
+                animeRepository.touchLastWatched(anime.id, result.tracker_updated_at)
+            }
             if (result.episodes_watched > 0) {
                 episodeRepository.markWatchedUpToNumber(anime.id, result.episodes_watched)
             }
@@ -132,6 +143,7 @@ class ImportAnimeFromTracker(
                     lastEpisodeWatched = result.episodes_watched,
                     score = result.score,
                     status = canonicalStatus(result),
+                    updatedAt = result.tracker_updated_at,
                 ),
             )
             if (item.wasInLibrary) alreadyPresent++ else imported++
