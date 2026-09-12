@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -109,6 +111,8 @@ fun AnimeScreen(
                             onAnimeClick = onAnimeClick,
                             onReleaseClick = { card -> viewModel.openKeyFor(card, onAnimeClick) },
                             onSeeAllWatching = { viewModel.selectTab(AnimeTab.WATCHING) },
+                            onRetryNewEpisodes = viewModel::retryNewEpisodes,
+                            onRetryNewReleases = viewModel::retryReleases,
                         )
                     }
                     AnimeTab.WATCHING -> PullToRefreshBox(
@@ -185,15 +189,27 @@ private fun AnimeTabRow(selected: AnimeTab, onSelect: (AnimeTab) -> Unit) {
 
 /** Section title shared by the Home rails -- small, bold, generous top space. */
 @Composable
-internal fun AnimeSectionHeader(title: String, modifier: Modifier = Modifier) {
+internal fun AnimeSectionHeader(title: String, modifier: Modifier = Modifier, loading: Boolean = false) {
     val scale = LocalKawabiScale.current
-    Text(
-        text = title,
-        fontSize = 12.5.sp * scale.font,
-        fontWeight = FontWeight.Bold,
-        color = NightSession.Text,
+    Row(
         modifier = modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 10.dp * scale.spacing),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp * scale.spacing),
+    ) {
+        Text(
+            text = title,
+            fontSize = 12.5.sp * scale.font,
+            fontWeight = FontWeight.Bold,
+            color = NightSession.Text,
+        )
+        if (loading) {
+            CircularProgressIndicator(
+                color = NightSession.TextDim,
+                strokeWidth = 1.5.dp,
+                modifier = Modifier.size(16.dp * scale.spacing),
+            )
+        }
+    }
 }
 
 @Composable

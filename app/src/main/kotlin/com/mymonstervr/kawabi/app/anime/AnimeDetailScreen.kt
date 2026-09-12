@@ -526,6 +526,13 @@ private fun AnimeSourcePill(
 ) {
     val scale = LocalKawabiScale.current
     var expanded by remember { mutableStateOf(false) }
+    var pendingOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(options) {
+        if (pendingOpen && options !is AnimeSourceOptionsState.Loading && options !is AnimeSourceOptionsState.Idle) {
+            pendingOpen = false
+            expanded = true
+        }
+    }
     Box(modifier = modifier) {
         Row(
             modifier = Modifier
@@ -533,18 +540,36 @@ private fun AnimeSourcePill(
                 .background(NightSession.Chip)
                 .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
                 .clickable {
-                    expanded = true
-                    if (options !is AnimeSourceOptionsState.Loaded) onOpen()
+                    if (options is AnimeSourceOptionsState.Loaded) {
+                        expanded = true
+                    } else {
+                        pendingOpen = true
+                        onOpen()
+                    }
                 }
                 .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Source: ${currentName.ifBlank { "unknown" }} ▾",
+                text = "Source: ${currentName.ifBlank { "unknown" }} ",
                 fontSize = 10.5.sp * scale.font,
                 fontWeight = FontWeight.SemiBold,
                 color = NightSession.TextDim,
             )
+            if (options is AnimeSourceOptionsState.Loading) {
+                CircularProgressIndicator(
+                    color = NightSession.TextDim,
+                    strokeWidth = 1.5.dp,
+                    modifier = Modifier.size(10.dp * scale.font),
+                )
+            } else {
+                Text(
+                    text = "▾",
+                    fontSize = 10.5.sp * scale.font,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NightSession.TextDim,
+                )
+            }
         }
         if (expanded) {
             DropdownMenu(

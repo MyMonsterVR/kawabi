@@ -23,9 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -56,13 +58,15 @@ private val EPISODE_THUMB_HEIGHT = 64.dp
 @Composable
 internal fun AnimeHomePane(
     entries: List<AnimeLibraryEntry>,
-    newEpisodes: List<NewEpisode>,
-    newReleases: List<AnimeCardDto>,
+    newEpisodes: SectionState<NewEpisode>,
+    newReleases: SectionState<AnimeCardDto>,
     onContinue: (Long, String) -> Unit,
     onEpisodeClick: (String) -> Unit,
     onAnimeClick: (String) -> Unit,
     onReleaseClick: (AnimeCardDto) -> Unit,
     onSeeAllWatching: () -> Unit,
+    onRetryNewEpisodes: () -> Unit,
+    onRetryNewReleases: () -> Unit,
 ) {
     val scale = LocalKawabiScale.current
     val continueRail = remember(entries) {
@@ -100,37 +104,93 @@ internal fun AnimeHomePane(
             }
         }
 
-        item { AnimeSectionHeader("New episodes for you") }
-        if (newEpisodes.isEmpty()) {
-            item { AnimeSectionNote("No new episodes in the last two weeks.") }
-        } else {
-            items(newEpisodes, key = { it.episodeId }) { episode ->
-                NewEpisodeRow(episode = episode, onClick = { onEpisodeClick(episode.episodeKey) })
+        item {
+            AnimeSectionHeader("New episodes for you", loading = newEpisodes is SectionState.Loading)
+        }
+        when (newEpisodes) {
+            is SectionState.Loading -> item { ShimmerRail() }
+            is SectionState.Error -> item {
+                AnimeSectionError(message = newEpisodes.message, onRetry = onRetryNewEpisodes)
+            }
+            is SectionState.Loaded -> {
+                if (newEpisodes.items.isEmpty()) {
+                    item { AnimeSectionNote("No new episodes in the last two weeks.") }
+                } else {
+                    items(newEpisodes.items, key = { it.episodeId }) { episode ->
+                        NewEpisodeRow(episode = episode, onClick = { onEpisodeClick(episode.episodeKey) })
+                    }
+                }
             }
         }
 
-        // Hidden entirely when every source failed or answered nothing -- a broken rail is
-        // worse than no rail on a screen that's otherwise fully usable offline.
-        if (newReleases.isNotEmpty()) {
-            item {
+        // Hidden entirely only once loaded with nothing -- a broken rail is worse than no
+        // rail on a screen that's otherwise fully usable offline, but a loading/error state
+        // still needs to render so the section doesn't look like it's missing.
+        when (newReleases) {
+            is SectionState.Loading -> item {
+                AnimeSectionHeader("New releases", loading = true)
+                ShimmerRail()
+            }
+            is SectionState.Error -> item {
                 AnimeSectionHeader("New releases")
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp * scale.spacing),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
-                ) {
-                    items(newReleases, key = { it.key }) { card ->
-                        Box(modifier = Modifier.width(RELEASE_CARD_WIDTH * scale.spacing)) {
-                            MediaGridCard(
-                                title = card.title,
-                                coverUrl = card.cover_url,
-                                subtitle = card.source_name,
-                                onClick = { onReleaseClick(card) },
-                                source = card.source,
-                            )
+                AnimeSectionError(message = newReleases.message, onRetry = onRetryNewReleases)
+            }
+            is SectionState.Loaded -> if (newReleases.items.isNotEmpty()) {
+                item {
+                    AnimeSectionHeader("New releases")
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp * scale.spacing),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
+                    ) {
+                        items(newReleases.items, key = { it.key }) { card ->
+                            Box(modifier = Modifier.width(RELEASE_CARD_WIDTH * scale.spacing)) {
+                                MediaGridCard(
+                                    title = card.title,
+                                    coverUrl = card.cover_url,
+                                    subtitle = card.source_name,
+                                    onClick = { onReleaseClick(card) },
+                                    source = card.source,
+                                )
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ShimmerRail() {
+    val scale = LocalKawabiScale.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp * scale.spacing),
+        horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
+    ) {
+        repeat(3) {
+            Box(
+                modifier = Modifier
+                    .width(RELEASE_CARD_WIDTH * scale.spacing)
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(NightSession.RadiusMd))
+                    .background(NightSession.Chip),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnimeSectionError(message: String, onRetry: () -> Unit) {
+    val scale = LocalKawabiScale.current
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "Couldn't load", fontSize = 11.sp * scale.font, color = NightSession.TextDim)
+        TextButton(onClick = onRetry) {
+            Text(text = "Retry", fontSize = 11.sp * scale.font, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

@@ -20,9 +20,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+sealed interface SectionState<out T> {
+    data object Loading : SectionState<Nothing>
+    data class Loaded<T>(val items: List<T>) : SectionState<T>
+    data class Error(val message: String) : SectionState<Nothing>
+}
 
 enum class AnimeTab(val label: String) {
     HOME("Home"),
@@ -71,17 +79,21 @@ class AnimeViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LIBRARY_GRID_COLUMNS_DEFAULT)
 
     private val newEpisodesSince = System.currentTimeMillis() - NEW_EPISODE_WINDOW_MS
+    private val _episodesRetry = MutableStateFlow(0)
 
     /** Only statuses the user is actually following -- a dropped show's new episode isn't news. */
-    val newEpisodes: StateFlow<List<NewEpisode>> =
-        combine(episodeRepository.observeRecentUnwatched(newEpisodesSince, NEW_EPISODE_MAX), entries) { episodes, library ->
+    val newEpisodes: StateFlow<SectionState<NewEpisode>> =
+        combine(episodeRepository.observeRecentUnwatched(newEpisodesSince, NEW_EPISODE_MAX), entries, _episodesRetry) { episodes, library, _ ->
             val followed = library
                 .filter { it.status == AnimeWatchStatus.WATCHING || it.status == AnimeWatchStatus.PLAN_TO_WATCH }
                 .mapTo(mutableSetOf()) { it.anime.id }
             episodes.filter { it.animeId in followed }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        }
+            .map<List<NewEpisode>, SectionState<NewEpisode>> { SectionState.Loaded(it) }
+            .catch { emit(SectionState.Error(it.message ?: "Couldn't load episodes")) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SectionState.Loading)
 
-    private val _releases = MutableStateFlow<List<AnimeCardDto>>(emptyList())
+    private val _releases = MutableStateFlow<SectionState<AnimeCardDto>>(SectionState.Loading)
 
     /**
      * "New releases": every enabled source's first page of latest, concatenated in source
@@ -90,14 +102,17 @@ class AnimeViewModel(
      * available, and anything already in the library belongs in "New episodes for you"
      * instead of here.
      */
-    val newReleases: StateFlow<List<AnimeCardDto>> = combine(_releases, entries) { cards, library ->
+    val newReleases: StateFlow<SectionState<AnimeCardDto>> = combine(_releases, entries) { state, library ->
+        if (state !is SectionState.Loaded) return@combine state
         val inLibrary = library.mapTo(mutableSetOf()) { normalizeAnimeTitle(it.anime.title) }
         val seen = mutableSetOf<String>()
-        cards.filter { card ->
-            val normalized = normalizeAnimeTitle(card.title).ifBlank { card.key }
-            normalized !in inLibrary && seen.add(normalized)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        SectionState.Loaded(
+            state.items.filter { card ->
+                val normalized = normalizeAnimeTitle(card.title).ifBlank { card.key }
+                normalized !in inLibrary && seen.add(normalized)
+            },
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SectionState.Loading)
 
     private val _tab = MutableStateFlow(AnimeTab.HOME)
     val tab: StateFlow<AnimeTab> = _tab.asStateFlow()
@@ -165,18 +180,30 @@ class AnimeViewModel(
         }
     }
 
+    fun retryReleases() = loadReleases()
+
+    fun retryNewEpisodes() {
+        _episodesRetry.value += 1
+    }
+
     // Sequential rather than parallel: the backend's catalog routes are rate limited, and
     // a source that fails is skipped instead of emptying the whole rail.
     private fun loadReleases() {
         viewModelScope.launch {
-            val sources = animeApi.getSources().getOrNull()?.sources
-                ?.filter { it.enabled && it.supports_latest }
-                ?: return@launch
+            _releases.value = SectionState.Loading
+            val sourcesResult = animeApi.getSources()
+            val sources = sourcesResult.getOrNull()?.sources?.filter { it.enabled && it.supports_latest }
+            if (sources == null) {
+                _releases.value = SectionState.Error(
+                    sourcesResult.exceptionOrNull()?.message ?: "Couldn't load releases",
+                )
+                return@launch
+            }
             val cards = mutableListOf<AnimeCardDto>()
             for (source in sources) {
                 animeApi.browse(source.key, "latest", 1).onSuccess { cards += it.results }
             }
-            _releases.value = cards
+            _releases.value = SectionState.Loaded(cards)
         }
     }
 }
