@@ -50,9 +50,45 @@ class AddAnimeToLibrary(
      */
     suspend fun cache(response: AnimeDetailResponse, cardCover: String? = null): Result<Anime> = runCatching {
         val existing = animeRepository.getByKey(response.key)
-        val stored = persist(response, cardCover, favorite = existing?.favorite == true)
+        val stored = if (existing != null) {
+            persist(response, cardCover, favorite = existing.favorite)
+        } else {
+            // No row at this exact key -- but if a non-favorite row for the same show
+            // already exists under another key, reuse it instead of caching a second row
+            // (PLAN-anime.md section 18 follow-up). A favorite match is left alone: that
+            // case is surfaced as the library-match banner instead, which creates its own
+            // temporary row for the source being previewed until the user decides.
+            val identityMatch = identityMatcher.findAny(response.title, excludeKey = response.key)
+            if (identityMatch != null && !identityMatch.favorite) {
+                reuse(identityMatch, response, cardCover)
+            } else {
+                persist(response, cardCover, favorite = false)
+            }
+        }
         refreshAnimeEpisodes.applyResponse(stored, response).getOrThrow()
         stored
+    }
+
+    private suspend fun reuse(existing: Anime, response: AnimeDetailResponse, cardCover: String?): Anime {
+        val fetched = response.toDomain()
+        val cover = fetched.thumbnailUrl?.takeIf { it.isNotBlank() }
+            ?: cardCover?.takeIf { it.isNotBlank() }
+            ?: existing.thumbnailUrl
+        animeRepository.switchSource(
+            animeId = existing.id,
+            newKey = response.key,
+            newSource = response.source,
+            newUrl = response.url,
+            newTitle = response.title.takeIf { it.isNotBlank() },
+            cover = cover,
+        )
+        return existing.copy(
+            key = response.key,
+            source = response.source,
+            url = response.url,
+            title = response.title.ifBlank { existing.title },
+            thumbnailUrl = cover,
+        )
     }
 
     private suspend fun persist(response: AnimeDetailResponse, cardCover: String?, favorite: Boolean): Anime {

@@ -31,6 +31,10 @@ class SqlDelightAnimeRepository(
         queries.selectFavorites().executeAsList().map { it.toDomain() }
     }
 
+    override suspend fun getAll(): List<Anime> = withContext(dispatchers.io) {
+        queries.selectAll().executeAsList().map { it.toDomain() }
+    }
+
     override suspend fun getById(id: Long): Anime? = withContext(dispatchers.io) {
         queries.selectAnimeById(id).executeAsOneOrNull()?.toDomain()
     }

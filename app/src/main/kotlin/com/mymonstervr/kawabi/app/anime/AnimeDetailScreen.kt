@@ -93,9 +93,20 @@ fun AnimeDetailScreen(
     onEpisodeClick: (String) -> Unit,
     onOpenAnimeDetail: (String) -> Unit,
     onOpenTrackingSettings: () -> Unit,
+    onKeyChanged: (String) -> Unit = {},
     viewModel: AnimeDetailViewModel = koinViewModel(),
 ) {
     LaunchedEffect(animeKey) { viewModel.load(animeKey) }
+
+    // A silent identity redirect or a source switch can move the loaded show onto a
+    // different key than the one this screen was opened with -- fix the back-stack entry
+    // to match so rotating/returning keeps the chosen source (PLAN-anime.md section 18
+    // follow-up).
+    val openKey by viewModel.openKey.collectAsState()
+    LaunchedEffect(openKey) {
+        val key = openKey
+        if (key != null && key != animeKey) onKeyChanged(key)
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {

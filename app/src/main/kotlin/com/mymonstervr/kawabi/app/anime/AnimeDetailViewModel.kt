@@ -126,6 +126,13 @@ class AnimeDetailViewModel(
     private val _lastTitle = MutableStateFlow("")
     val lastTitle: StateFlow<String> = _lastTitle.asStateFlow()
 
+    // The key actually loaded, which can drift from the nav argument after a silent
+    // identity redirect or a source switch -- the screen watches this to fix up the
+    // back-stack entry so rotating/returning keeps the chosen source (PLAN-anime.md
+    // section 18 follow-up).
+    private val _openKey = MutableStateFlow<String?>(null)
+    val openKey: StateFlow<String?> = _openKey.asStateFlow()
+
     private val _events = MutableSharedFlow<String>()
     val events: SharedFlow<String> = _events
 
@@ -148,8 +155,30 @@ class AnimeDetailViewModel(
     // library) and its episodes stored before the list renders: playback and watch marks
     // both write into a local episode row, so without this nothing on the screen is
     // tappable for a show that isn't in the library yet.
+    //
+    // Before that, check for a non-favorite local row under a different key: that means
+    // the user previously switched this (not-yet-favorited) show to another source, and
+    // the key just loaded is stale (e.g. the same search/browse card tapped again, or a
+    // back-stack entry that predates the switch). Redirect silently onto that row instead
+    // of caching a second one under the stale key. A favorite match is left alone here --
+    // resolveLibraryMatch below surfaces that case as the "in your library from X" banner
+    // instead, so the user chooses rather than being moved automatically.
     private suspend fun applyLoadedDetail(response: AnimeDetailResponse) {
+        val redirect = identityMatcher.findAny(response.title, excludeKey = response.key)
+        if (redirect != null && !redirect.favorite && redirect.key != response.key) {
+            loadedKey = redirect.key
+            _openKey.value = redirect.key
+            animeApi.getAnime(redirect.key)
+                .onSuccess { applyLoadedDetailForKey(it) }
+                .onFailure { _state.value = AnimeDetailState.Error(it.message ?: "Failed to load") }
+            return
+        }
+        applyLoadedDetailForKey(response)
+    }
+
+    private suspend fun applyLoadedDetailForKey(response: AnimeDetailResponse) {
         loadedKey = response.key
+        _openKey.value = response.key
         _state.value = AnimeDetailState.Success(response)
         if (response.title.isNotBlank()) _lastTitle.value = response.title
         addAnimeToLibrary.cache(response)

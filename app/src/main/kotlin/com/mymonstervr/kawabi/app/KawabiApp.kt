@@ -255,6 +255,11 @@ fun KawabiApp() {
                     onEpisodeClick = { episodeKey -> navigateToPlayer(navController, episodeKey) },
                     onOpenAnimeDetail = { libraryKey -> navigateToAnimeDetail(navController, libraryKey) },
                     onOpenTrackingSettings = { navController.navigateSafe(ROUTE_TRACKING) },
+                    onKeyChanged = { newKey ->
+                        navController.navigateSafe("anime/${Uri.encode(newKey)}") {
+                            popUpTo(ROUTE_ANIME_DETAIL) { inclusive = true }
+                        }
+                    },
                 )
             }
             composable(

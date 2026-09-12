@@ -8,6 +8,7 @@ interface AnimeRepository {
     fun observeFavorites(): Flow<List<Anime>>
     fun observeLibraryEntries(): Flow<List<AnimeLibraryEntry>>
     suspend fun getFavorites(): List<Anime>
+    suspend fun getAll(): List<Anime>
     suspend fun getById(id: Long): Anime?
     suspend fun getByKey(key: String): Anime?
     suspend fun upsert(anime: Anime): Long

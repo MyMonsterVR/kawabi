@@ -53,6 +53,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 selectFavorites:
 SELECT * FROM animes WHERE favorite = 1;
 
+selectAll:
+SELECT * FROM animes;
+
 -- One row per library anime with everything the Anime tab's three panes need: the
 -- episode tallies, the next unwatched episode number, the newest episode's upload date
 -- and the linked tracker's status. Derived in SQL rather than per-anime lookups so
