@@ -159,6 +159,7 @@ private fun animeFields(
     isSyncing: Boolean,
     totalEpisodes: Double,
     lastWatchedAt: Long,
+    sourceChosenAt: Long,
 ) = DomainAnime(
     id = id,
     source = source,
@@ -181,6 +182,7 @@ private fun animeFields(
     isSyncing = isSyncing,
     totalEpisodes = totalEpisodes,
     lastWatchedAt = lastWatchedAt,
+    sourceChosenAt = sourceChosenAt,
 )
 
 fun Animes.toDomain() = animeFields(
@@ -190,6 +192,7 @@ fun Animes.toDomain() = animeFields(
     initialized = initialized, dateAdded = date_added, calculateInterval = calculate_interval,
     lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
     totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
+    sourceChosenAt = source_chosen_at,
 )
 
 fun SelectLibraryEntries.toDomain() = DomainAnimeLibraryEntry(
@@ -200,6 +203,7 @@ fun SelectLibraryEntries.toDomain() = DomainAnimeLibraryEntry(
         initialized = initialized, dateAdded = date_added, calculateInterval = calculate_interval,
         lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
         totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
+        sourceChosenAt = source_chosen_at,
     ),
     status = animeWatchStatusOf(track_status, episode_count.toInt(), watched_count.toInt()),
     episodeCount = episode_count.toInt(),

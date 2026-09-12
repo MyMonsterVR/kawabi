@@ -164,7 +164,14 @@ class AnimeDetailViewModel(
     // resolveLibraryMatch below surfaces that case as the "in your library from X" banner
     // instead, so the user chooses rather than being moved automatically.
     private suspend fun applyLoadedDetail(response: AnimeDetailResponse) {
-        val redirect = identityMatcher.findAny(response.title, excludeKey = response.key)
+        // Only a key with no local row of its own can be stale. A key that already has one
+        // is this show's current row (a just-switched-to source, say), and redirecting off
+        // it would hand the screen back to whatever other source happens to match.
+        val redirect = if (animeRepository.getByKey(response.key) == null) {
+            identityMatcher.findAny(response.title, excludeKey = response.key)
+        } else {
+            null
+        }
         if (redirect != null && !redirect.favorite && redirect.key != response.key) {
             loadedKey = redirect.key
             _openKey.value = redirect.key
@@ -412,8 +419,11 @@ class AnimeDetailViewModel(
                 .onSuccess {
                     lastFailedSwitchKey = null
                     _sourceOptions.value = AnimeSourceOptionsState.Idle
+                    // applyLoadedDetailForKey, not applyLoadedDetail: the user just picked
+                    // this key, so the screen must show and navigate with its episodes --
+                    // an identity redirect here would send the tap back to the old source.
                     animeApi.getAnime(key)
-                        .onSuccess { response -> applyLoadedDetail(response) }
+                        .onSuccess { response -> applyLoadedDetailForKey(response) }
                         .onFailure { _state.value = AnimeDetailState.Error(it.message ?: "Failed to load") }
                     _events.emit("Now using $targetName")
                 }

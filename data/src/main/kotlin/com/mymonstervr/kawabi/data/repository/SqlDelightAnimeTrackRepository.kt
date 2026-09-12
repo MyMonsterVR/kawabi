@@ -22,6 +22,12 @@ class SqlDelightAnimeTrackRepository(
         trackQueries.selectByAnimeAndTracker(animeId, trackerId).executeAsOneOrNull()?.toDomain()
     }
 
+    override suspend fun getRemoteIdsByTracker(trackerId: String): Map<Long, String> = withContext(dispatchers.io) {
+        trackQueries.selectRemoteIdsByTracker(trackerId).executeAsList()
+            .filter { it.remote_id.isNotBlank() }
+            .associate { it.anime_id to it.remote_id }
+    }
+
     override suspend fun link(track: AnimeTrack): Long = withContext(dispatchers.io) {
         db.transactionWithResult {
             trackQueries.insertAnimeTrack(

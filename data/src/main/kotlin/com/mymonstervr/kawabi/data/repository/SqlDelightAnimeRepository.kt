@@ -82,6 +82,7 @@ class SqlDelightAnimeRepository(
                     is_syncing = anime.isSyncing,
                     total_episodes = anime.totalEpisodes,
                     last_watched_at = anime.lastWatchedAt,
+                    source_chosen_at = anime.sourceChosenAt,
                 )
                 queries.lastInsertAnimeRowId().executeAsOne()
             }
@@ -99,6 +100,7 @@ class SqlDelightAnimeRepository(
         newUrl: String,
         newTitle: String?,
         cover: String?,
+        sourceChosenAt: Long?,
     ): Unit = withContext<Unit>(dispatchers.io) {
         queries.switchSource(
             key = newKey,
@@ -106,6 +108,7 @@ class SqlDelightAnimeRepository(
             url = newUrl,
             title = newTitle,
             thumbnail_url = cover,
+            source_chosen_at = sourceChosenAt,
             id = animeId,
         )
     }

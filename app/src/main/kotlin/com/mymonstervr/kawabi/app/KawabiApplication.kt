@@ -12,11 +12,13 @@ import com.mymonstervr.kawabi.app.work.AnimeLibraryUpdateWorker
 import com.mymonstervr.kawabi.app.work.LibraryUpdateWorker
 import com.mymonstervr.kawabi.app.work.SyncWorker
 import com.mymonstervr.kawabi.core.di.coreModule
+import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.di.dataModule
 import com.mymonstervr.kawabi.data.network.createImageOkHttpClient
 import com.mymonstervr.kawabi.domain.di.domainModule
 import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
+import com.mymonstervr.kawabi.data.usecase.MergeDuplicateAnimes
 import com.mymonstervr.kawabi.data.usecase.SyncClient
 import com.mymonstervr.kawabi.domain.repository.CategoryRepository
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +41,11 @@ class KawabiApplication : Application(), SingletonImageLoader.Factory {
         startKoin {
             androidContext(this@KawabiApplication)
             modules(coreModule, domainModule, dataModule, appModule)
+        }
+        // Before anything reads the anime library: a row per source for one show (from a
+        // build that allowed them) would otherwise keep hijacking identity resolution.
+        get<CoroutineScope>().launch(get<AppDispatchers>().io) {
+            get<MergeDuplicateAnimes>().merge()
         }
         get<CoroutineScope>().launch {
             get<CategoryRepository>().ensureDefault()

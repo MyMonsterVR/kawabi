@@ -27,6 +27,7 @@ interface AnimeRepository {
         newUrl: String,
         newTitle: String? = null,
         cover: String? = null,
+        sourceChosenAt: Long? = null,
     )
 
     suspend fun delete(id: Long)

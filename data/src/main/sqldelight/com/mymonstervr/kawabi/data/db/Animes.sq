@@ -19,7 +19,10 @@ CREATE TABLE animes (
     version INTEGER NOT NULL DEFAULT 0,
     is_syncing INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
     total_episodes REAL NOT NULL DEFAULT 0,
-    last_watched_at INTEGER NOT NULL DEFAULT 0
+    last_watched_at INTEGER NOT NULL DEFAULT 0,
+    -- When the user last explicitly picked this row's source. Beats every other signal
+    -- when duplicates are merged: an explicit choice outranks watch counts and recency.
+    source_chosen_at INTEGER NOT NULL DEFAULT 0
 );
 
 -- Identity is the backend contract's anime_key ("<engineSourceId>:<relativeUrl>"), not
@@ -47,8 +50,8 @@ END;
 insertAnime:
 INSERT INTO animes(source, key, url, title, author, description, genre, status, thumbnail_url,
     favorite, last_update, next_update, initialized, date_added, calculate_interval,
-    last_modified_at, version, is_syncing, total_episodes, last_watched_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    last_modified_at, version, is_syncing, total_episodes, last_watched_at, source_chosen_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectFavorites:
 SELECT * FROM animes WHERE favorite = 1;
@@ -122,10 +125,13 @@ SELECT last_insert_rowid();
 -- Per-anime source switch: the row keeps its id (and with it every episode, tracker link
 -- and history row) while its key/source/url move to the equivalent anime on another
 -- source. Title and cover only move if the new source actually supplied one.
+-- :source_chosen_at is only set when the move is an explicit user pick, so the
+-- internal re-keying paths (an identity match reusing a cached row) don't look like one.
 switchSource:
 UPDATE animes SET key = :key, source = :source, url = :url,
     title = CASE WHEN :title IS NULL OR :title = '' THEN title ELSE :title END,
-    thumbnail_url = CASE WHEN :thumbnail_url IS NULL OR :thumbnail_url = '' THEN thumbnail_url ELSE :thumbnail_url END
+    thumbnail_url = CASE WHEN :thumbnail_url IS NULL OR :thumbnail_url = '' THEN thumbnail_url ELSE :thumbnail_url END,
+    source_chosen_at = CASE WHEN :source_chosen_at IS NULL THEN source_chosen_at ELSE :source_chosen_at END
 WHERE _id = :id;
 
 deleteAnime:

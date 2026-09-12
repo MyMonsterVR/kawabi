@@ -16,6 +16,10 @@ import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
  *
  * The old key's server entry is deleted, otherwise the next `/anime/entries` pull would
  * re-create it as a second library row on this and every other device.
+ *
+ * Every other local row for the same show goes away here too, not just the one sitting on
+ * the key being switched to: leaving one behind is what let a stale source win the next
+ * identity lookup and quietly take the switch back.
  */
 class SwitchAnimeSource(
     private val animeApi: AnimeApi,
@@ -24,6 +28,7 @@ class SwitchAnimeSource(
     private val refreshAnimeEpisodes: RefreshAnimeEpisodes,
     private val animeTrackRepository: AnimeTrackRepository,
     private val animeSyncClient: AnimeSyncClient,
+    private val identityMatcher: AnimeIdentityMatcher,
 ) {
     suspend fun switch(animeId: Long, newKey: String, cardCover: String? = null): Result<Anime> {
         val current = animeRepository.getById(animeId)
@@ -34,11 +39,24 @@ class SwitchAnimeSource(
 
         val carried = episodeRepository.getForAnime(animeId).toMutableList()
         // The details screen stores a (non-favorite) row for every key it opens, so the
-        // key being switched to usually already has one -- it has to go before the rewrite,
-        // since keys are unique, and its watch state is worth keeping.
-        animeRepository.getByKey(newKey)?.takeIf { it.id != animeId }?.let { stale ->
-            carried += episodeRepository.getForAnime(stale.id)
-            deleteAnimeRow(animeRepository, episodeRepository, animeTrackRepository, stale.id)
+        // key being switched to usually already has one, and the show can have further
+        // rows under yet other sources. All of them go before the rewrite -- keys are
+        // unique, and their watch state, tracker links and library membership are worth
+        // keeping.
+        val malId = identityMatcher.malIdOf(animeId)
+        val absorbed = buildList {
+            animeRepository.getByKey(newKey)?.takeIf { it.id != animeId }?.let { add(it) }
+            addAll(identityMatcher.matching(response.title, malId, excludeId = animeId))
+            addAll(identityMatcher.matching(current.title, malId, excludeId = animeId))
+        }.distinctBy { it.id }
+        for (row in absorbed) {
+            carried += episodeRepository.getForAnime(row.id)
+            for (track in animeTrackRepository.getForAnime(row.id)) {
+                if (animeTrackRepository.getByAnimeAndTracker(animeId, track.trackerId) != null) continue
+                animeTrackRepository.link(track.copy(id = 0, animeId = animeId))
+            }
+            deleteAnimeRow(animeRepository, episodeRepository, animeTrackRepository, row.id)
+            if (row.favorite) animeApi.deleteEntry(row.key)
         }
         animeRepository.switchSource(
             animeId = animeId,
@@ -47,7 +65,9 @@ class SwitchAnimeSource(
             newUrl = response.url,
             newTitle = response.title,
             cover = response.cover_url?.takeIf { it.isNotBlank() } ?: cardCover,
+            sourceChosenAt = System.currentTimeMillis(),
         )
+        if (!current.favorite && absorbed.any { it.favorite }) animeRepository.setFavorite(animeId, true)
         val switched = animeRepository.getById(animeId)
             ?: return Result.failure(IllegalStateException("anime no longer in library"))
         refreshAnimeEpisodes.applyResponse(switched, response).getOrElse { return Result.failure(it) }

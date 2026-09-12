@@ -5,6 +5,9 @@ import com.mymonstervr.kawabi.domain.model.AnimeTrack
 interface AnimeTrackRepository {
     suspend fun getForAnime(animeId: Long): List<AnimeTrack>
     suspend fun getByAnimeAndTracker(animeId: Long, trackerId: String): AnimeTrack?
+
+    /** anime id -> remote id for one tracker, for whole-pool identity checks. */
+    suspend fun getRemoteIdsByTracker(trackerId: String): Map<Long, String>
     suspend fun link(track: AnimeTrack): Long
     suspend fun unlink(animeId: Long, trackerId: String)
 

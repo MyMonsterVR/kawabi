@@ -89,11 +89,13 @@ val dataModule = module {
 
     single { AnimeApi(get(), get()) }
     single { RefreshAnimeEpisodes(get(), get(), get()) }
-    single { AnimeIdentityMatcher(get(), get()) }
+    // The merge is passed as a provider: it needs the matcher to group rows, so resolving
+    // it eagerly here would be a construction cycle.
+    single { AnimeIdentityMatcher(get(), get()) { get() } }
     single { AddAnimeToLibrary(get(), get(), get(), get()) }
     single { MergeDuplicateAnimes(get(), get(), get(), get(), get()) }
     single { AnimeSyncClient(get(), get(), get(), get(), get(), get(), get()) }
-    single { SwitchAnimeSource(get(), get(), get(), get(), get(), get()) }
+    single { SwitchAnimeSource(get(), get(), get(), get(), get(), get(), get()) }
     single { AnimeLibraryUpdateManager(get(), get()) }
 
     single { TrackerAuthNotifier() }

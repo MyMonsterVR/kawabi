@@ -26,6 +26,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 selectByAnime:
 SELECT * FROM anime_tracks WHERE anime_id = ?;
 
+-- Every anime's remote id on one tracker in a single query -- cross-source identity
+-- needs the MAL id of a whole pool of rows at once, not one lookup per row.
+selectRemoteIdsByTracker:
+SELECT anime_id, remote_id FROM anime_tracks WHERE tracker_id = ?;
+
 selectByAnimeAndTracker:
 SELECT * FROM anime_tracks WHERE anime_id = ? AND tracker_id = ? LIMIT 1;
 

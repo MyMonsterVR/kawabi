@@ -28,4 +28,6 @@ data class Anime(
     val isSyncing: Boolean,
     val totalEpisodes: Double,
     val lastWatchedAt: Long,
+    /** When the user last explicitly chose this row's source; 0 when they never did. */
+    val sourceChosenAt: Long = 0,
 )

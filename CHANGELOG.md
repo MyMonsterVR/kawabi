@@ -12,6 +12,10 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Anime: switching an anime to another source now sticks -- the episode list,
+  playback and the back button follow the source you picked, and any leftover
+  copy of the same show from another source is folded into your entry (keeping
+  its watch progress) instead of quietly taking over again.
 - Anime detail: episodes are always playable; the same anime from different
   sources is one library entry with a source switcher.
 - Anime tab redesigned: Home (continue watching, new episodes for you, new
