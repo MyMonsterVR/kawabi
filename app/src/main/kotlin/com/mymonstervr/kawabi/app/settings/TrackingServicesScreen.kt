@@ -231,7 +231,11 @@ private fun AnimeImportDialog(
                         CircularProgressIndicator(strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
                         Text(
                             text = state.fetchingCount?.let { "Fetching $it titles…" }
-                                ?: "Matching your list against the anime sources. This can take a couple of minutes.",
+                                ?: if (state.matchedTotal != null) {
+                                    "Matching ${state.matchedProcessed} / ${state.matchedTotal}…"
+                                } else {
+                                    "Matching your list against the anime sources. This can take a couple of minutes."
+                                },
                             color = NightSession.TextDim,
                             fontSize = 11.sp * scale.font,
                             modifier = Modifier.padding(start = 12.dp),

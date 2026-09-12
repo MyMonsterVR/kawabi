@@ -39,9 +39,23 @@ class ImportAnimeFromTracker(
     suspend fun import(
         trackerId: String,
         statuses: List<String>,
+        onMatched: (suspend (processed: Int, total: Int) -> Unit)? = null,
         onFetchingDetails: (suspend (count: Int) -> Unit)? = null,
     ): Result<ImportSummary> = withContext(dispatchers.io) {
-        val response = animeApi.importFromTracker(trackerId, statuses).getOrElse { return@withContext Result.failure(it) }
+        val results = mutableListOf<AnimeImportResultDto>()
+        var truncated = false
+        var cursor = 0
+        var processed = 0
+        while (true) {
+            val response = animeApi.importFromTracker(trackerId, statuses, cursor)
+                .getOrElse { return@withContext Result.failure(it) }
+            results += response.results
+            truncated = truncated || response.truncated
+            processed += response.results.size
+            onMatched?.invoke(processed, response.total)
+            val next = response.next_cursor ?: break
+            cursor = next
+        }
 
         var imported = 0
         var alreadyPresent = 0
@@ -52,7 +66,7 @@ class ImportAnimeFromTracker(
         data class Pending(val result: AnimeImportResultDto, val wasInLibrary: Boolean)
         val pending = mutableListOf<Pending>()
 
-        for (result in response.results) {
+        for (result in results) {
             val match = result.match
             if (match == null) {
                 unmatched.add(UnmatchedItem(result.title, result.remote_id))
@@ -130,7 +144,7 @@ class ImportAnimeFromTracker(
                 imported = imported,
                 alreadyPresent = alreadyPresent,
                 unmatched = unmatched,
-                truncated = response.truncated,
+                truncated = truncated,
             ),
         )
     }

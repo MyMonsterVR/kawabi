@@ -171,6 +171,7 @@ data class AnimeBatchResponse(
 data class AnimeImportRequest(
     val tracker: String,
     val statuses: List<String>,
+    val cursor: Int = 0,
 )
 
 @Serializable
@@ -188,4 +189,6 @@ data class AnimeImportResultDto(
 data class AnimeImportResponse(
     val results: List<AnimeImportResultDto> = emptyList(),
     val truncated: Boolean = false,
+    val next_cursor: Int? = null,
+    val total: Int = 0,
 )

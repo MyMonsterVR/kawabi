@@ -165,13 +165,18 @@ class AnimeApi(
 
     /**
      * Tracker-list import: the backend fetches the whole MAL/Kitsu list and then title-searches
-     * every item across the anime sources, with a documented total cap of 120s before it gives up
-     * and answers `truncated` (PLAN-anime.md section 14) -- so the client has to outwait that cap.
+     * every item across the anime sources. Chunked server-side -- each call only processes the
+     * slice it can finish within ~70s and answers `next_cursor` (null when done); the caller
+     * loops, passing `cursor = next_cursor`, until that's null (PLAN-anime.md section 14).
      */
-    suspend fun importFromTracker(tracker: String, statuses: List<String>): Result<AnimeImportResponse> =
+    suspend fun importFromTracker(tracker: String, statuses: List<String>, cursor: Int = 0): Result<AnimeImportResponse> =
         withContext(dispatchers.io) {
             runCatching {
-                val request = postRequest("anime/import", AnimeImportRequest(tracker, statuses), AnimeImportRequest.serializer())
+                val request = postRequest(
+                    "anime/import",
+                    AnimeImportRequest(tracker, statuses, cursor),
+                    AnimeImportRequest.serializer(),
+                )
                 executeWithRetry(request, AnimeImportResponse.serializer(), importClient)
             }
         }
