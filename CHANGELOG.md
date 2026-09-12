@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-58 - 2026-09-12
+
 - Anime: switching an anime to another source now sticks -- the episode list,
   playback and the back button follow the source you picked, and any leftover
   copy of the same show from another source is folded into your entry (keeping
