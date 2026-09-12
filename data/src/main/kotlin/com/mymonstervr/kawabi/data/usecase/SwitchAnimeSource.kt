@@ -1,6 +1,8 @@
 package com.mymonstervr.kawabi.data.usecase
 
 import com.mymonstervr.kawabi.data.network.AnimeApi
+import com.mymonstervr.kawabi.data.network.toSourceEpisodes
+import com.mymonstervr.kawabi.domain.interactor.NoEpisodesException
 import com.mymonstervr.kawabi.domain.model.Anime
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
 import com.mymonstervr.kawabi.domain.repository.AnimeTrackRepository
@@ -28,6 +30,7 @@ class SwitchAnimeSource(
             ?: return Result.failure(IllegalStateException("anime no longer in library"))
         if (current.key == newKey) return Result.success(current)
         val response = animeApi.getAnime(newKey).getOrElse { return Result.failure(it) }
+        if (response.toSourceEpisodes().isEmpty()) return Result.failure(NoEpisodesException())
 
         val carried = episodeRepository.getForAnime(animeId).toMutableList()
         // The details screen stores a (non-favorite) row for every key it opens, so the

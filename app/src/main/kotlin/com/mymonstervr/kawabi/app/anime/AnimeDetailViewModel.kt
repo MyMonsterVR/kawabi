@@ -20,7 +20,9 @@ import com.mymonstervr.kawabi.domain.model.Episode
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
 import com.mymonstervr.kawabi.domain.repository.AnimeTrackRepository
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -124,8 +126,12 @@ class AnimeDetailViewModel(
     private val _lastTitle = MutableStateFlow("")
     val lastTitle: StateFlow<String> = _lastTitle.asStateFlow()
 
+    private val _events = MutableSharedFlow<String>()
+    val events: SharedFlow<String> = _events
+
     private var localAnimeId: Long? = null
     private var loadedKey: String? = null
+    private var lastFailedSwitchKey: String? = null
 
     fun load(key: String) {
         if (loadedKey == key && _state.value is AnimeDetailState.Success) return
@@ -370,17 +376,33 @@ class AnimeDetailViewModel(
     fun selectSource(key: String) {
         val animeId = localAnimeId ?: return
         if (loadedKey == key) return
+        val targetName = sourceOptionName(key)
         viewModelScope.launch {
             _sourceOptions.value = AnimeSourceOptionsState.Loading
             switchAnimeSource.switch(animeId, key)
                 .onSuccess {
+                    lastFailedSwitchKey = null
                     _sourceOptions.value = AnimeSourceOptionsState.Idle
                     animeApi.getAnime(key)
                         .onSuccess { response -> applyLoadedDetail(response) }
                         .onFailure { _state.value = AnimeDetailState.Error(it.message ?: "Failed to load") }
+                    _events.emit("Now using $targetName")
                 }
-                .onFailure { _sourceOptions.value = AnimeSourceOptionsState.Error(it.message ?: "Couldn't switch source") }
+                .onFailure { e ->
+                    lastFailedSwitchKey = key
+                    _sourceOptions.value = AnimeSourceOptionsState.Error(e.message ?: "Couldn't switch source")
+                    _events.emit("Couldn't switch to $targetName: ${e.message ?: "unknown error"} — tap to retry")
+                }
         }
+    }
+
+    fun retryLastSwitch() {
+        lastFailedSwitchKey?.let { selectSource(it) }
+    }
+
+    private fun sourceOptionName(key: String): String {
+        val loaded = _sourceOptions.value as? AnimeSourceOptionsState.Loaded
+        return loaded?.options?.firstOrNull { it.key == key }?.sourceName ?: "this source"
     }
 
     private suspend fun resolveLibraryMatch(response: AnimeDetailResponse?) {
