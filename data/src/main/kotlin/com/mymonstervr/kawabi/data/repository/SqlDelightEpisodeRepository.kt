@@ -6,6 +6,7 @@ import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.db.KawabiDatabase
 import com.mymonstervr.kawabi.data.db.toDomain
 import com.mymonstervr.kawabi.domain.model.Episode
+import com.mymonstervr.kawabi.domain.model.NewEpisode
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,6 +21,10 @@ class SqlDelightEpisodeRepository(
 
     override fun observeForAnime(animeId: Long): Flow<List<Episode>> =
         queries.selectByAnime(animeId).asFlow().mapToList(dispatchers.io)
+            .map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeRecentUnwatched(since: Long, limit: Long): Flow<List<NewEpisode>> =
+        queries.selectRecentUnwatched(since, limit).asFlow().mapToList(dispatchers.io)
             .map { rows -> rows.map { it.toDomain() } }
 
     override suspend fun getForAnime(animeId: Long): List<Episode> = withContext(dispatchers.io) {

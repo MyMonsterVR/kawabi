@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Anime tab redesigned: Home (continue watching, new episodes for you, new
+  releases), Watching list, and Library with status filters.
 - Anime covers and last-watched dates now come through from imports; tracker
   links sync across devices.
 - Tracker connections are verified on launch; a tracker whose login expired

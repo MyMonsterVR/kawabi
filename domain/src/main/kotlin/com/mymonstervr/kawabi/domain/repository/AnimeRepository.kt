@@ -1,12 +1,12 @@
 package com.mymonstervr.kawabi.domain.repository
 
 import com.mymonstervr.kawabi.domain.model.Anime
-import com.mymonstervr.kawabi.domain.model.AnimeWithUnwatchedCount
+import com.mymonstervr.kawabi.domain.model.AnimeLibraryEntry
 import kotlinx.coroutines.flow.Flow
 
 interface AnimeRepository {
     fun observeFavorites(): Flow<List<Anime>>
-    fun observeFavoritesWithUnwatchedCount(): Flow<List<AnimeWithUnwatchedCount>>
+    fun observeLibraryEntries(): Flow<List<AnimeLibraryEntry>>
     suspend fun getFavorites(): List<Anime>
     suspend fun getById(id: Long): Anime?
     suspend fun getByKey(key: String): Anime?

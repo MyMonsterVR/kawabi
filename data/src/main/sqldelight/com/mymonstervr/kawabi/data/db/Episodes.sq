@@ -47,6 +47,18 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 selectByAnime:
 SELECT * FROM episodes WHERE anime_id = ? ORDER BY source_order DESC;
 
+-- "New episodes for you": unwatched episodes published since :since, across the whole
+-- library, joined to their anime so the list can be rendered without a lookup per row.
+selectRecentUnwatched:
+SELECT episodes._id AS episode_id, episodes.key AS episode_key, episodes.name AS episode_name,
+    episodes.episode_number, episodes.date_upload,
+    animes._id AS anime_id, animes.title AS anime_title, animes.thumbnail_url, animes.source
+FROM episodes
+JOIN animes ON animes._id = episodes.anime_id
+WHERE animes.favorite = 1 AND episodes.watched = 0 AND episodes.date_upload >= :since
+ORDER BY episodes.date_upload DESC
+LIMIT :limit;
+
 selectByAnimeAndUrl:
 SELECT * FROM episodes WHERE anime_id = ? AND url = ?;
 

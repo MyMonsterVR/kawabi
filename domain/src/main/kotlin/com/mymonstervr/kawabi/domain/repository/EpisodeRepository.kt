@@ -1,10 +1,14 @@
 package com.mymonstervr.kawabi.domain.repository
 
 import com.mymonstervr.kawabi.domain.model.Episode
+import com.mymonstervr.kawabi.domain.model.NewEpisode
 import kotlinx.coroutines.flow.Flow
 
 interface EpisodeRepository {
     fun observeForAnime(animeId: Long): Flow<List<Episode>>
+
+    /** Unwatched episodes published at or after [since], newest first, across the library. */
+    fun observeRecentUnwatched(since: Long, limit: Long): Flow<List<NewEpisode>>
     suspend fun getForAnime(animeId: Long): List<Episode>
     suspend fun getById(id: Long): Episode?
     suspend fun getByKey(key: String): Episode?

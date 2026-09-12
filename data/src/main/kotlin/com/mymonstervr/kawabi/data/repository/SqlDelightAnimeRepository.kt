@@ -6,7 +6,7 @@ import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.db.KawabiDatabase
 import com.mymonstervr.kawabi.data.db.toDomain
 import com.mymonstervr.kawabi.domain.model.Anime
-import com.mymonstervr.kawabi.domain.model.AnimeWithUnwatchedCount
+import com.mymonstervr.kawabi.domain.model.AnimeLibraryEntry
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -23,8 +23,8 @@ class SqlDelightAnimeRepository(
         queries.selectFavorites().asFlow().mapToList(dispatchers.io)
             .map { rows -> rows.map { it.toDomain() } }
 
-    override fun observeFavoritesWithUnwatchedCount(): Flow<List<AnimeWithUnwatchedCount>> =
-        queries.selectFavoritesWithUnwatchedCount().asFlow().mapToList(dispatchers.io)
+    override fun observeLibraryEntries(): Flow<List<AnimeLibraryEntry>> =
+        queries.selectLibraryEntries().asFlow().mapToList(dispatchers.io)
             .map { rows -> rows.map { it.toDomain() } }
 
     override suspend fun getFavorites(): List<Anime> = withContext(dispatchers.io) {

@@ -53,12 +53,26 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 selectFavorites:
 SELECT * FROM animes WHERE favorite = 1;
 
-selectFavoritesWithUnwatchedCount:
+-- One row per library anime with everything the Anime tab's three panes need: the
+-- episode tallies, the next unwatched episode number, the newest episode's upload date
+-- and the linked tracker's status. Derived in SQL rather than per-anime lookups so
+-- opening the tab is a single query no matter how large the library is.
+-- track_status picks the most recently updated tracker row when an anime is linked to
+-- several (MAL + Kitsu + AniList): they can legitimately disagree, and the freshest edit
+-- is the closest thing to the user's current intent.
+selectLibraryEntries:
 SELECT animes.*,
-    (SELECT COUNT(*) FROM episodes WHERE episodes.anime_id = animes._id AND episodes.watched = 0) AS unwatched_count,
-    (SELECT MAX(episode_number) FROM episodes WHERE episodes.anime_id = animes._id AND episodes.watched = 1) AS last_watched_episode
+    (SELECT COUNT(*) FROM episodes WHERE episodes.anime_id = animes._id) AS episode_count,
+    (SELECT COUNT(*) FROM episodes WHERE episodes.anime_id = animes._id AND episodes.watched = 1) AS watched_count,
+    (SELECT MIN(episodes.episode_number) FROM episodes
+        WHERE episodes.anime_id = animes._id AND episodes.watched = 0 AND episodes.episode_number != -1) AS next_unwatched_number,
+    (SELECT MAX(episodes.episode_number) FROM episodes
+        WHERE episodes.anime_id = animes._id AND episodes.watched = 1) AS last_watched_episode,
+    (SELECT MAX(episodes.date_upload) FROM episodes WHERE episodes.anime_id = animes._id) AS latest_episode_at,
+    (SELECT anime_tracks.status FROM anime_tracks
+        WHERE anime_tracks.anime_id = animes._id ORDER BY anime_tracks.updated_at DESC LIMIT 1) AS track_status
 FROM animes
-WHERE favorite = 1;
+WHERE animes.favorite = 1;
 
 selectAnimeById:
 SELECT * FROM animes WHERE _id = ?;

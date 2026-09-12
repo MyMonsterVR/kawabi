@@ -2,7 +2,9 @@ package com.mymonstervr.kawabi.data.db
 
 import com.mymonstervr.kawabi.domain.model.Anime as DomainAnime
 import com.mymonstervr.kawabi.domain.model.AnimeTrack as DomainAnimeTrack
-import com.mymonstervr.kawabi.domain.model.AnimeWithUnwatchedCount as DomainAnimeWithUnwatchedCount
+import com.mymonstervr.kawabi.domain.model.AnimeLibraryEntry as DomainAnimeLibraryEntry
+import com.mymonstervr.kawabi.domain.model.NewEpisode as DomainNewEpisode
+import com.mymonstervr.kawabi.domain.model.animeWatchStatusOf
 import com.mymonstervr.kawabi.domain.model.Category as DomainCategory
 import com.mymonstervr.kawabi.domain.model.Chapter as DomainChapter
 import com.mymonstervr.kawabi.domain.model.Episode as DomainEpisode
@@ -190,7 +192,7 @@ fun Animes.toDomain() = animeFields(
     totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
 )
 
-fun SelectFavoritesWithUnwatchedCount.toDomain() = DomainAnimeWithUnwatchedCount(
+fun SelectLibraryEntries.toDomain() = DomainAnimeLibraryEntry(
     anime = animeFields(
         id = _id, source = source, key = key, url = url, title = title, author = author,
         description = description, genre = genre, status = status, thumbnailUrl = thumbnail_url,
@@ -199,8 +201,25 @@ fun SelectFavoritesWithUnwatchedCount.toDomain() = DomainAnimeWithUnwatchedCount
         lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
         totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
     ),
-    unwatchedCount = unwatched_count.toInt(),
+    status = animeWatchStatusOf(track_status, episode_count.toInt(), watched_count.toInt()),
+    episodeCount = episode_count.toInt(),
+    watchedCount = watched_count.toInt(),
+    nextUnwatchedNumber = next_unwatched_number,
     lastWatchedEpisodeNumber = last_watched_episode,
+    latestEpisodeAt = latest_episode_at ?: 0,
+    trackStatus = track_status,
+)
+
+fun SelectRecentUnwatched.toDomain() = DomainNewEpisode(
+    episodeId = episode_id,
+    episodeKey = episode_key,
+    name = episode_name,
+    episodeNumber = episode_number,
+    dateUpload = date_upload,
+    animeId = anime_id,
+    animeTitle = anime_title,
+    animeThumbnailUrl = thumbnail_url,
+    animeSource = source,
 )
 
 fun Episodes.toDomain() = DomainEpisode(

@@ -30,7 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mymonstervr.kawabi.app.anime.AnimeBrowseScreen
 import com.mymonstervr.kawabi.app.anime.AnimeDetailScreen
-import com.mymonstervr.kawabi.app.anime.AnimeLibraryScreen
+import com.mymonstervr.kawabi.app.anime.AnimeScreen
 import com.mymonstervr.kawabi.app.anime.AnimeSearchScreen
 import com.mymonstervr.kawabi.app.anime.PlayerScreen
 import com.mymonstervr.kawabi.app.auth.LoginScreen
@@ -227,8 +227,9 @@ fun KawabiApp() {
                 AnimeSourcesScreen(onBack = { navController.popBackStackSafe() })
             }
             composable(ROUTE_ANIME_LIBRARY) {
-                AnimeLibraryScreen(
+                AnimeScreen(
                     onAnimeClick = { key -> navigateToAnimeDetail(navController, key) },
+                    onEpisodeClick = { episodeKey -> navigateToPlayer(navController, episodeKey) },
                     onSearchClick = { navigateToAnimeSearch(navController) },
                 )
             }
