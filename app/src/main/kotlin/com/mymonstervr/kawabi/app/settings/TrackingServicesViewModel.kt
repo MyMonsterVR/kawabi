@@ -41,6 +41,7 @@ data class AnimeImportState(
     val trackerName: String,
     val statuses: Set<String> = setOf(TrackStatus.WATCHING),
     val running: Boolean = false,
+    val fetchingCount: Int? = null,
     val summary: ImportSummary? = null,
     val error: String? = null,
 )
@@ -100,9 +101,15 @@ class TrackingServicesViewModel(
     fun runAnimeImport() {
         val state = _animeImport.value ?: return
         if (state.running || state.statuses.isEmpty()) return
-        _animeImport.value = state.copy(running = true, error = null, summary = null)
+        _animeImport.value = state.copy(running = true, fetchingCount = null, error = null, summary = null)
         viewModelScope.launch {
-            importAnimeFromTracker.import(state.trackerId, state.statuses.toList())
+            importAnimeFromTracker.import(
+                state.trackerId,
+                state.statuses.toList(),
+                onFetchingDetails = { count ->
+                    _animeImport.value = _animeImport.value?.copy(fetchingCount = count)
+                },
+            )
                 .onSuccess { summary ->
                     _animeImport.value = _animeImport.value?.copy(running = false, summary = summary)
                 }

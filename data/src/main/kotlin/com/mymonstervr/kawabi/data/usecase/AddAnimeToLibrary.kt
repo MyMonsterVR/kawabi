@@ -1,6 +1,7 @@
 package com.mymonstervr.kawabi.data.usecase
 
 import com.mymonstervr.kawabi.data.network.AnimeApi
+import com.mymonstervr.kawabi.data.network.dto.AnimeDetailResponse
 import com.mymonstervr.kawabi.data.network.toDomain
 import com.mymonstervr.kawabi.domain.model.Anime
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
@@ -12,11 +13,16 @@ class AddAnimeToLibrary(
 ) {
     suspend fun add(key: String): Result<Anime> {
         val response = animeApi.getAnime(key).getOrElse { return Result.failure(it) }
+        return addWithDetail(response)
+    }
+
+    /** Same as [add], but for a detail payload the caller already fetched (e.g. a batch import). */
+    suspend fun addWithDetail(response: AnimeDetailResponse): Result<Anime> = runCatching {
         val anime = response.toDomain()
         val id = animeRepository.upsert(anime)
         animeRepository.setFavorite(id, true)
         val stored = anime.copy(id = id)
         refreshAnimeEpisodes.applyResponse(stored, response)
-        return Result.success(stored)
+        stored
     }
 }

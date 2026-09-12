@@ -230,7 +230,8 @@ private fun AnimeImportDialog(
                     state.running -> Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
                         Text(
-                            text = "Matching your list against the anime sources. This can take a couple of minutes.",
+                            text = state.fetchingCount?.let { "Fetching $it titles…" }
+                                ?: "Matching your list against the anime sources. This can take a couple of minutes.",
                             color = NightSession.TextDim,
                             fontSize = 11.sp * scale.font,
                             modifier = Modifier.padding(start = 12.dp),

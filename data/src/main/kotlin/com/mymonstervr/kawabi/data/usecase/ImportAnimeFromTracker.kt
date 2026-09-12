@@ -36,12 +36,21 @@ class ImportAnimeFromTracker(
     private val animeSyncClient: AnimeSyncClient,
     private val dispatchers: AppDispatchers,
 ) {
-    suspend fun import(trackerId: String, statuses: List<String>): Result<ImportSummary> = withContext(dispatchers.io) {
+    suspend fun import(
+        trackerId: String,
+        statuses: List<String>,
+        onFetchingDetails: (suspend (count: Int) -> Unit)? = null,
+    ): Result<ImportSummary> = withContext(dispatchers.io) {
         val response = animeApi.importFromTracker(trackerId, statuses).getOrElse { return@withContext Result.failure(it) }
 
         var imported = 0
         var alreadyPresent = 0
         val unmatched = mutableListOf<UnmatchedItem>()
+
+        // Split into "already present" (no network needed) and "needs detail" up front, so the
+        // batch fetch below only ever asks for keys we're actually about to add/refresh.
+        data class Pending(val result: AnimeImportResultDto, val wasInLibrary: Boolean)
+        val pending = mutableListOf<Pending>()
 
         for (result in response.results) {
             val match = result.match
@@ -54,11 +63,41 @@ class ImportAnimeFromTracker(
                 alreadyPresent++
                 continue
             }
-            val wasInLibrary = existing?.favorite == true
+            pending.add(Pending(result, existing?.favorite == true))
+        }
+
+        onFetchingDetails?.invoke(pending.size)
+
+        // One `POST /anime/batch` call (chunked at 100 keys server-side cap) instead of one
+        // `GET /anime` per anime, which used to walk straight into the backend's 1-req/2s
+        // sustained limiter for any list bigger than the initial burst.
+        val batch = if (pending.isNotEmpty()) {
+            animeApi.getAnimeBatch(pending.map { it.result.match!!.key }).getOrNull()
+        } else {
+            null
+        }
+        val detailsByKey = batch?.animes?.associateBy { it.key } ?: emptyMap()
+        val batchErrors = batch?.errors ?: emptyMap()
+
+        for (item in pending) {
+            val result = item.result
+            val match = result.match!!
+
             // A source that can't serve its own details page right now is reported as unmatched
             // rather than swallowed: the row then shows up in the result sheet's list, where a
             // tap opens search prefilled with the title, which is the useful recovery either way.
-            val anime = addAnimeToLibrary.add(match.key).getOrElse {
+            val anime = run {
+                val detail = detailsByKey[match.key]
+                if (detail != null) {
+                    addAnimeToLibrary.addWithDetail(detail)
+                } else if (match.key in batchErrors || batch == null) {
+                    // Fell out of the batch (either reported as an individual error, or the whole
+                    // batch call failed) -- fall back to the per-anime path for just this one.
+                    addAnimeToLibrary.add(match.key)
+                } else {
+                    Result.failure(IllegalStateException("missing from batch response"))
+                }
+            }.getOrElse {
                 unmatched.add(UnmatchedItem(result.title, result.remote_id))
                 continue
             }
@@ -81,7 +120,7 @@ class ImportAnimeFromTracker(
                     status = canonicalStatus(result),
                 ),
             )
-            if (wasInLibrary) alreadyPresent++ else imported++
+            if (item.wasInLibrary) alreadyPresent++ else imported++
         }
 
         animeSyncClient.sync()

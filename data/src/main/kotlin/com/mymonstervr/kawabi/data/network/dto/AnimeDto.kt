@@ -159,6 +159,15 @@ data class AnimeProgressRequest(val entries: List<AnimeProgressDto>)
 data class AnimeOkResponse(val ok: Boolean = false)
 
 @Serializable
+data class AnimeBatchRequest(val keys: List<String>)
+
+@Serializable
+data class AnimeBatchResponse(
+    val animes: List<AnimeDetailResponse> = emptyList(),
+    val errors: Map<String, String> = emptyMap(),
+)
+
+@Serializable
 data class AnimeImportRequest(
     val tracker: String,
     val statuses: List<String>,

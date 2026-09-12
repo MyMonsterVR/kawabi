@@ -1,6 +1,8 @@
 package com.mymonstervr.kawabi.data.network
 
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
+import com.mymonstervr.kawabi.data.network.dto.AnimeBatchRequest
+import com.mymonstervr.kawabi.data.network.dto.AnimeBatchResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeBrowseResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeDetailResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntriesRequest
@@ -77,6 +79,27 @@ class AnimeApi(
         runCatching {
             val request = getRequest("anime") { addQueryParameter("key", key) }
             executeWithRetry(request, AnimeDetailResponse.serializer(), longReadClient)
+        }
+    }
+
+    /**
+     * `POST /anime/batch` fans out the per-key `GET /anime` fetches server-side (mirrors
+     * [SourceApi.getMangaBatch]) instead of one call per anime hitting the sustained 1-req/2s
+     * limiter -- see PLAN-anime.md section 14/import-batch. Chunked at 100 keys per the
+     * backend's documented cap; errors for individual keys come back in the same response
+     * rather than failing the whole batch.
+     */
+    suspend fun getAnimeBatch(keys: List<String>): Result<AnimeBatchResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val animes = mutableListOf<AnimeDetailResponse>()
+            val errors = mutableMapOf<String, String>()
+            for (chunk in keys.chunked(100)) {
+                val request = postRequest("anime/batch", AnimeBatchRequest(chunk), AnimeBatchRequest.serializer())
+                val response = executeWithRetry(request, AnimeBatchResponse.serializer(), batchClient)
+                animes += response.animes
+                errors += response.errors
+            }
+            AnimeBatchResponse(animes, errors)
         }
     }
 
@@ -166,4 +189,6 @@ class AnimeApi(
     }
 
     private val importClient by lazy { client.newBuilder().readTimeout(150, TimeUnit.SECONDS).build() }
+
+    private val batchClient by lazy { client.newBuilder().readTimeout(150, TimeUnit.SECONDS).build() }
 }
