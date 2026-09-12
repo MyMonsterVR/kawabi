@@ -351,7 +351,7 @@ class AnimeDetailViewModel(
                         coverUrl = current.cover_url,
                     )
                     val others = response.results
-                        .filter { it.key != current.key && animeIdentityOf(it.title).matches(target) }
+                        .filter { it.key != current.key && it.source != current.source && animeIdentityOf(it.title).matches(target) }
                         .distinctBy { it.source.ifBlank { it.key } }
                         .map {
                             AnimeSourceOption(
