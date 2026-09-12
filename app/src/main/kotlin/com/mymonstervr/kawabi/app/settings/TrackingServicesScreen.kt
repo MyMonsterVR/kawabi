@@ -165,13 +165,17 @@ private fun TrackerRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = row.name, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
                 Text(
-                    text = if (row.connected) row.userName ?: "Connected" else "Not connected",
+                    text = when {
+                        row.expired -> "Needs reconnect"
+                        row.connected -> row.userName ?: "Connected"
+                        else -> "Not connected"
+                    },
                     fontSize = 10.5.sp * scale.font,
-                    color = NightSession.TextDim,
+                    color = if (row.expired) MaterialTheme.colorScheme.error else NightSession.TextDim,
                     modifier = Modifier.padding(top = 1.dp),
                 )
             }
-            if (row.connected) {
+            if (row.connected && !row.expired) {
                 TextButton(onClick = onDisconnect) {
                     Text("Disconnect", color = MaterialTheme.colorScheme.error, fontSize = 11.sp * scale.font)
                 }
@@ -183,11 +187,11 @@ private fun TrackerRow(
                         contentColor = NightSession.OnAccent,
                     ),
                 ) {
-                    Text("Connect", fontSize = 11.sp * scale.font, fontWeight = FontWeight.Bold)
+                    Text(if (row.expired) "Reconnect" else "Connect", fontSize = 11.sp * scale.font, fontWeight = FontWeight.Bold)
                 }
             }
         }
-        if (row.connected) {
+        if (row.connected && !row.expired) {
             TextButton(onClick = onImportAnime) {
                 Text("Import anime list", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
             }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.BrowserOAuthTracker
 import com.mymonstervr.kawabi.data.track.TrackerManager
+import com.mymonstervr.kawabi.data.track.TrackerStatusState
 import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
 import com.mymonstervr.kawabi.data.usecase.AutoImportAnimeFromTrackers
 import com.mymonstervr.kawabi.data.usecase.ImportAnimeFromTracker
@@ -27,6 +28,7 @@ data class TrackerRowState(
     val id: String,
     val name: String,
     val connected: Boolean,
+    val expired: Boolean,
     val userName: String?,
     val browserLogin: Boolean,
 )
@@ -65,16 +67,24 @@ class TrackingServicesViewModel(
     // userName isn't itself a Flow (the trackers expose it as a plain getter over
     // encrypted/plain storage), so re-derive the whole row list whenever connection
     // state changes rather than trying to observe it directly.
-    val rows: StateFlow<List<TrackerRowState>> = trackerManager.loggedInTrackerIds
-        .map { ids -> rowsFor(ids) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), rowsFor(trackerManager.loggedInTrackerIds.value))
+    val rows: StateFlow<List<TrackerRowState>> = trackerManager.statuses
+        .map { statuses -> rowsFor(statuses) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), rowsFor(trackerManager.statuses.value))
 
-    private fun rowsFor(connectedIds: Set<String>): List<TrackerRowState> =
+    init {
+        // Actively re-checks each tracker upstream every time this screen opens, unlike
+        // the app-launch/SyncWorker refresh which is throttled to once per 6h.
+        viewModelScope.launch { trackerManager.refresh(verify = true) }
+    }
+
+    private fun rowsFor(statuses: Map<String, TrackerStatusState>): List<TrackerRowState> =
         trackerManager.trackers.map { tracker ->
+            val status = statuses[tracker.id]
             TrackerRowState(
                 id = tracker.id,
                 name = tracker.name,
-                connected = tracker.id in connectedIds,
+                connected = status?.connected == true,
+                expired = status?.expired == true,
                 userName = tracker.userName,
                 browserLogin = tracker is BrowserOAuthTracker,
             )

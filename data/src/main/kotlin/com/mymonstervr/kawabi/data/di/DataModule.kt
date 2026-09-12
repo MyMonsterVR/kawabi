@@ -12,6 +12,7 @@ import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.SyncApi
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.network.TrackerApi
+import com.mymonstervr.kawabi.data.network.TrackerAuthNotifier
 import com.mymonstervr.kawabi.data.network.TrackerTokenStore
 import com.mymonstervr.kawabi.data.network.PlayerHttpClient
 import com.mymonstervr.kawabi.data.network.createOkHttpClient
@@ -89,14 +90,15 @@ val dataModule = module {
     single { AnimeSyncClient(get(), get(), get(), get(), get()) }
     single { AnimeLibraryUpdateManager(get(), get()) }
 
-    single { TrackerApi(get(), get()) }
+    single { TrackerAuthNotifier() }
+    single { TrackerApi(get(), get(), get()) }
     single { MyAnimeListTracker(get(), get(), get()) }
     single { KitsuTracker(get(), get(), get()) }
     single { AniListTracker(get(), get(), get()) }
     // Declaration order is the order trackers are listed in the UI -- one line per new
     // tracker, which is the whole point of TrackerManager taking a list (PLAN-tracker-abstraction.md).
     single<List<Tracker>> { listOf(get<MyAnimeListTracker>(), get<KitsuTracker>(), get<AniListTracker>()) }
-    single { TrackerManager(get(), get(), get(), get()) }
+    single { TrackerManager(get(), get(), get(), get(), get(), get()) }
     single { TrackerSyncClient(get(), get(), get()) }
     single { AnimeTrackerSyncClient(get(), get(), get()) }
     single { ImportAnimeFromTracker(get(), get(), get(), get(), get(), get(), get()) }

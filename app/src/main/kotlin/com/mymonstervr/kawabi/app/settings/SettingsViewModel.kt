@@ -7,6 +7,7 @@ import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -31,9 +33,14 @@ class SettingsViewModel(
     private val preferences: AppPreferences,
     tokenStore: TokenStore,
     private val updateChecker: AppUpdateChecker,
+    trackerManager: TrackerManager,
 ) : ViewModel() {
 
     val isLoggedIn: StateFlow<Boolean> = tokenStore.isLoggedIn
+
+    val expiredTrackerCount: StateFlow<Int> = trackerManager.statuses
+        .map { statuses -> statuses.values.count { it.expired } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val currentVersion: String = BuildConfig.VERSION_NAME
 

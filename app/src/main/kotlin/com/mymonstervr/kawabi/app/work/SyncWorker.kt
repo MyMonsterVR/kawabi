@@ -33,6 +33,7 @@ class SyncWorker(context: Context, params: WorkerParameters) :
     override suspend fun doWork(): Result {
         syncClient.sync()
         animeSyncClient.sync()
+        trackerManager.refreshIfVerifyDue()
         autoImportAnimeFromTrackers.run(trackerManager.loggedInTrackerIds.value)
         // sync() already swallows its own failures (runCatching) rather than throwing --
         // never retry aggressively here, same reasoning as LibraryUpdateWorker: this runs

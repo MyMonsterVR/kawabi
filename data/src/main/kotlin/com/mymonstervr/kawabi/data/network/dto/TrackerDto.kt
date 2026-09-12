@@ -15,7 +15,12 @@ data class TrackerConnectAniListRequest(val code: String)
 data class TrackerConnectResponse(val userName: String)
 
 @Serializable
-data class TrackerStatusDto(val tracker: String, val userName: String)
+data class TrackerStatusDto(
+    val tracker: String,
+    val userName: String,
+    val expired: Boolean = false,
+    val error: String? = null,
+)
 
 @Serializable
 data class TrackerSearchResultDto(

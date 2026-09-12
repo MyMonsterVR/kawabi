@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Tracker connections are verified on launch; a tracker whose login expired
+  shows 'Needs reconnect' instead of 'Connected'.
 - Anime tab (preview): browse, search, library and episode lists from anime
   sources.
 - Episodes now play in-app: full-screen landscape video player with server and

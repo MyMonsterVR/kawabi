@@ -86,6 +86,7 @@ fun SettingsScreen(
     val animeAutoMarkWatchedThreshold by viewModel.animeAutoMarkWatchedThreshold.collectAsState()
     val animePreferredQuality by viewModel.animePreferredQuality.collectAsState()
     val animeAutoSkipIntro by viewModel.animeAutoSkipIntro.collectAsState()
+    val expiredTrackerCount by viewModel.expiredTrackerCount.collectAsState()
     val context = LocalContext.current
 
     Scaffold(
@@ -116,7 +117,16 @@ fun SettingsScreen(
                     HorizontalDivider(color = NightSession.Hairline)
                     SettingsRow(title = "Backup & Restore", subtitle = "Export or import your library as JSON", onClick = onBackupClick)
                     HorizontalDivider(color = NightSession.Hairline)
-                    SettingsRow(title = "Tracking services", subtitle = "Connect MyAnimeList or Kitsu", onClick = onTrackingClick)
+                    SettingsRow(
+                        title = "Tracking services",
+                        subtitle = if (expiredTrackerCount > 0) {
+                            if (expiredTrackerCount == 1) "1 tracker needs reconnect" else "$expiredTrackerCount trackers need reconnect"
+                        } else {
+                            "Connect MyAnimeList or Kitsu"
+                        },
+                        subtitleColor = if (expiredTrackerCount > 0) MaterialTheme.colorScheme.error else null,
+                        onClick = onTrackingClick,
+                    )
                 }
             }
             item {
@@ -382,12 +392,12 @@ private fun AccentRow(selectedIndex: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun SettingsRow(title: String, subtitle: String?, onClick: () -> Unit) {
+private fun SettingsRow(title: String, subtitle: String?, onClick: () -> Unit, subtitleColor: androidx.compose.ui.graphics.Color? = null) {
     val scale = LocalKawabiScale.current
     Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp * scale.spacing, vertical = 13.dp * scale.spacing)) {
         Text(text = title, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
         if (subtitle != null) {
-            Text(text = subtitle, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+            Text(text = subtitle, fontSize = 10.5.sp * scale.font, color = subtitleColor ?: NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
         }
     }
 }

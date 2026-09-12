@@ -19,8 +19,14 @@ import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 
-data class TrackerStatus(val tracker: String, val userName: String)
+data class TrackerStatus(
+    val tracker: String,
+    val userName: String,
+    val expired: Boolean = false,
+    val error: String? = null,
+)
 
 data class TrackEntry(
     val remoteId: String,
@@ -33,7 +39,15 @@ data class TrackEntry(
 class TrackerApi(
     client: OkHttpClient,
     dispatchers: AppDispatchers,
+    private val trackerAuthNotifier: TrackerAuthNotifier,
 ) : BackendApiClient(client, dispatchers) {
+
+    /** A 401 with this body means the tracker's own upstream auth died, not this app's backend session. */
+    private fun notifyIfTrackerAuthExpired(response: Response, trackerId: String) {
+        if (response.code != 401) return
+        val body = runCatching { response.peekBody(2048).string() }.getOrNull() ?: return
+        if (body.contains("tracker auth expired")) trackerAuthNotifier.notifyExpired(trackerId)
+    }
     suspend fun connectMal(code: String, codeVerifier: String): String = withContext(dispatchers.io) {
         val request = postRequest("tracker/mal/connect", TrackerConnectMalRequest(code, codeVerifier), TrackerConnectMalRequest.serializer())
         execute(request, TrackerConnectResponse.serializer()).userName
@@ -60,13 +74,18 @@ class TrackerApi(
             .post("".toRequestBody(JSON_MEDIA_TYPE))
             .build()
         client.newCall(request).execute().use { response ->
+            notifyIfTrackerAuthExpired(response, tracker)
             if (!response.isSuccessful) error(errorMessageFor(response))
         }
     }
 
-    suspend fun status(): List<TrackerStatus> = withContext(dispatchers.io) {
-        execute(getRequest("tracker/status"), ListSerializer(TrackerStatusDto.serializer()))
-            .map { TrackerStatus(it.tracker, it.userName) }
+    /** [verify] = actively check upstream instead of returning the last-known cached status. */
+    suspend fun status(verify: Boolean = false): List<TrackerStatus> = withContext(dispatchers.io) {
+        val request = getRequest("tracker/status") {
+            if (verify) addQueryParameter("verify", "1")
+        }
+        execute(request, ListSerializer(TrackerStatusDto.serializer()))
+            .map { TrackerStatus(it.tracker, it.userName, it.expired, it.error) }
     }
 
     suspend fun search(tracker: String, query: String, mediaType: MediaType = MediaType.MANGA): List<TrackSearchResult> =
@@ -75,26 +94,31 @@ class TrackerApi(
                 addQueryParameter("q", query)
                 mediaType.wireValue?.let { addQueryParameter("type", it) }
             }
-            if (mediaType == MediaType.ANIME) {
-                execute(request, ListSerializer(AnimeTrackerSearchResultDto.serializer()))
-                    .map { dto ->
-                        TrackSearchResult(
-                            remoteId = dto.remote_id,
-                            title = dto.title,
-                            totalChapters = dto.total_episodes,
-                            coverUrl = dto.cover_url,
-                        )
-                    }
-            } else {
-                execute(request, ListSerializer(TrackerSearchResultDto.serializer()))
-                    .map { dto ->
-                        TrackSearchResult(
-                            remoteId = dto.remoteId,
-                            title = dto.title,
-                            totalChapters = dto.totalEpisodes,
-                            coverUrl = dto.coverUrl,
-                        )
-                    }
+            client.newCall(request).execute().use { response ->
+                notifyIfTrackerAuthExpired(response, tracker)
+                if (!response.isSuccessful) error(errorMessageFor(response))
+                val body = response.body.string()
+                if (mediaType == MediaType.ANIME) {
+                    networkJson.decodeFromString(ListSerializer(AnimeTrackerSearchResultDto.serializer()), body)
+                        .map { dto ->
+                            TrackSearchResult(
+                                remoteId = dto.remote_id,
+                                title = dto.title,
+                                totalChapters = dto.total_episodes,
+                                coverUrl = dto.cover_url,
+                            )
+                        }
+                } else {
+                    networkJson.decodeFromString(ListSerializer(TrackerSearchResultDto.serializer()), body)
+                        .map { dto ->
+                            TrackSearchResult(
+                                remoteId = dto.remoteId,
+                                title = dto.title,
+                                totalChapters = dto.totalEpisodes,
+                                coverUrl = dto.coverUrl,
+                            )
+                        }
+                }
             }
         }
 
@@ -111,6 +135,7 @@ class TrackerApi(
                 mediaType.wireValue?.let { addQueryParameter("type", it) }
             }
             client.newCall(request).execute().use { response ->
+                notifyIfTrackerAuthExpired(response, tracker)
                 if (response.code == 204) return@use null
                 if (!response.isSuccessful) error(errorMessageFor(response))
                 val body = response.body.string()
@@ -151,6 +176,7 @@ class TrackerApi(
             postRequest("tracker/$tracker/entry", body, TrackerUpsertEntryRequest.serializer())
         }
         client.newCall(request).execute().use { response ->
+            notifyIfTrackerAuthExpired(response, tracker)
             if (!response.isSuccessful) error(errorMessageFor(response))
         }
     }

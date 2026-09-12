@@ -72,6 +72,7 @@ class AppPreferences(private val context: Context) {
     private val animePreferredQualityKey = stringPreferencesKey("anime_preferred_quality")
     private val animeAutoSkipIntroKey = booleanPreferencesKey("anime_auto_skip_intro")
     private val animeAutoImportEnabledKey = booleanPreferencesKey("anime_auto_import_enabled")
+    private val trackerLastVerifiedAtKey = longPreferencesKey("tracker_last_verified_at")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -281,4 +282,16 @@ class AppPreferences(private val context: Context) {
     }
 
     private fun animeLastAutoImportAtKey(trackerId: String) = longPreferencesKey("anime_last_auto_import_at_$trackerId")
+
+    // Throttles the active-verify tracker/status call (upstream-checking, not just cached)
+    // to at most once every 6h -- TrackerManager.refreshIfVerifyDue() is the only caller
+    // that consults this; a screen-open refresh always verifies regardless.
+    suspend fun isTrackerVerifyDue(): Boolean {
+        val last = context.settingsDataStore.data.first()[trackerLastVerifiedAtKey] ?: 0L
+        return System.currentTimeMillis() - last > TimeUnit.HOURS.toMillis(6)
+    }
+
+    suspend fun markTrackerVerified() {
+        context.settingsDataStore.edit { it[trackerLastVerifiedAtKey] = System.currentTimeMillis() }
+    }
 }

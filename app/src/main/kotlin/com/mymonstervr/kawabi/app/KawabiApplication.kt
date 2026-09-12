@@ -15,6 +15,7 @@ import com.mymonstervr.kawabi.core.di.coreModule
 import com.mymonstervr.kawabi.data.di.dataModule
 import com.mymonstervr.kawabi.data.network.createImageOkHttpClient
 import com.mymonstervr.kawabi.domain.di.domainModule
+import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.SyncClient
 import com.mymonstervr.kawabi.domain.repository.CategoryRepository
@@ -45,6 +46,7 @@ class KawabiApplication : Application(), SingletonImageLoader.Factory {
             // successful login.
             get<SyncClient>().sync()
             get<AnimeSyncClient>().sync()
+            get<TrackerManager>().refreshIfVerifyDue()
         }
         LibraryUpdateWorker.schedule(this)
         AnimeLibraryUpdateWorker.schedule(this)
