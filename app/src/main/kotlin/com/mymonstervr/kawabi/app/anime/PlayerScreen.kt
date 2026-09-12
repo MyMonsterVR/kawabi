@@ -221,7 +221,7 @@ private fun ImmersiveLandscape() {
         val activity = context as? Activity
         val window = activity?.window
         val previousOrientation = activity?.requestedOrientation
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val insets = window?.let { WindowInsetsControllerCompat(it, it.decorView) }
         insets?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
