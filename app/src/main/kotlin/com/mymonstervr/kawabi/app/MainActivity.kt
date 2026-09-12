@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (result.isSuccess) {
+                get<TrackerManager>().refresh(verify = false)
                 get<AutoImportAnimeFromTrackers>().run(listOf(tracker.id), force = true)
             }
         }

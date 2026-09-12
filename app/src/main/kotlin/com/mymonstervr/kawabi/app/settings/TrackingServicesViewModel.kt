@@ -159,6 +159,7 @@ class TrackingServicesViewModel(
             result?.onFailure { _kitsuLoginError.value = it.message ?: "Kitsu login failed" }
             _kitsuLoggingIn.value = false
             if (kitsu != null && result?.isSuccess == true) {
+                trackerManager.refresh(verify = false)
                 // Fire-and-forget: non-blocking for the login dialog, same reasoning as the
                 // OAuth redirect handler's own auto-import trigger in MainActivity.
                 viewModelScope.launch {
