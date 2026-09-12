@@ -61,6 +61,35 @@ jobs:
           echo "commit_count=${COMMIT_COUNT}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+      # Stamp CHANGELOG.md BEFORE the build so the APK's bundled changelog asset
+      # (copyChangelogToAssets) carries this release's heading instead of
+      # "## Unreleased". The commit of that edit happens at the very end.
+      - name: Stamp changelog
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, re, datetime
+
+          version = os.environ["VERSION"]
+          path = "CHANGELOG.md"
+          text = open(path, encoding="utf-8").read()
+          today = datetime.date.today().isoformat()
+          new_text, count = re.subn(
+              r"^## Unreleased$",
+              f"## Unreleased\n\n## {version} - {today}",
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          if count == 0:
+              print("No '## Unreleased' heading found in CHANGELOG.md -- skipping stamp")
+          else:
+              open(path, "w", encoding="utf-8").write(new_text)
+              print(f"Stamped CHANGELOG.md: Unreleased -> {version} ({today})")
+          PYEOF
+
       - name: Set up JDK
         uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
         with:
@@ -150,26 +179,6 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          python3 - <<'PYEOF'
-          import os, re, datetime
-
-          version = os.environ["VERSION"]
-          path = "CHANGELOG.md"
-          text = open(path, encoding="utf-8").read()
-          today = datetime.date.today().isoformat()
-          new_text, count = re.subn(
-              r"^## Unreleased$",
-              f"## Unreleased\n\n## {version} - {today}",
-              text,
-              count=1,
-              flags=re.MULTILINE,
-          )
-          if count == 0:
-              print("No '## Unreleased' heading found in CHANGELOG.md -- skipping stamp")
-          else:
-              open(path, "w", encoding="utf-8").write(new_text)
-              print(f"Stamped CHANGELOG.md: Unreleased -> {version} ({today})")
-          PYEOF
           if ! git diff --quiet -- app/build.gradle.kts CHANGELOG.md; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
