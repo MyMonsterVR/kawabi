@@ -345,7 +345,7 @@ private fun AnimeDetailContent(
                     )
                 }
 
-                if (isFavorite) {
+                run {
                     AnimeSourcePill(
                         currentName = anime.source_name.ifBlank { anime.source },
                         options = sourceOptions,
