@@ -16,6 +16,7 @@ import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.core.content.ContextCompat
 import com.mymonstervr.kawabi.app.theme.KawabiTheme
 import com.mymonstervr.kawabi.data.track.TrackerManager
+import com.mymonstervr.kawabi.data.usecase.AutoImportAnimeFromTrackers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -94,6 +95,9 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, error.message ?: "${tracker.name} login failed", Toast.LENGTH_LONG).show()
                 }
+            }
+            if (result.isSuccess) {
+                get<AutoImportAnimeFromTrackers>().run(listOf(tracker.id), force = true)
             }
         }
     }

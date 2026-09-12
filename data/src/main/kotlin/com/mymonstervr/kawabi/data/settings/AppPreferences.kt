@@ -71,6 +71,7 @@ class AppPreferences(private val context: Context) {
     private val animeAutoMarkWatchedThresholdKey = floatPreferencesKey("anime_auto_mark_watched_threshold")
     private val animePreferredQualityKey = stringPreferencesKey("anime_preferred_quality")
     private val animeAutoSkipIntroKey = booleanPreferencesKey("anime_auto_skip_intro")
+    private val animeAutoImportEnabledKey = booleanPreferencesKey("anime_auto_import_enabled")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -261,4 +262,23 @@ class AppPreferences(private val context: Context) {
     suspend fun setAnimeAutoSkipIntro(enabled: Boolean) {
         context.settingsDataStore.edit { it[animeAutoSkipIntroKey] = enabled }
     }
+
+    // Gates AutoImportAnimeFromTrackers entirely -- off means it never runs, even
+    // right after a fresh tracker connect (see that class for the per-tracker cooldown).
+    val animeAutoImportEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeAutoImportEnabledKey] ?: true
+    }
+
+    suspend fun setAnimeAutoImportEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[animeAutoImportEnabledKey] = enabled }
+    }
+
+    suspend fun animeLastAutoImportAt(trackerId: String): Long =
+        context.settingsDataStore.data.first()[animeLastAutoImportAtKey(trackerId)] ?: 0L
+
+    suspend fun setAnimeLastAutoImportAt(trackerId: String, timeMillis: Long) {
+        context.settingsDataStore.edit { it[animeLastAutoImportAtKey(trackerId)] = timeMillis }
+    }
+
+    private fun animeLastAutoImportAtKey(trackerId: String) = longPreferencesKey("anime_last_auto_import_at_$trackerId")
 }

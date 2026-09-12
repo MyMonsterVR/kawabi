@@ -35,6 +35,7 @@ import com.mymonstervr.kawabi.data.usecase.AnimeLibraryUpdateManager
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.AnimeTrackerSyncClient
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
+import com.mymonstervr.kawabi.data.usecase.AutoImportAnimeFromTrackers
 import com.mymonstervr.kawabi.data.usecase.ImportAnimeFromTracker
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
 import com.mymonstervr.kawabi.data.usecase.RefreshLibraryBatch
@@ -99,4 +100,5 @@ val dataModule = module {
     single { TrackerSyncClient(get(), get(), get()) }
     single { AnimeTrackerSyncClient(get(), get(), get()) }
     single { ImportAnimeFromTracker(get(), get(), get(), get(), get(), get(), get()) }
+    single { AutoImportAnimeFromTrackers(get(), get(), get()) }
 }

@@ -3,9 +3,11 @@ package com.mymonstervr.kawabi.app.settings
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.BrowserOAuthTracker
 import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
+import com.mymonstervr.kawabi.data.usecase.AutoImportAnimeFromTrackers
 import com.mymonstervr.kawabi.data.usecase.ImportAnimeFromTracker
 import com.mymonstervr.kawabi.data.usecase.ImportSummary
 import com.mymonstervr.kawabi.domain.model.TrackStatus
@@ -46,7 +48,16 @@ data class AnimeImportState(
 class TrackingServicesViewModel(
     private val trackerManager: TrackerManager,
     private val importAnimeFromTracker: ImportAnimeFromTracker,
+    private val autoImportAnimeFromTrackers: AutoImportAnimeFromTrackers,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
+
+    val animeAutoImportEnabled: StateFlow<Boolean> = appPreferences.animeAutoImportEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setAnimeAutoImportEnabled(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setAnimeAutoImportEnabled(enabled) }
+    }
 
     // userName isn't itself a Flow (the trackers expose it as a plain getter over
     // encrypted/plain storage), so re-derive the whole row list whenever connection
@@ -115,9 +126,16 @@ class TrackingServicesViewModel(
             _kitsuLoggingIn.value = true
             _kitsuLoginError.value = null
             val kitsu = trackerManager.trackers.filterIsInstance<KitsuTracker>().firstOrNull()
-            kitsu?.login(username, password)
-                ?.onFailure { _kitsuLoginError.value = it.message ?: "Kitsu login failed" }
+            val result = kitsu?.login(username, password)
+            result?.onFailure { _kitsuLoginError.value = it.message ?: "Kitsu login failed" }
             _kitsuLoggingIn.value = false
+            if (kitsu != null && result?.isSuccess == true) {
+                // Fire-and-forget: non-blocking for the login dialog, same reasoning as the
+                // OAuth redirect handler's own auto-import trigger in MainActivity.
+                viewModelScope.launch {
+                    autoImportAnimeFromTrackers.run(listOf(kitsu.id), force = true)
+                }
+            }
         }
     }
 

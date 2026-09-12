@@ -17,6 +17,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -55,6 +57,7 @@ fun TrackingServicesScreen(
     viewModel: TrackingServicesViewModel = koinViewModel(),
 ) {
     val rows by viewModel.rows.collectAsState()
+    val animeAutoImportEnabled by viewModel.animeAutoImportEnabled.collectAsState()
     val animeImport by viewModel.animeImport.collectAsState()
     val kitsuLoggingIn by viewModel.kitsuLoggingIn.collectAsState()
     val kitsuLoginError by viewModel.kitsuLoginError.collectAsState()
@@ -90,6 +93,15 @@ fun TrackingServicesScreen(
 
     BackScaffold(title = "Tracking services", onBack = onBack) {
         LazyColumn(modifier = Modifier.background(NightSession.Background)) {
+            item {
+                TrackingSwitchRow(
+                    title = "Auto-import watching list (every 12h)",
+                    subtitle = "Keeps the Anime library in sync with your trackers automatically",
+                    checked = animeAutoImportEnabled,
+                    onCheckedChange = viewModel::setAnimeAutoImportEnabled,
+                )
+                HorizontalDivider(color = NightSession.Hairline)
+            }
             items(rows, key = { it.id }) { row ->
                 TrackerRow(
                     row = row,
@@ -110,6 +122,33 @@ fun TrackingServicesScreen(
                 HorizontalDivider(color = NightSession.Hairline)
             }
         }
+    }
+}
+
+@Composable
+private fun TrackingSwitchRow(title: String, subtitle: String?, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val scale = LocalKawabiScale.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 12.dp * scale.spacing),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+            if (subtitle != null) {
+                Text(text = subtitle, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = NightSession.OnAccent,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = NightSession.TextDim,
+                uncheckedTrackColor = NightSession.Chip,
+                uncheckedBorderColor = NightSession.Hairline,
+            ),
+        )
     }
 }
 

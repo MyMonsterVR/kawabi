@@ -21,6 +21,8 @@ stamp, it won't fail the build).
   point, preferred quality and auto-skip.
 - Import your MAL/Kitsu/AniList anime list into the Anime library (Settings ->
   Tracking).
+- Anime library auto-imports your "Watching" list from connected trackers
+  (every 12h and right after connecting).
 - AniList is now supported as a tracker alongside MyAnimeList and Kitsu, for
   both manga and anime.
 
