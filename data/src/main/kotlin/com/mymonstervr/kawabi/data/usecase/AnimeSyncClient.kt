@@ -31,10 +31,12 @@ class AnimeSyncClient(
     private val episodeRepository: EpisodeRepository,
     private val animeTrackRepository: AnimeTrackRepository,
     private val addAnimeToLibrary: AddAnimeToLibrary,
+    private val mergeDuplicateAnimes: MergeDuplicateAnimes,
     private val tokenStore: TokenStore,
 ) {
     suspend fun sync(): Result<Unit> = runCatching {
         if (!tokenStore.isLoggedIn.value) return@runCatching
+        mergeDuplicateAnimes.merge()
         push()
         pull()
     }
@@ -95,7 +97,11 @@ class AnimeSyncClient(
         for (entry in response.entries) {
             if (entry.deleted_at != null) continue
 
+            // A stored row for this key isn't necessarily a library row any more -- the
+            // details screen keeps a non-favorite one for every key it opens -- so a
+            // server entry has to (re)assert favorite rather than assume it.
             val anime = animeRepository.getByKey(entry.key)
+                ?.also { if (!it.favorite) animeRepository.setFavorite(it.id, true) }
                 ?: addAnimeToLibrary.add(entry.key, entry.cover_url).getOrNull()
                 ?: continue
 

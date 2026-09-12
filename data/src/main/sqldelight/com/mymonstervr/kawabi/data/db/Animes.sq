@@ -115,3 +115,15 @@ SELECT * FROM animes WHERE favorite = 1 AND (next_update IS NULL OR next_update 
 
 lastInsertAnimeRowId:
 SELECT last_insert_rowid();
+
+-- Per-anime source switch: the row keeps its id (and with it every episode, tracker link
+-- and history row) while its key/source/url move to the equivalent anime on another
+-- source. Title and cover only move if the new source actually supplied one.
+switchSource:
+UPDATE animes SET key = :key, source = :source, url = :url,
+    title = CASE WHEN :title IS NULL OR :title = '' THEN title ELSE :title END,
+    thumbnail_url = CASE WHEN :thumbnail_url IS NULL OR :thumbnail_url = '' THEN thumbnail_url ELSE :thumbnail_url END
+WHERE _id = :id;
+
+deleteAnime:
+DELETE FROM animes WHERE _id = ?;

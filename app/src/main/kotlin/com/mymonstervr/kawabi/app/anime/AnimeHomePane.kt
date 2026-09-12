@@ -61,6 +61,7 @@ internal fun AnimeHomePane(
     onContinue: (Long, String) -> Unit,
     onEpisodeClick: (String) -> Unit,
     onAnimeClick: (String) -> Unit,
+    onReleaseClick: (AnimeCardDto) -> Unit,
     onSeeAllWatching: () -> Unit,
 ) {
     val scale = LocalKawabiScale.current
@@ -123,7 +124,7 @@ internal fun AnimeHomePane(
                                 title = card.title,
                                 coverUrl = card.cover_url,
                                 subtitle = card.source_name,
-                                onClick = { onAnimeClick(card.key) },
+                                onClick = { onReleaseClick(card) },
                                 source = card.source,
                             )
                         }

@@ -2,6 +2,7 @@ package com.mymonstervr.kawabi.data.usecase
 
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.network.AnimeApi
+import com.mymonstervr.kawabi.data.network.TrackerTokenStore
 import com.mymonstervr.kawabi.data.network.dto.AnimeImportResultDto
 import com.mymonstervr.kawabi.data.track.trackingUrlFor
 import com.mymonstervr.kawabi.domain.model.AnimeTrack
@@ -33,6 +34,7 @@ class ImportAnimeFromTracker(
     private val episodeRepository: EpisodeRepository,
     private val animeTrackRepository: AnimeTrackRepository,
     private val addAnimeToLibrary: AddAnimeToLibrary,
+    private val identityMatcher: AnimeIdentityMatcher,
     private val animeSyncClient: AnimeSyncClient,
     private val dispatchers: AppDispatchers,
 ) {
@@ -72,7 +74,14 @@ class ImportAnimeFromTracker(
                 unmatched.add(UnmatchedItem(result.title, result.remote_id))
                 continue
             }
+            // The matched key may be a different source's copy of a show already in the
+            // library (a re-import after a source switch, or a tracker whose match landed
+            // elsewhere) -- identity, not the key, decides whether this is a new row.
             val existing = animeRepository.getByKey(match.key)
+                ?: identityMatcher.findFavorite(
+                    title = result.title.ifBlank { match.title },
+                    malId = malIdOf(trackerId, result),
+                )
             if (existing != null) {
                 // Repair pass for rows imported before the cover/last-watched fixes: both are
                 // local no-ops when already populated, so this costs nothing on a healthy row.
@@ -111,11 +120,11 @@ class ImportAnimeFromTracker(
             val anime = run {
                 val detail = detailsByKey[match.key]
                 if (detail != null) {
-                    addAnimeToLibrary.addWithDetail(detail, match.cover_url)
+                    addAnimeToLibrary.addWithDetail(detail, match.cover_url, malIdOf(trackerId, result))
                 } else if (match.key in batchErrors || batch == null) {
                     // Fell out of the batch (either reported as an individual error, or the whole
                     // batch call failed) -- fall back to the per-anime path for just this one.
-                    addAnimeToLibrary.add(match.key, match.cover_url)
+                    addAnimeToLibrary.add(match.key, match.cover_url, malIdOf(trackerId, result))
                 } else {
                     Result.failure(IllegalStateException("missing from batch response"))
                 }
@@ -160,6 +169,9 @@ class ImportAnimeFromTracker(
             ),
         )
     }
+
+    private fun malIdOf(trackerId: String, result: AnimeImportResultDto): String? =
+        result.remote_id.takeIf { trackerId == TrackerTokenStore.TRACKER_MAL && it.isNotBlank() }
 
     // The backend already answers the contract's canonical anime statuses, so this is a guard
     // against an unexpected value reaching the DB, not a mapping layer.

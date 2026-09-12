@@ -35,10 +35,14 @@ val appModule = module {
     viewModel { SourcesViewModel(get()) }
     viewModel { BackupViewModel(get()) }
     viewModel { TrackingServicesViewModel(get(), get(), get(), get()) }
-    viewModel { AnimeViewModel(get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { AnimeSearchViewModel(get(), get()) }
-    viewModel { AnimeBrowseViewModel(get(), get()) }
-    viewModel { AnimeDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AnimeViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AnimeSearchViewModel(get(), get(), get()) }
+    viewModel { AnimeBrowseViewModel(get(), get(), get()) }
+    viewModel {
+        AnimeDetailViewModel(
+            get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(),
+        )
+    }
     viewModel { PlayerViewModel(androidContext(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AnimeSourcesViewModel(get()) }
 }

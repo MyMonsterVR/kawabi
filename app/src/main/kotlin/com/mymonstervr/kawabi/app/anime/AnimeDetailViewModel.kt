@@ -11,8 +11,11 @@ import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.data.usecase.AddAnimeToLibrary
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.AnimeTrackerSyncClient
+import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
+import com.mymonstervr.kawabi.data.usecase.SwitchAnimeSource
 import com.mymonstervr.kawabi.domain.model.AnimeTrack
+import com.mymonstervr.kawabi.domain.model.animeIdentityOf
 import com.mymonstervr.kawabi.domain.model.Episode
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
 import com.mymonstervr.kawabi.domain.repository.AnimeTrackRepository
@@ -33,6 +36,30 @@ sealed interface AnimeTrackerSheetState {
     data class Shown(val rows: List<AnimeTrackerLinkRow>) : AnimeTrackerSheetState
 }
 
+/**
+ * The library row that is the same show as the key currently open, when that key isn't the
+ * library row's own (PLAN-anime.md section 18) -- i.e. the user reached a show they already
+ * have from a different source.
+ */
+data class AnimeLibraryMatch(
+    val animeId: Long,
+    val key: String,
+    val sourceName: String,
+)
+
+data class AnimeSourceOption(
+    val key: String,
+    val sourceName: String,
+    val coverUrl: String?,
+)
+
+sealed interface AnimeSourceOptionsState {
+    data object Idle : AnimeSourceOptionsState
+    data object Loading : AnimeSourceOptionsState
+    data class Loaded(val options: List<AnimeSourceOption>, val selected: String) : AnimeSourceOptionsState
+    data class Error(val message: String) : AnimeSourceOptionsState
+}
+
 data class AnimeTrackerLinkRow(
     val trackerId: String,
     val trackerName: String,
@@ -51,6 +78,8 @@ class AnimeDetailViewModel(
     private val episodeRepository: EpisodeRepository,
     private val addAnimeToLibrary: AddAnimeToLibrary,
     private val refreshAnimeEpisodes: RefreshAnimeEpisodes,
+    private val identityMatcher: AnimeIdentityMatcher,
+    private val switchAnimeSource: SwitchAnimeSource,
     private val tokenStore: TokenStore,
     private val animeSyncClient: AnimeSyncClient,
     private val trackerManager: TrackerManager,
@@ -75,6 +104,17 @@ class AnimeDetailViewModel(
     private val _localEpisodesByKey = MutableStateFlow<Map<String, Episode>>(emptyMap())
     val localEpisodesByKey: StateFlow<Map<String, Episode>> = _localEpisodesByKey.asStateFlow()
 
+    // Non-fatal: the details loaded but the episode list couldn't be stored, so no row is
+    // playable. Shown inline above the list instead of leaving a dead list behind.
+    private val _episodeError = MutableStateFlow<String?>(null)
+    val episodeError: StateFlow<String?> = _episodeError.asStateFlow()
+
+    private val _libraryMatch = MutableStateFlow<AnimeLibraryMatch?>(null)
+    val libraryMatch: StateFlow<AnimeLibraryMatch?> = _libraryMatch.asStateFlow()
+
+    private val _sourceOptions = MutableStateFlow<AnimeSourceOptionsState>(AnimeSourceOptionsState.Idle)
+    val sourceOptions: StateFlow<AnimeSourceOptionsState> = _sourceOptions.asStateFlow()
+
     private val _trackerSheet = MutableStateFlow<AnimeTrackerSheetState>(AnimeTrackerSheetState.Hidden)
     val trackerSheet: StateFlow<AnimeTrackerSheetState> = _trackerSheet.asStateFlow()
 
@@ -93,13 +133,24 @@ class AnimeDetailViewModel(
         viewModelScope.launch {
             _state.value = AnimeDetailState.Loading
             animeApi.getAnime(key)
-                .onSuccess { response ->
-                    _state.value = AnimeDetailState.Success(response)
-                    if (response.title.isNotBlank()) _lastTitle.value = response.title
-                    resolveLocalFavoriteState(key)
-                }
+                .onSuccess { response -> applyLoadedDetail(response) }
                 .onFailure { _state.value = AnimeDetailState.Error(it.message ?: "Failed to load") }
         }
+    }
+
+    // Every opened key gets a local anime row (non-favorite unless it is already in the
+    // library) and its episodes stored before the list renders: playback and watch marks
+    // both write into a local episode row, so without this nothing on the screen is
+    // tappable for a show that isn't in the library yet.
+    private suspend fun applyLoadedDetail(response: AnimeDetailResponse) {
+        loadedKey = response.key
+        _state.value = AnimeDetailState.Success(response)
+        if (response.title.isNotBlank()) _lastTitle.value = response.title
+        addAnimeToLibrary.cache(response)
+            .onSuccess { _episodeError.value = null }
+            .onFailure { _episodeError.value = it.message ?: "Couldn't load episodes for this source" }
+        resolveLocalFavoriteState(response.key)
+        resolveLibraryMatch(response)
     }
 
     /** Local-only, no network -- refreshes what playback wrote while the screen was away. */
@@ -112,7 +163,9 @@ class AnimeDetailViewModel(
         if (_isRefreshing.value) return
         viewModelScope.launch {
             _isRefreshing.value = true
-            animeApi.getAnime(key).onSuccess { _state.value = AnimeDetailState.Success(it) }
+            // loadedKey, not the screen's argument: a source switch moved this row to
+            // another key without the nav argument changing.
+            animeApi.getAnime(loadedKey ?: key).onSuccess { _state.value = AnimeDetailState.Success(it) }
             val animeId = localAnimeId
             if (animeId != null) {
                 animeRepository.getById(animeId)?.let { refreshAnimeEpisodes.refresh(it) }
@@ -122,14 +175,28 @@ class AnimeDetailViewModel(
         }
     }
 
-    fun toggleFavorite(key: String) {
+    fun toggleFavorite(animeKey: String) {
+        val key = loadedKey ?: animeKey
         viewModelScope.launch {
             if (_isFavorite.value) {
                 localAnimeId?.let { animeRepository.setFavorite(it, false) }
                 _isFavorite.value = false
                 animeApi.deleteEntry(key)
             } else {
-                addAnimeToLibrary.add(key).onSuccess { anime ->
+                val response = (_state.value as? AnimeDetailState.Success)?.anime
+                val result = if (response != null) {
+                    addAnimeToLibrary.addWithDetail(response)
+                } else {
+                    addAnimeToLibrary.add(key)
+                }
+                result.onSuccess { anime ->
+                    // An identity match means the show is already in the library under
+                    // another source's key: the banner takes over from here instead of a
+                    // second favorite being created.
+                    if (anime.key != key) {
+                        resolveLibraryMatch(response)
+                        return@onSuccess
+                    }
                     localAnimeId = anime.id
                     _isFavorite.value = true
                     refreshLocalEpisodes()
@@ -246,6 +313,93 @@ class AnimeDetailViewModel(
     private fun pushTrackers() {
         val animeId = localAnimeId ?: return
         viewModelScope.launch { runCatching { animeTrackerSyncClient.pushLocalEpisodesWatched(animeId) } }
+    }
+
+    /** "Use this source instead": moves the library row onto the key currently open. */
+    fun useOpenedSource() {
+        val match = _libraryMatch.value ?: return
+        val key = loadedKey ?: return
+        viewModelScope.launch {
+            switchAnimeSource.switch(match.animeId, key)
+                .onSuccess { anime ->
+                    _libraryMatch.value = null
+                    localAnimeId = anime.id
+                    _isFavorite.value = true
+                    _sourceOptions.value = AnimeSourceOptionsState.Idle
+                    refreshLocalEpisodes()
+                }
+                .onFailure { _episodeError.value = it.message ?: "Couldn't switch source" }
+        }
+    }
+
+    /**
+     * Other sources carrying this same show, found by searching the enabled sources for its
+     * title and keeping the results whose identity matches. On demand (the pill's first tap)
+     * because it fans out across every enabled source.
+     */
+    fun loadSourceOptions() {
+        val current = (_state.value as? AnimeDetailState.Success)?.anime ?: return
+        if (_sourceOptions.value is AnimeSourceOptionsState.Loading) return
+        viewModelScope.launch {
+            _sourceOptions.value = AnimeSourceOptionsState.Loading
+            animeApi.search(_lastTitle.value.ifBlank { current.title })
+                .onSuccess { response ->
+                    val target = animeIdentityOf(current.title)
+                    val here = AnimeSourceOption(
+                        key = current.key,
+                        sourceName = current.source_name.ifBlank { current.source },
+                        coverUrl = current.cover_url,
+                    )
+                    val others = response.results
+                        .filter { it.key != current.key && animeIdentityOf(it.title).matches(target) }
+                        .distinctBy { it.source.ifBlank { it.key } }
+                        .map {
+                            AnimeSourceOption(
+                                key = it.key,
+                                sourceName = it.source_name.ifBlank { it.source },
+                                coverUrl = it.cover_url,
+                            )
+                        }
+                    _sourceOptions.value = AnimeSourceOptionsState.Loaded(listOf(here) + others, current.key)
+                }
+                .onFailure { _sourceOptions.value = AnimeSourceOptionsState.Error(it.message ?: "Couldn't load sources") }
+        }
+    }
+
+    /** Source pill pick on a library entry -- switches the row itself onto [key]. */
+    fun selectSource(key: String) {
+        val animeId = localAnimeId ?: return
+        if (loadedKey == key) return
+        viewModelScope.launch {
+            _sourceOptions.value = AnimeSourceOptionsState.Loading
+            switchAnimeSource.switch(animeId, key)
+                .onSuccess {
+                    _sourceOptions.value = AnimeSourceOptionsState.Idle
+                    animeApi.getAnime(key)
+                        .onSuccess { response -> applyLoadedDetail(response) }
+                        .onFailure { _state.value = AnimeDetailState.Error(it.message ?: "Failed to load") }
+                }
+                .onFailure { _sourceOptions.value = AnimeSourceOptionsState.Error(it.message ?: "Couldn't switch source") }
+        }
+    }
+
+    private suspend fun resolveLibraryMatch(response: AnimeDetailResponse?) {
+        if (response == null || _isFavorite.value) {
+            _libraryMatch.value = null
+            return
+        }
+        val match = identityMatcher.findFavorite(response.title, excludeKey = response.key)
+        _libraryMatch.value = match?.let {
+            AnimeLibraryMatch(animeId = it.id, key = it.key, sourceName = sourceNameFor(it.source))
+        }
+    }
+
+    // /anime/sources is the cheap inventory (no live probing), and its entries carry both
+    // the site key and the engine source id that anime keys are built from.
+    private suspend fun sourceNameFor(sourceId: String): String {
+        if (sourceId.isBlank()) return "another source"
+        val sources = animeApi.getSources().getOrNull()?.sources ?: return sourceId
+        return sources.firstOrNull { it.id == sourceId || it.key == sourceId }?.name ?: sourceId
     }
 
     private suspend fun resolveLocalFavoriteState(key: String) {

@@ -32,15 +32,18 @@ import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
 import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListTracker
 import com.mymonstervr.kawabi.data.usecase.AddAnimeToLibrary
 import com.mymonstervr.kawabi.data.usecase.AddMangaToLibrary
+import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
 import com.mymonstervr.kawabi.data.usecase.AnimeLibraryUpdateManager
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.AnimeTrackerSyncClient
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
 import com.mymonstervr.kawabi.data.usecase.AutoImportAnimeFromTrackers
 import com.mymonstervr.kawabi.data.usecase.ImportAnimeFromTracker
+import com.mymonstervr.kawabi.data.usecase.MergeDuplicateAnimes
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
 import com.mymonstervr.kawabi.data.usecase.RefreshLibraryBatch
 import com.mymonstervr.kawabi.data.usecase.RefreshMangaChapters
+import com.mymonstervr.kawabi.data.usecase.SwitchAnimeSource
 import com.mymonstervr.kawabi.data.usecase.SyncClient
 import com.mymonstervr.kawabi.data.usecase.TrackerSyncClient
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
@@ -86,8 +89,11 @@ val dataModule = module {
 
     single { AnimeApi(get(), get()) }
     single { RefreshAnimeEpisodes(get(), get(), get()) }
-    single { AddAnimeToLibrary(get(), get(), get()) }
-    single { AnimeSyncClient(get(), get(), get(), get(), get(), get()) }
+    single { AnimeIdentityMatcher(get(), get()) }
+    single { AddAnimeToLibrary(get(), get(), get(), get()) }
+    single { MergeDuplicateAnimes(get(), get(), get(), get(), get()) }
+    single { AnimeSyncClient(get(), get(), get(), get(), get(), get(), get()) }
+    single { SwitchAnimeSource(get(), get(), get(), get(), get(), get()) }
     single { AnimeLibraryUpdateManager(get(), get()) }
 
     single { TrackerAuthNotifier() }
@@ -101,6 +107,6 @@ val dataModule = module {
     single { TrackerManager(get(), get(), get(), get(), get(), get()) }
     single { TrackerSyncClient(get(), get(), get()) }
     single { AnimeTrackerSyncClient(get(), get(), get()) }
-    single { ImportAnimeFromTracker(get(), get(), get(), get(), get(), get(), get()) }
+    single { ImportAnimeFromTracker(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { AutoImportAnimeFromTrackers(get(), get(), get()) }
 }

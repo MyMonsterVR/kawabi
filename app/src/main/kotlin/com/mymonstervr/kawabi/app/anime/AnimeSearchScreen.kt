@@ -137,7 +137,7 @@ fun AnimeSearchScreen(
                                 title = result.title,
                                 coverUrl = result.cover_url,
                                 subtitle = result.source_name,
-                                onClick = { onResultClick(result.key) },
+                                onClick = { viewModel.openKeyFor(result, onResultClick) },
                                 source = result.source,
                             )
                         }

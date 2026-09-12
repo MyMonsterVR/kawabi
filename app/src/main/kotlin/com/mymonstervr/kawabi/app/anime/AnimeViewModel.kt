@@ -7,6 +7,7 @@ import com.mymonstervr.kawabi.data.network.dto.AnimeCardDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.usecase.AnimeLibraryUpdateManager
+import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
 import com.mymonstervr.kawabi.domain.model.AnimeLibraryEntry
@@ -56,8 +57,12 @@ class AnimeViewModel(
     private val animeSyncClient: AnimeSyncClient,
     private val animeLibraryUpdateManager: AnimeLibraryUpdateManager,
     private val animeApi: AnimeApi,
+    private val identityMatcher: AnimeIdentityMatcher,
     preferences: AppPreferences,
 ) : ViewModel() {
+
+    fun openKeyFor(card: AnimeCardDto, onResolved: (String) -> Unit) =
+        resolveAnimeOpenKey(identityMatcher, card, onResolved)
 
     val entries: StateFlow<List<AnimeLibraryEntry>> = animeRepository.observeLibraryEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

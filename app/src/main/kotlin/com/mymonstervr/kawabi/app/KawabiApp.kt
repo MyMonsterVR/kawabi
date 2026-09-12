@@ -253,6 +253,7 @@ fun KawabiApp() {
                     animeKey = key,
                     onBack = { navController.popBackStackSafe() },
                     onEpisodeClick = { episodeKey -> navigateToPlayer(navController, episodeKey) },
+                    onOpenAnimeDetail = { libraryKey -> navigateToAnimeDetail(navController, libraryKey) },
                     onOpenTrackingSettings = { navController.navigateSafe(ROUTE_TRACKING) },
                 )
             }

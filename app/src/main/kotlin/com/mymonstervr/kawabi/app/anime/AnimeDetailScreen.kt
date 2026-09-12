@@ -3,6 +3,7 @@ package com.mymonstervr.kawabi.app.anime
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -85,6 +88,7 @@ fun AnimeDetailScreen(
     animeKey: String,
     onBack: () -> Unit,
     onEpisodeClick: (String) -> Unit,
+    onOpenAnimeDetail: (String) -> Unit,
     onOpenTrackingSettings: () -> Unit,
     viewModel: AnimeDetailViewModel = koinViewModel(),
 ) {
@@ -103,6 +107,9 @@ fun AnimeDetailScreen(
     val isFavorite by viewModel.isFavorite.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val localEpisodesByKey by viewModel.localEpisodesByKey.collectAsState()
+    val episodeError by viewModel.episodeError.collectAsState()
+    val libraryMatch by viewModel.libraryMatch.collectAsState()
+    val sourceOptions by viewModel.sourceOptions.collectAsState()
     val trackerSheet by viewModel.trackerSheet.collectAsState()
     val altTitleSuggestions by viewModel.altTitleSuggestions.collectAsState()
     val lastTitle by viewModel.lastTitle.collectAsState()
@@ -204,6 +211,13 @@ fun AnimeDetailScreen(
                             anime = current.anime,
                             isFavorite = isFavorite,
                             localEpisodesByKey = localEpisodesByKey,
+                            episodeError = episodeError,
+                            libraryMatch = libraryMatch,
+                            sourceOptions = sourceOptions,
+                            onOpenLibraryEntry = { libraryMatch?.let { onOpenAnimeDetail(it.key) } },
+                            onUseThisSource = viewModel::useOpenedSource,
+                            onLoadSourceOptions = viewModel::loadSourceOptions,
+                            onSelectSource = viewModel::selectSource,
                             onBack = onBack,
                             onToggleFavorite = {
                                 if (isFavorite) showRemoveConfirm = true else viewModel.toggleFavorite(animeKey)
@@ -233,6 +247,13 @@ private fun AnimeDetailContent(
     anime: AnimeDetailResponse,
     isFavorite: Boolean,
     localEpisodesByKey: Map<String, Episode>,
+    episodeError: String?,
+    libraryMatch: AnimeLibraryMatch?,
+    sourceOptions: AnimeSourceOptionsState,
+    onOpenLibraryEntry: () -> Unit,
+    onUseThisSource: () -> Unit,
+    onLoadSourceOptions: () -> Unit,
+    onSelectSource: (String) -> Unit,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     onEpisodeClick: (String) -> Unit,
@@ -316,6 +337,28 @@ private fun AnimeDetailContent(
                     }
                 }
 
+                if (libraryMatch != null) {
+                    LibraryMatchBanner(
+                        sourceName = libraryMatch.sourceName,
+                        onOpenLibraryEntry = onOpenLibraryEntry,
+                        onUseThisSource = onUseThisSource,
+                    )
+                }
+
+                if (isFavorite) {
+                    AnimeSourcePill(
+                        currentName = anime.source_name.ifBlank { anime.source },
+                        options = sourceOptions,
+                        onOpen = onLoadSourceOptions,
+                        onSelect = onSelectSource,
+                        modifier = Modifier.padding(
+                            start = 16.dp * scale.spacing,
+                            end = 16.dp * scale.spacing,
+                            top = 2.dp * scale.spacing,
+                        ),
+                    )
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 4.dp * scale.spacing),
                     horizontalArrangement = Arrangement.spacedBy(8.dp * scale.spacing),
@@ -333,7 +376,7 @@ private fun AnimeDetailContent(
                                 fontSize = 12.sp * scale.font,
                             )
                         }
-                    } else if (!isFavorite) {
+                    } else if (!isFavorite && libraryMatch == null) {
                         Button(
                             onClick = onToggleFavorite,
                             shape = RoundedCornerShape(NightSession.RadiusMd),
@@ -392,9 +435,20 @@ private fun AnimeDetailContent(
                     modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
                 )
 
-                if (!isFavorite) {
+                if (episodeError != null) {
                     Text(
-                        text = "Add to library to watch",
+                        text = episodeError,
+                        fontSize = 10.5.sp * scale.font,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(
+                            start = 16.dp * scale.spacing,
+                            end = 16.dp * scale.spacing,
+                            bottom = 6.dp * scale.spacing,
+                        ),
+                    )
+                } else if (!isFavorite && libraryMatch == null) {
+                    Text(
+                        text = "Not in your library yet — episodes still play, add it to sync progress.",
                         fontSize = 10.5.sp * scale.font,
                         color = NightSession.TextDim,
                         modifier = Modifier.padding(
@@ -425,6 +479,117 @@ private fun AnimeDetailContent(
                     expandedEpisodeKey = null
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun LibraryMatchBanner(
+    sourceName: String,
+    onOpenLibraryEntry: () -> Unit,
+    onUseThisSource: () -> Unit,
+) {
+    val scale = LocalKawabiScale.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing)
+            .clip(RoundedCornerShape(NightSession.RadiusMd))
+            .background(NightSession.Chip)
+            .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
+            .padding(horizontal = 12.dp * scale.spacing, vertical = 8.dp * scale.spacing),
+    ) {
+        Text(
+            text = "In your library from $sourceName",
+            fontSize = 11.sp * scale.font,
+            fontWeight = FontWeight.SemiBold,
+            color = NightSession.Text,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp * scale.spacing)) {
+            TextButton(onClick = onOpenLibraryEntry) {
+                Text("Open library entry", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
+            }
+            TextButton(onClick = onUseThisSource) {
+                Text("Use this source instead", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimeSourcePill(
+    currentName: String,
+    options: AnimeSourceOptionsState,
+    onOpen: () -> Unit,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scale = LocalKawabiScale.current
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(100))
+                .background(NightSession.Chip)
+                .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
+                .clickable {
+                    expanded = true
+                    if (options !is AnimeSourceOptionsState.Loaded) onOpen()
+                }
+                .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Source: ${currentName.ifBlank { "unknown" }} ▾",
+                fontSize = 10.5.sp * scale.font,
+                fontWeight = FontWeight.SemiBold,
+                color = NightSession.TextDim,
+            )
+        }
+        if (expanded) {
+            DropdownMenu(
+                expanded = true,
+                onDismissRequest = { expanded = false },
+                containerColor = NightSession.Chip,
+            ) {
+                when (options) {
+                    AnimeSourceOptionsState.Idle, AnimeSourceOptionsState.Loading -> Box(
+                        Modifier.padding(24.dp * scale.spacing),
+                        Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp * scale.spacing),
+                        )
+                    }
+                    is AnimeSourceOptionsState.Error -> Text(
+                        text = options.message,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 11.sp * scale.font,
+                        modifier = Modifier.padding(16.dp * scale.spacing),
+                    )
+                    is AnimeSourceOptionsState.Loaded -> options.options.forEach { option ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = option.sourceName,
+                                    color = NightSession.Text,
+                                    fontSize = 12.sp * scale.font,
+                                )
+                            },
+                            trailingIcon = if (option.key == options.selected) {
+                                { Text("✓", color = MaterialTheme.colorScheme.primary) }
+                            } else {
+                                null
+                            },
+                            onClick = {
+                                expanded = false
+                                if (option.key != options.selected) onSelect(option.key)
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
 }

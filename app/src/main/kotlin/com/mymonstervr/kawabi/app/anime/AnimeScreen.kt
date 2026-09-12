@@ -107,6 +107,7 @@ fun AnimeScreen(
                             onContinue = onContinue,
                             onEpisodeClick = onEpisodeClick,
                             onAnimeClick = onAnimeClick,
+                            onReleaseClick = { card -> viewModel.openKeyFor(card, onAnimeClick) },
                             onSeeAllWatching = { viewModel.selectTab(AnimeTab.WATCHING) },
                         )
                     }

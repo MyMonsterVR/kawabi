@@ -131,7 +131,7 @@ fun AnimeBrowseScreen(
                                 title = result.title,
                                 coverUrl = result.cover_url,
                                 subtitle = result.source_name.ifBlank { null },
-                                onClick = { onResultClick(result.key) },
+                                onClick = { viewModel.openKeyFor(result, onResultClick) },
                                 source = result.source.ifBlank { sourceKey },
                             )
                         }

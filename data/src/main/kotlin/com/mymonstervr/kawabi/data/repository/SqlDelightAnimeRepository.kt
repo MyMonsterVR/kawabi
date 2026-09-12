@@ -88,6 +88,28 @@ class SqlDelightAnimeRepository(
         queries.updateFavorite(favorite, id)
     }
 
+    override suspend fun switchSource(
+        animeId: Long,
+        newKey: String,
+        newSource: String,
+        newUrl: String,
+        newTitle: String?,
+        cover: String?,
+    ): Unit = withContext<Unit>(dispatchers.io) {
+        queries.switchSource(
+            key = newKey,
+            source = newSource,
+            url = newUrl,
+            title = newTitle,
+            thumbnail_url = cover,
+            id = animeId,
+        )
+    }
+
+    override suspend fun delete(id: Long): Unit = withContext<Unit>(dispatchers.io) {
+        queries.deleteAnime(id)
+    }
+
     override suspend fun setTotalEpisodes(id: Long, totalEpisodes: Double): Unit = withContext<Unit>(dispatchers.io) {
         queries.updateTotalEpisodes(totalEpisodes, id)
     }

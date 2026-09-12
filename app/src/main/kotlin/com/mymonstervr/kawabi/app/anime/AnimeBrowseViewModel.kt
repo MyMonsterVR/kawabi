@@ -6,6 +6,7 @@ import com.mymonstervr.kawabi.data.network.AnimeApi
 import com.mymonstervr.kawabi.data.network.dto.AnimeCardDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
+import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,8 +21,12 @@ enum class AnimeBrowseSort(val apiValue: String, val label: String) {
 
 class AnimeBrowseViewModel(
     private val animeApi: AnimeApi,
+    private val identityMatcher: AnimeIdentityMatcher,
     preferences: AppPreferences,
 ) : ViewModel() {
+
+    fun openKeyFor(card: AnimeCardDto, onResolved: (String) -> Unit) =
+        resolveAnimeOpenKey(identityMatcher, card, onResolved)
 
     val gridColumns: StateFlow<Int> = preferences.libraryGridColumns
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LIBRARY_GRID_COLUMNS_DEFAULT)

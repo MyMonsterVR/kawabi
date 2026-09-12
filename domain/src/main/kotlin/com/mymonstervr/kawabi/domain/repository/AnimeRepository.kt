@@ -12,6 +12,23 @@ interface AnimeRepository {
     suspend fun getByKey(key: String): Anime?
     suspend fun upsert(anime: Anime): Long
     suspend fun setFavorite(id: Long, favorite: Boolean)
+
+    /**
+     * Moves an existing library row onto the same show on another source, keeping its id
+     * (and therefore its episodes, tracker links and history). Episodes still have to be
+     * re-listed from the new key afterwards -- see `SwitchAnimeSource`, which owns the
+     * whole operation; this is only the row rewrite.
+     */
+    suspend fun switchSource(
+        animeId: Long,
+        newKey: String,
+        newSource: String,
+        newUrl: String,
+        newTitle: String? = null,
+        cover: String? = null,
+    )
+
+    suspend fun delete(id: Long)
     suspend fun setTotalEpisodes(id: Long, totalEpisodes: Double)
     suspend fun touchLastWatched(id: Long, timestamp: Long)
 

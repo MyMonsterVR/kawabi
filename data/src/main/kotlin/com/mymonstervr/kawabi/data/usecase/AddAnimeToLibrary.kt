@@ -10,10 +10,11 @@ class AddAnimeToLibrary(
     private val animeApi: AnimeApi,
     private val animeRepository: AnimeRepository,
     private val refreshAnimeEpisodes: RefreshAnimeEpisodes,
+    private val identityMatcher: AnimeIdentityMatcher,
 ) {
-    suspend fun add(key: String, cardCover: String? = null): Result<Anime> {
+    suspend fun add(key: String, cardCover: String? = null, malId: String? = null): Result<Anime> {
         val response = animeApi.getAnime(key).getOrElse { return Result.failure(it) }
-        return addWithDetail(response, cardCover)
+        return addWithDetail(response, cardCover, malId)
     }
 
     /**
@@ -21,18 +22,48 @@ class AddAnimeToLibrary(
      * [cardCover] is the cover of the search/browse/import card the caller came from: engine
      * details pages frequently carry no thumbnail at all, and an empty cover must never win
      * over one we already know (stored row first, then the card).
+     *
+     * When the same show is already a favorite under another source's key, that row is
+     * returned untouched instead of a second favorite being created (PLAN-anime.md section
+     * 18) -- the caller can tell by comparing [Anime.key] with the key it asked for, and
+     * offer a source switch rather than a duplicate.
      */
-    suspend fun addWithDetail(response: AnimeDetailResponse, cardCover: String? = null): Result<Anime> = runCatching {
+    suspend fun addWithDetail(
+        response: AnimeDetailResponse,
+        cardCover: String? = null,
+        malId: String? = null,
+    ): Result<Anime> = runCatching {
+        identityMatcher.findFavorite(response.title, malId, excludeKey = response.key)
+            ?.let { return@runCatching it }
+        val stored = persist(response, cardCover, favorite = true)
+        animeRepository.setFavorite(stored.id, true)
+        refreshAnimeEpisodes.applyResponse(stored, response)
+        stored
+    }
+
+    /**
+     * Stores the anime and its episodes without touching library membership -- what the
+     * details screen needs before rendering, since playback and watch marks both need a
+     * local episode row to write into even for a show the user hasn't added yet. Fails if
+     * the episode list can't be stored, so the caller can say so instead of showing a list
+     * where nothing is tappable.
+     */
+    suspend fun cache(response: AnimeDetailResponse, cardCover: String? = null): Result<Anime> = runCatching {
+        val existing = animeRepository.getByKey(response.key)
+        val stored = persist(response, cardCover, favorite = existing?.favorite == true)
+        refreshAnimeEpisodes.applyResponse(stored, response).getOrThrow()
+        stored
+    }
+
+    private suspend fun persist(response: AnimeDetailResponse, cardCover: String?, favorite: Boolean): Anime {
         val fetched = response.toDomain()
         val anime = fetched.copy(
+            favorite = favorite,
             thumbnailUrl = fetched.thumbnailUrl?.takeIf { it.isNotBlank() }
                 ?: cardCover?.takeIf { it.isNotBlank() },
         )
         val id = animeRepository.upsert(anime)
-        animeRepository.setFavorite(id, true)
         anime.thumbnailUrl?.let { animeRepository.fillMissingThumbnail(id, it) }
-        val stored = anime.copy(id = id)
-        refreshAnimeEpisodes.applyResponse(stored, response)
-        stored
+        return anime.copy(id = id)
     }
 }
