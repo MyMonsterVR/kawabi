@@ -97,12 +97,14 @@ data class VideoDto(
     val audio: List<VideoTrackDto> = emptyList(),
     val timestamps: List<VideoTimestampDto> = emptyList(),
     val proxied: Boolean = false,
+    val proxy_url: String? = null,
 )
 
 @Serializable
 data class VideoTrackDto(
     val url: String,
     val lang: String = "",
+    val proxy_url: String? = null,
 )
 
 @Serializable

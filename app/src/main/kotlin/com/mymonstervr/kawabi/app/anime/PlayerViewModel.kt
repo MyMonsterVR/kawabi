@@ -72,6 +72,16 @@ sealed interface PlayerUiState {
     data class Error(val message: String, val canPickServer: Boolean) : PlayerUiState
 }
 
+/**
+ * Sources whose direct-CDN URLs have been observed to fail from this device (e.g. WARP-IP-
+ * bound streams that 403 outside the engine) -- once a source lands here, every later
+ * episode from it is played through `proxy_url` from the start instead of retrying `url`
+ * first. Process-wide and never persisted: a fresh process is worth one more direct attempt.
+ */
+private val preferProxyBySource = mutableSetOf<String>()
+
+internal fun sourceIdFor(episodeKey: String): String = episodeKey.substringBefore(':')
+
 @OptIn(UnstableApi::class)
 class PlayerViewModel(
     context: Context,
@@ -136,6 +146,8 @@ class PlayerViewModel(
     private var ticker: Job? = null
     private var ticks = 0
     private var autoSelectedSubtitle = false
+    private var usingProxy = false
+    private var reachedReadyForCurrent = false
     // Skipping is one-shot per range: after a manual seek back into the opening the user
     // clearly wants to watch it, so auto-skip must not yank them forward again.
     private val skippedRanges = mutableSetOf<Int>()
@@ -149,6 +161,7 @@ class PlayerViewModel(
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY) {
+                reachedReadyForCurrent = true
                 _state.value = PlayerUiState.Ready
                 _ended.value = false
             }
@@ -170,6 +183,24 @@ class PlayerViewModel(
 
         override fun onPlayerError(error: PlaybackException) {
             Log.w(TAG, "playback failed: ${error.errorCodeName}", error)
+            val selection = _currentVideo.value
+            val proxyUrl = selection?.video?.proxy_url
+            val qualifiesForProxyFallback = !usingProxy && proxyUrl != null && (
+                error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                    error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                    (isIoErrorCode(error.errorCode) && !reachedReadyForCurrent)
+                )
+            if (qualifiesForProxyFallback && selection != null) {
+                val sourceId = loadedKey?.let { sourceIdFor(it) }
+                if (sourceId != null) preferProxyBySource += sourceId
+                Log.i(
+                    TAG,
+                    "proxy fallback: source=$sourceId hoster=${selection.hosterName} " +
+                        "error=${error.errorCodeName}",
+                )
+                play(selection, startAtMs = player.currentPosition.coerceAtLeast(0L))
+                return
+            }
             _state.value = PlayerUiState.Error(
                 message = playerErrorMessage(error),
                 canPickServer = _videos.value.size > 1,
@@ -280,7 +311,14 @@ class PlayerViewModel(
     }
 
     private fun play(selection: PlayerVideo, startAtMs: Long) {
-        Log.i(TAG, "playing hoster=${selection.hosterName} quality=${selection.video.title} proxied=${selection.video.proxied}")
+        val sourceId = loadedKey?.let { sourceIdFor(it) }
+        usingProxy = selection.video.proxy_url != null && sourceId != null && sourceId in preferProxyBySource
+        reachedReadyForCurrent = false
+        Log.i(
+            TAG,
+            "playing hoster=${selection.hosterName} quality=${selection.video.title} " +
+                "proxied=${selection.video.proxied} viaProxy=$usingProxy",
+        )
         _currentVideo.value = selection
         _selectedSubtitle.value = null
         autoSelectedSubtitle = false
@@ -301,23 +339,26 @@ class PlayerViewModel(
         _state.value = PlayerUiState.Loading
     }
 
-    private fun mediaItemFor(selection: PlayerVideo): MediaItem =
-        MediaItem.Builder()
-            .setUri(selection.video.url)
+    private fun mediaItemFor(selection: PlayerVideo): MediaItem {
+        val uri = (selection.video.proxy_url.takeIf { usingProxy }) ?: selection.video.url
+        return MediaItem.Builder()
+            .setUri(uri)
             // The proxied form is "<base>/anime/stream/<port>/m3u8?url=..." -- the path has
             // no .m3u8 extension to sniff, so without an explicit MIME type the media
             // source factory would pick the progressive extractor and fail on a playlist.
-            .setMimeType(MimeTypes.APPLICATION_M3U8.takeIf { selection.video.url.contains("m3u8", ignoreCase = true) })
+            .setMimeType(MimeTypes.APPLICATION_M3U8.takeIf { uri.contains("m3u8", ignoreCase = true) })
             .setSubtitleConfigurations(
                 selection.video.subtitles.map { track ->
-                    MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(track.url))
-                        .setMimeType(subtitleMimeType(track.url))
+                    val subtitleUri = (track.proxy_url.takeIf { usingProxy }) ?: track.url
+                    MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitleUri))
+                        .setMimeType(subtitleMimeType(subtitleUri))
                         .setLanguage(track.lang.ifBlank { null })
                         .setLabel(track.lang.ifBlank { "Subtitles" })
                         .build()
                 },
             )
             .build()
+    }
 
     private fun startTicker() {
         ticker?.cancel()
@@ -427,6 +468,8 @@ internal fun subtitleMimeType(url: String): String = when {
     url.endsWith(".ass", ignoreCase = true) || url.endsWith(".ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
     else -> MimeTypes.TEXT_VTT
 }
+
+internal fun isIoErrorCode(errorCode: Int): Boolean = errorCode in 2000..2999
 
 internal fun VideoTimestampDto.isSkippable(): Boolean =
     end > start && (type.equals("Opening", ignoreCase = true) || type.equals("Ending", ignoreCase = true))
