@@ -12,10 +12,12 @@ private const val BATCH_CHUNK_SIZE = 50
 
 /**
  * Refreshes many manga in one (or a few, chunked) network round trip via
- * `POST /manga/batch`, instead of one `GET /manga` per manga -- see
- * [SourceApi.getMangaBatch] for why. Each manga's result is reconciled
- * against local storage through [RefreshMangaChapters.applyResponse], the
- * same logic a single-manga refresh uses.
+ * [SourceApi.getMangaCached] (`POST /manga/cached`) -- the backend serves
+ * this straight from a background-refreshed persisted cache (near-instant),
+ * instead of a live per-URL engine fetch. Each manga's result is
+ * reconciled against local storage through
+ * [RefreshMangaChapters.applyResponse], the same logic a single-manga
+ * refresh uses.
  */
 class RefreshLibraryBatch(
     private val sourceApi: SourceApi,
@@ -31,7 +33,7 @@ class RefreshLibraryBatch(
     }
 
     private suspend fun refreshChunk(mangas: List<Manga>): Map<Long, Result<List<Chapter>>> {
-        val batchResults = sourceApi.getMangaBatch(mangas.map { it.url }).getOrElse { error ->
+        val batchResults = sourceApi.getMangaCached(mangas.map { it.url }).getOrElse { error ->
             return mangas.associate { it.id to Result.failure(error) }
         }
         val resultByUrl = batchResults.associateBy { it.url }

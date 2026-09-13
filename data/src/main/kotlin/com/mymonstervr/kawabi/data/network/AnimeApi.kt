@@ -83,11 +83,12 @@ class AnimeApi(
     }
 
     /**
-     * `POST /anime/batch` fans out the per-key `GET /anime` fetches server-side (mirrors
-     * [SourceApi.getMangaBatch]) instead of one call per anime hitting the sustained 1-req/2s
-     * limiter -- see PLAN-anime.md section 14/import-batch. Chunked at 100 keys per the
-     * backend's documented cap; errors for individual keys come back in the same response
-     * rather than failing the whole batch.
+     * `POST /anime/batch` fans out the per-key `GET /anime` fetches server-side instead of
+     * one call per anime hitting the sustained 1-req/2s limiter -- see PLAN-anime.md section
+     * 14/import-batch. Chunked at 100 keys per the backend's documented cap; errors for
+     * individual keys come back in the same response rather than failing the whole batch.
+     * Still live (no cache) -- use this for a guaranteed-fresh result; [getAnimeCached]
+     * below for a library-wide refresh.
      */
     suspend fun getAnimeBatch(keys: List<String>): Result<AnimeBatchResponse> = withContext(dispatchers.io) {
         runCatching {
@@ -95,6 +96,27 @@ class AnimeApi(
             val errors = mutableMapOf<String, String>()
             for (chunk in keys.chunked(100)) {
                 val request = postRequest("anime/batch", AnimeBatchRequest(chunk), AnimeBatchRequest.serializer())
+                val response = executeWithRetry(request, AnimeBatchResponse.serializer(), batchClient)
+                animes += response.animes
+                errors += response.errors
+            }
+            AnimeBatchResponse(animes, errors)
+        }
+    }
+
+    /**
+     * `POST /anime/cached` reads from the backend's persisted episode_cache table (kept
+     * warm by a background job every 30min) instead of live-fetching every key through the
+     * engine like [getAnimeBatch] does -- same request/response shape, near-instant. Use
+     * this for a library-wide refresh; keep [getAnimeBatch] for anything that needs a
+     * guaranteed-live result.
+     */
+    suspend fun getAnimeCached(keys: List<String>): Result<AnimeBatchResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val animes = mutableListOf<AnimeDetailResponse>()
+            val errors = mutableMapOf<String, String>()
+            for (chunk in keys.chunked(100)) {
+                val request = postRequest("anime/cached", AnimeBatchRequest(chunk), AnimeBatchRequest.serializer())
                 val response = executeWithRetry(request, AnimeBatchResponse.serializer(), batchClient)
                 animes += response.animes
                 errors += response.errors

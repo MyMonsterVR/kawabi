@@ -40,6 +40,7 @@ import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
 import com.mymonstervr.kawabi.data.usecase.AutoImportAnimeFromTrackers
 import com.mymonstervr.kawabi.data.usecase.ImportAnimeFromTracker
 import com.mymonstervr.kawabi.data.usecase.MergeDuplicateAnimes
+import com.mymonstervr.kawabi.data.usecase.RefreshAnimeBatch
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
 import com.mymonstervr.kawabi.data.usecase.RefreshLibraryBatch
 import com.mymonstervr.kawabi.data.usecase.RefreshMangaChapters
@@ -89,6 +90,7 @@ val dataModule = module {
 
     single { AnimeApi(get(), get()) }
     single { RefreshAnimeEpisodes(get(), get(), get()) }
+    single { RefreshAnimeBatch(get(), get()) }
     // The merge is passed as a provider: it needs the matcher to group rows, so resolving
     // it eagerly here would be a construction cycle.
     single { AnimeIdentityMatcher(get(), get()) { get() } }

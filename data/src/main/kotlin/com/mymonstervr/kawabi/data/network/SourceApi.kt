@@ -40,17 +40,17 @@ class SourceApi(
         }
     }
 
-    // POST /manga/batch fans out server-side (Manga.Batch, internal 20s deadline) instead
-    // of the client hitting GET /manga once per favorite -- a full-library refresh
-    // otherwise drains the burst above and falls into the sustained 1-req/2s trickle (see
-    // the retry comment above). Uses its own client with headroom past the server's 20s
-    // deadline so a slow-but-still-responding batch isn't cut off by our own read timeout
-    // right as the server would've answered.
-    suspend fun getMangaBatch(urls: List<String>): Result<List<MangaBatchResult>> = withContext(dispatchers.io) {
+    // POST /manga/cached reads from the backend's persisted chapter_cache table (kept warm
+    // by a background job every 30min) instead of live-fetching every URL through the
+    // engine (POST /manga/batch, Manga.Batch server-side) -- this is what makes refreshAll
+    // instant. Uses the same batchClient as a plain live batch call would (headroom past
+    // the server's own deadline), since a cache-miss item still falls back to a live fetch
+    // server-side.
+    suspend fun getMangaCached(urls: List<String>): Result<List<MangaBatchResult>> = withContext(dispatchers.io) {
         runCatching {
             val body = networkJson.encodeToString(MangaBatchRequest.serializer(), MangaBatchRequest(urls))
                 .toRequestBody(JSON_MEDIA_TYPE)
-            val request = Request.Builder().url("$BASE_URL/manga/batch").post(body).build()
+            val request = Request.Builder().url("$BASE_URL/manga/cached").post(body).build()
             executeWithRetry(request, MangaBatchResponse.serializer(), batchClient).results
         }
     }

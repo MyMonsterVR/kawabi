@@ -12,6 +12,10 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Library refresh is now near-instant -- the backend keeps chapter/episode
+  lists warm on its own every 30 minutes, so pulling to refresh no longer
+  waits on a live scrape of every manga/anime in your library.
+
 ## 0.1.0-58 - 2026-09-12
 
 - Anime: switching an anime to another source now sticks -- the episode list,

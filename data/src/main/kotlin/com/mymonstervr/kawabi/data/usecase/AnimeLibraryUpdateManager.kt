@@ -11,19 +11,21 @@ private const val DAY_MS = 24 * 60 * 60 * 1000L
 /**
  * Anime counterpart of [LibraryUpdateManager], same smart-interval skip logic (finding new
  * episodes halves the interval, finding none grows it up to a cap) for the same
- * cost-control reason -- every refresh is an engine fetch through WARP.
+ * cost-control reason -- every refresh used to be a live engine fetch through WARP.
  *
- * Unlike the manga side there is no batch endpoint under `/anime`, so this refreshes one
- * anime per call; the interval logic is what keeps that bounded.
+ * Refreshes every due anime in one [RefreshAnimeBatch] call against `/anime/cached` (the
+ * backend's background-refreshed persisted cache), not one live call per anime -- same
+ * change as [LibraryUpdateManager]'s move from per-manga `/manga` to batched `/manga/cached`.
  */
 class AnimeLibraryUpdateManager(
     private val animeRepository: AnimeRepository,
-    private val refreshAnimeEpisodes: RefreshAnimeEpisodes,
+    private val refreshAnimeBatch: RefreshAnimeBatch,
 ) {
     suspend fun updateDue(now: Long = System.currentTimeMillis()): Int {
         val due = animeRepository.getDueForUpdate(now)
+        val results = refreshAnimeBatch.refresh(due)
         for (anime in due) {
-            val foundNew = refreshAnimeEpisodes.refresh(anime).getOrNull()?.isNotEmpty() == true
+            val foundNew = results[anime.id]?.getOrNull()?.isNotEmpty() == true
             updateSchedule(anime, now, foundNew)
         }
         return due.size
