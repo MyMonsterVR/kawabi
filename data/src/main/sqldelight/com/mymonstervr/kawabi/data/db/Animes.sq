@@ -75,8 +75,15 @@ SELECT animes.*,
     (SELECT MAX(episodes.episode_number) FROM episodes
         WHERE episodes.anime_id = animes._id AND episodes.watched = 1) AS last_watched_episode,
     (SELECT MAX(episodes.date_upload) FROM episodes WHERE episodes.anime_id = animes._id) AS latest_episode_at,
-    (SELECT anime_tracks.status FROM anime_tracks
-        WHERE anime_tracks.anime_id = animes._id ORDER BY anime_tracks.updated_at DESC LIMIT 1) AS track_status
+    -- Wrapped in an outer MAX() purely so SQLDelight infers this column as nullable --
+    -- without an aggregate it assumes NOT NULL from anime_tracks.status's own column
+    -- definition and generates a `!!` that crashes on any untracked anime (no matching
+    -- row -> real SQL NULL). The inner ORDER BY/LIMIT 1 still picks the single freshest
+    -- row; MAX over that single value is a no-op wrapper, not a behavior change.
+    (SELECT MAX(status) FROM (
+        SELECT anime_tracks.status AS status FROM anime_tracks
+        WHERE anime_tracks.anime_id = animes._id ORDER BY anime_tracks.updated_at DESC LIMIT 1
+    )) AS track_status
 FROM animes
 WHERE animes.favorite = 1;
 
