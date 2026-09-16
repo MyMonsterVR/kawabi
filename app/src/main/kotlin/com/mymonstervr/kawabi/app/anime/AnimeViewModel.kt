@@ -9,7 +9,7 @@ import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.usecase.AnimeLibraryUpdateManager
 import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
-import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
+import com.mymonstervr.kawabi.data.usecase.RefreshAnimeBatch
 import com.mymonstervr.kawabi.domain.model.AnimeLibraryEntry
 import com.mymonstervr.kawabi.domain.model.AnimeWatchStatus
 import com.mymonstervr.kawabi.domain.model.NewEpisode
@@ -61,7 +61,7 @@ private const val NEW_EPISODE_MAX = 40L
 class AnimeViewModel(
     private val animeRepository: AnimeRepository,
     private val episodeRepository: EpisodeRepository,
-    private val refreshAnimeEpisodes: RefreshAnimeEpisodes,
+    private val refreshAnimeBatch: RefreshAnimeBatch,
     private val animeSyncClient: AnimeSyncClient,
     private val animeLibraryUpdateManager: AnimeLibraryUpdateManager,
     private val animeApi: AnimeApi,
@@ -164,14 +164,17 @@ class AnimeViewModel(
         }
     }
 
+    // Batched via /anime/cached (same as AnimeLibraryUpdateManager.updateDue()) instead of
+    // one live GET /anime per favorite -- that sequential loop reintroduced the exact
+    // rate-limit-prone pattern the manga side was already fixed for (SyncClient's push()
+    // doc comment), and made pull-to-refresh the slowest thing in the app for any real
+    // library size.
     fun refresh() {
         if (_isRefreshing.value) return
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                for (anime in animeRepository.getFavorites()) {
-                    refreshAnimeEpisodes.refresh(anime)
-                }
+                refreshAnimeBatch.refresh(animeRepository.getFavorites())
                 animeSyncClient.sync()
                 loadReleases()
             } finally {

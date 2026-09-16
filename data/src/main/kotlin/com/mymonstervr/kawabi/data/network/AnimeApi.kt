@@ -75,9 +75,15 @@ class AnimeApi(
         }
     }
 
-    suspend fun getAnime(key: String): Result<AnimeDetailResponse> = withContext(dispatchers.io) {
+    // fresh=true (pull-to-refresh) skips the backend's episode_cache and forces a live
+    // engine scrape; the default false lets a just-opened anime hit that cache instead,
+    // which is near-instant when the maintenance job has already warmed it.
+    suspend fun getAnime(key: String, fresh: Boolean = false): Result<AnimeDetailResponse> = withContext(dispatchers.io) {
         runCatching {
-            val request = getRequest("anime") { addQueryParameter("key", key) }
+            val request = getRequest("anime") {
+                addQueryParameter("key", key)
+                if (fresh) addQueryParameter("fresh", "1")
+            }
             executeWithRetry(request, AnimeDetailResponse.serializer(), longReadClient)
         }
     }

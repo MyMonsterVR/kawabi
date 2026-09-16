@@ -207,7 +207,7 @@ class AnimeDetailViewModel(
             _isRefreshing.value = true
             // loadedKey, not the screen's argument: a source switch moved this row to
             // another key without the nav argument changing.
-            animeApi.getAnime(loadedKey ?: key).onSuccess { _state.value = AnimeDetailState.Success(it) }
+            animeApi.getAnime(loadedKey ?: key, fresh = true).onSuccess { _state.value = AnimeDetailState.Success(it) }
             val animeId = localAnimeId
             if (animeId != null) {
                 animeRepository.getById(animeId)?.let { refreshAnimeEpisodes.refresh(it) }
