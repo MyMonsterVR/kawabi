@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-62 - 2026-09-16
+
 ## 0.1.0-60 - 2026-09-13
 
 - Library refresh is now near-instant -- the backend keeps chapter/episode
