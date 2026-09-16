@@ -331,14 +331,34 @@ class PlayerViewModel(
         autoSelectedSubtitle = false
         skippedRanges.clear()
 
-        // Extension-supplied Referer/Origin/User-Agent go on as default request properties
-        // rather than per-MediaItem: the CDNs reject the segment requests too, not just the
-        // playlist, and only the data source sees those.
+        // Extension-supplied Referer/Origin/User-Agent are scoped to the video's own CDN
+        // host via an interceptor rather than DefaultMediaSourceFactory's blanket
+        // setDefaultRequestProperties -- that applied them to every request the data source
+        // makes, including external subtitle tracks, which routinely live on a completely
+        // different host (e.g. Anikoto's video CDN vs. its separate subtitle CDN). Forcing
+        // one hoster's Referer onto an unrelated subtitle host got it silently rejected,
+        // making subtitles appear simply missing. Segments still need the headers -- they're
+        // normally same-host as the manifest -- so this keeps applying them there.
+        val videoHost = runCatching { java.net.URI(selection.video.url).host }.getOrNull()
+        val scopedClient = if (selection.video.headers.isEmpty() || videoHost == null) {
+            playerHttpClient.client
+        } else {
+            playerHttpClient.client.newBuilder()
+                .addInterceptor { chain ->
+                    val request = chain.request()
+                    if (!request.url.host.equals(videoHost, ignoreCase = true)) {
+                        chain.proceed(request)
+                    } else {
+                        val builder = request.newBuilder()
+                        selection.video.headers.forEach { (k, v) -> builder.header(k, v) }
+                        chain.proceed(builder.build())
+                    }
+                }
+                .build()
+        }
         player.setMediaSource(
-            DefaultMediaSourceFactory(
-                OkHttpDataSource.Factory(playerHttpClient.client)
-                    .setDefaultRequestProperties(selection.video.headers),
-            ).createMediaSource(mediaItemFor(selection)),
+            DefaultMediaSourceFactory(OkHttpDataSource.Factory(scopedClient))
+                .createMediaSource(mediaItemFor(selection)),
         )
         player.playWhenReady = true
         if (startAtMs > 0) player.seekTo(startAtMs)
