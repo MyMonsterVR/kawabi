@@ -254,8 +254,20 @@ class PlayerViewModel(
         play(selection, startAtMs = player.currentPosition.coerceAtLeast(0L))
     }
 
+    // Anime HLS playlists routinely declare embedded CEA-608/708 closed-caption channels
+    // per variant (usually unused boilerplate) alongside our externally-attached VTT/SRT/SSA
+    // subtitle configurations. Both show up as TRACK_TYPE_TEXT groups, and the embedded ones
+    // sort first -- indexing textGroups positionally against our own subtitles list picked
+    // an empty CEA-608 placeholder instead of the real external track, so the subtitle
+    // "selected" successfully (no crash, index in range) but nothing ever rendered.
+    private val embeddedCaptionMimeTypes = setOf(MimeTypes.APPLICATION_CEA608, MimeTypes.APPLICATION_CEA708)
+
+    private fun externalTextGroups() = player.currentTracks.groups
+        .filter { it.type == C.TRACK_TYPE_TEXT }
+        .filterNot { group -> (0 until group.length).all { i -> group.getTrackFormat(i).sampleMimeType in embeddedCaptionMimeTypes } }
+
     fun selectSubtitle(index: Int?) {
-        val textGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+        val textGroups = externalTextGroups()
         val params = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_TEXT)
         if (index == null) {
             params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
@@ -331,28 +343,30 @@ class PlayerViewModel(
         autoSelectedSubtitle = false
         skippedRanges.clear()
 
-        // Extension-supplied Referer/Origin/User-Agent are scoped to the video's own CDN
-        // host via an interceptor rather than DefaultMediaSourceFactory's blanket
+        // Extension-supplied Origin/Referer are scoped to the video's own CDN host via an
+        // interceptor rather than DefaultMediaSourceFactory's blanket
         // setDefaultRequestProperties -- that applied them to every request the data source
         // makes, including external subtitle tracks, which routinely live on a completely
         // different host (e.g. Anikoto's video CDN vs. its separate subtitle CDN). Forcing
-        // one hoster's Referer onto an unrelated subtitle host got it silently rejected,
-        // making subtitles appear simply missing. Segments still need the headers -- they're
-        // normally same-host as the manifest -- so this keeps applying them there.
+        // one hoster's Referer onto an unrelated subtitle host got it rejected, making
+        // subtitles appear simply missing. User-Agent still goes on everywhere -- unlike
+        // Origin/Referer it isn't tied to a specific site's anti-hotlinking check, and a lot
+        // of CDNs (subtitle hosts included) reject OkHttp's default UA outright.
         val videoHost = runCatching { java.net.URI(selection.video.url).host }.getOrNull()
-        val scopedClient = if (selection.video.headers.isEmpty() || videoHost == null) {
+        val siteScopedHeaders = selection.video.headers.filterKeys { !it.equals("user-agent", ignoreCase = true) }
+        val globalHeaders = selection.video.headers.filterKeys { it.equals("user-agent", ignoreCase = true) }
+        val scopedClient = if (selection.video.headers.isEmpty()) {
             playerHttpClient.client
         } else {
             playerHttpClient.client.newBuilder()
                 .addInterceptor { chain ->
                     val request = chain.request()
-                    if (!request.url.host.equals(videoHost, ignoreCase = true)) {
-                        chain.proceed(request)
-                    } else {
-                        val builder = request.newBuilder()
-                        selection.video.headers.forEach { (k, v) -> builder.header(k, v) }
-                        chain.proceed(builder.build())
+                    val builder = request.newBuilder()
+                    globalHeaders.forEach { (k, v) -> builder.header(k, v) }
+                    if (videoHost != null && request.url.host.equals(videoHost, ignoreCase = true)) {
+                        siteScopedHeaders.forEach { (k, v) -> builder.header(k, v) }
                     }
+                    chain.proceed(builder.build())
                 }
                 .build()
         }
