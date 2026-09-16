@@ -34,6 +34,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Auto-launches the app after a sideloaded update finishes installing, so the
+             user doesn't need a second tap on the installer's "Open" button. -->
+        <receiver
+            android:name=".app.update.AppUpdateReplacedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Exposes the downloaded update APK (externalCacheDir) as a content:// URI
              for the system installer, required since Android N (a file:// URI would
              throw FileUriExposedException). -->
