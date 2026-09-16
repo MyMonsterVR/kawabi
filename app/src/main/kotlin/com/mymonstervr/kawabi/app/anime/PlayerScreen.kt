@@ -4,7 +4,9 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.view.WindowManager
 import androidx.annotation.OptIn
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,10 +76,12 @@ fun PlayerScreen(
     episodeKey: String,
     onBack: () -> Unit,
     onNavigateEpisode: (String) -> Unit,
+    onOpenAnimeDetail: (String) -> Unit,
     viewModel: PlayerViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     val animeTitle by viewModel.animeTitle.collectAsState()
+    val animeKey by viewModel.animeKey.collectAsState()
     val episodeTitle by viewModel.episodeTitle.collectAsState()
     val videos by viewModel.videos.collectAsState()
     val currentVideo by viewModel.currentVideo.collectAsState()
@@ -138,6 +142,7 @@ fun PlayerScreen(
                 animeTitle = animeTitle,
                 episodeTitle = episodeTitle,
                 onBack = onBack,
+                onOpenDetail = { animeKey?.let(onOpenAnimeDetail) },
                 modifier = Modifier.align(Alignment.TopCenter),
             )
             PlayerActionRow(
@@ -246,8 +251,15 @@ private fun PauseOnStop(onStop: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PlayerTopBar(animeTitle: String, episodeTitle: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun PlayerTopBar(
+    animeTitle: String,
+    episodeTitle: String,
+    onBack: () -> Unit,
+    onOpenDetail: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val scale = LocalKawabiScale.current
     Row(
         modifier = modifier
@@ -259,7 +271,14 @@ private fun PlayerTopBar(animeTitle: String, episodeTitle: String, onBack: () ->
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
-        Column(modifier = Modifier.padding(start = 4.dp)) {
+        // Long-press opens the anime detail page -- the source switcher and full episode
+        // list only live there, and continuing from the library's Watching row jumps
+        // straight into the player, skipping detail entirely (AnimeScreen.onContinue).
+        Column(
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .combinedClickable(onClick = {}, onLongClick = onOpenDetail),
+        ) {
             Text(
                 text = animeTitle.ifBlank { "Now playing" },
                 color = Color.White,

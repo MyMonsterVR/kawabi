@@ -282,6 +282,7 @@ fun KawabiApp() {
                     episodeKey = episodeKey,
                     onBack = { navController.popBackStackSafe() },
                     onNavigateEpisode = { targetKey -> navigateToEpisode(navController, targetKey) },
+                    onOpenAnimeDetail = { key -> navigateToAnimeDetail(navController, key) },
                 )
             }
             composable(ROUTE_BACKUP) {

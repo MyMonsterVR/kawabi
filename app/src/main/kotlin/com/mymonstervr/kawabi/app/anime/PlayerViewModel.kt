@@ -100,6 +100,11 @@ class PlayerViewModel(
     private val _animeTitle = MutableStateFlow("")
     val animeTitle: StateFlow<String> = _animeTitle.asStateFlow()
 
+    // Null until resolveLocalEpisode() finishes -- lets the title bar's long-press-for-
+    // details gesture no-op instead of navigating with a blank key while loading.
+    private val _animeKey = MutableStateFlow<String?>(null)
+    val animeKey: StateFlow<String?> = _animeKey.asStateFlow()
+
     private val _episodeTitle = MutableStateFlow("")
     val episodeTitle: StateFlow<String> = _episodeTitle.asStateFlow()
 
@@ -290,7 +295,9 @@ class PlayerViewModel(
         episode = local
         alreadyMarkedWatched = local.watched
         animeId = local.animeId
-        _animeTitle.value = animeRepository.getById(local.animeId)?.title.orEmpty()
+        val anime = animeRepository.getById(local.animeId)
+        _animeTitle.value = anime?.title.orEmpty()
+        _animeKey.value = anime?.key
         _episodeTitle.value = local.name.ifBlank { "Episode ${formatChapterNumber(local.episodeNumber)}" }
         resolveNeighbours(local)
     }
