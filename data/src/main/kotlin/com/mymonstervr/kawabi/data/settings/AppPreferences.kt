@@ -47,6 +47,15 @@ const val ANIME_AUTO_MARK_WATCHED_THRESHOLD_MIN = 0.5f
 const val ANIME_AUTO_MARK_WATCHED_THRESHOLD_MAX = 1.0f
 const val ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT = 0.85f
 
+// Percent of PlayerView's default subtitle size -- stored as a whole-number percent
+// (matching the other percent-based settings above) rather than a raw fraction, so the
+// slider and its label both work in the same units.
+const val SUBTITLE_TEXT_SIZE_MIN = 50
+const val SUBTITLE_TEXT_SIZE_MAX = 200
+const val SUBTITLE_TEXT_SIZE_DEFAULT = 100
+
+enum class SubtitleBackgroundStyle { OUTLINE, BOX }
+
 /**
  * Tier 1 Settings (PLAN.md step 8) that actually affect app behavior today. Global
  * defaults only -- per-series override (reading direction) isn't built yet, same for
@@ -73,6 +82,8 @@ class AppPreferences(private val context: Context) {
     private val animeAutoSkipIntroKey = booleanPreferencesKey("anime_auto_skip_intro")
     private val animeAutoImportEnabledKey = booleanPreferencesKey("anime_auto_import_enabled")
     private val trackerLastVerifiedAtKey = longPreferencesKey("tracker_last_verified_at")
+    private val subtitleTextSizeKey = intPreferencesKey("subtitle_text_size")
+    private val subtitleBackgroundStyleKey = stringPreferencesKey("subtitle_background_style")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -293,5 +304,22 @@ class AppPreferences(private val context: Context) {
 
     suspend fun markTrackerVerified() {
         context.settingsDataStore.edit { it[trackerLastVerifiedAtKey] = System.currentTimeMillis() }
+    }
+
+    val subtitleTextSize: Flow<Int> = context.settingsDataStore.data.map { prefs ->
+        (prefs[subtitleTextSizeKey] ?: SUBTITLE_TEXT_SIZE_DEFAULT).coerceIn(SUBTITLE_TEXT_SIZE_MIN, SUBTITLE_TEXT_SIZE_MAX)
+    }
+
+    suspend fun setSubtitleTextSize(percent: Int) {
+        context.settingsDataStore.edit { it[subtitleTextSizeKey] = percent.coerceIn(SUBTITLE_TEXT_SIZE_MIN, SUBTITLE_TEXT_SIZE_MAX) }
+    }
+
+    val subtitleBackgroundStyle: Flow<SubtitleBackgroundStyle> = context.settingsDataStore.data.map { prefs ->
+        prefs[subtitleBackgroundStyleKey]?.let { runCatching { SubtitleBackgroundStyle.valueOf(it) }.getOrNull() }
+            ?: SubtitleBackgroundStyle.OUTLINE
+    }
+
+    suspend fun setSubtitleBackgroundStyle(style: SubtitleBackgroundStyle) {
+        context.settingsDataStore.edit { it[subtitleBackgroundStyleKey] = style.name }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +40,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +59,9 @@ import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_MAX
 import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_MIN
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
+import com.mymonstervr.kawabi.data.settings.SUBTITLE_TEXT_SIZE_MAX
+import com.mymonstervr.kawabi.data.settings.SUBTITLE_TEXT_SIZE_MIN
+import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
 import com.mymonstervr.kawabi.data.settings.ThemePalette
 import org.koin.androidx.compose.koinViewModel
 
@@ -86,6 +93,8 @@ fun SettingsScreen(
     val animeAutoMarkWatchedThreshold by viewModel.animeAutoMarkWatchedThreshold.collectAsState()
     val animePreferredQuality by viewModel.animePreferredQuality.collectAsState()
     val animeAutoSkipIntro by viewModel.animeAutoSkipIntro.collectAsState()
+    val subtitleTextSize by viewModel.subtitleTextSize.collectAsState()
+    val subtitleBackgroundStyle by viewModel.subtitleBackgroundStyle.collectAsState()
     val expiredTrackerCount by viewModel.expiredTrackerCount.collectAsState()
     val context = LocalContext.current
 
@@ -237,6 +246,31 @@ fun SettingsScreen(
                 }
             }
             item {
+                SettingsGroup("Subtitles") {
+                    SubtitlePreview(textSizePercent = subtitleTextSize, background = subtitleBackgroundStyle)
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsSliderRow(
+                        title = "Text size",
+                        subtitle = "$subtitleTextSize% of default",
+                        value = subtitleTextSize,
+                        range = SUBTITLE_TEXT_SIZE_MIN..SUBTITLE_TEXT_SIZE_MAX,
+                        onValueChange = viewModel::setSubtitleTextSize,
+                    )
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsRadioRow(
+                        label = "Outline (no background)",
+                        selected = subtitleBackgroundStyle == SubtitleBackgroundStyle.OUTLINE,
+                        onClick = { viewModel.setSubtitleBackgroundStyle(SubtitleBackgroundStyle.OUTLINE) },
+                    )
+                    HorizontalDivider(color = NightSession.Hairline)
+                    SettingsRadioRow(
+                        label = "Solid background box",
+                        selected = subtitleBackgroundStyle == SubtitleBackgroundStyle.BOX,
+                        onClick = { viewModel.setSubtitleBackgroundStyle(SubtitleBackgroundStyle.BOX) },
+                    )
+                }
+            }
+            item {
                 SettingsGroup("Preferred quality") {
                     // Matched against each stream's title rather than a numeric field:
                     // extensions label variants ("1080p") far more reliably than they fill
@@ -299,6 +333,41 @@ private fun PageFitMode.label(): String = when (this) {
 private fun ThemePalette.label(): String = when (this) {
     ThemePalette.NIGHT_SESSION -> "Night Session"
     ThemePalette.CATPPUCCIN_MOCHA -> "Catppuccin Mocha"
+}
+
+// Approximates the player's actual CaptionStyleCompat rendering (applySubtitleAppearance in
+// PlayerScreen.kt) closely enough to judge size/style before opening a real episode --
+// exact pixel match isn't the point, just "will this be legible over a bright scene."
+@Composable
+private fun SubtitlePreview(textSizePercent: Int, background: SubtitleBackgroundStyle) {
+    val scale = LocalKawabiScale.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(90.dp * scale.spacing)
+            .padding(horizontal = 16.dp * scale.spacing, vertical = 10.dp * scale.spacing)
+            .clip(RoundedCornerShape(NightSession.RadiusSm))
+            .background(Color(0xFF3A3A3A)),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        val textStyle = when (background) {
+            SubtitleBackgroundStyle.OUTLINE -> TextStyle(
+                color = Color.White,
+                fontSize = (16 * textSizePercent / 100).sp,
+                shadow = Shadow(color = Color.Black, blurRadius = 6f),
+            )
+            SubtitleBackgroundStyle.BOX -> TextStyle(color = Color.White, fontSize = (16 * textSizePercent / 100).sp)
+        }
+        val textModifier = if (background == SubtitleBackgroundStyle.BOX) {
+            Modifier
+                .padding(bottom = 10.dp * scale.spacing)
+                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        } else {
+            Modifier.padding(bottom = 10.dp * scale.spacing)
+        }
+        Text(text = "Sample subtitle text", style = textStyle, modifier = textModifier)
+    }
 }
 
 @Composable

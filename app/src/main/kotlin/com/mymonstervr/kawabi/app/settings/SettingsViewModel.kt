@@ -13,6 +13,8 @@ import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.PageFitMode
 import com.mymonstervr.kawabi.data.settings.ReadingDirection
+import com.mymonstervr.kawabi.data.settings.SUBTITLE_TEXT_SIZE_DEFAULT
+import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
 import com.mymonstervr.kawabi.data.settings.ThemePalette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -137,6 +139,20 @@ class SettingsViewModel(
 
     fun setAnimeAutoSkipIntro(enabled: Boolean) {
         viewModelScope.launch { preferences.setAnimeAutoSkipIntro(enabled) }
+    }
+
+    val subtitleTextSize: StateFlow<Int> = preferences.subtitleTextSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SUBTITLE_TEXT_SIZE_DEFAULT)
+
+    fun setSubtitleTextSize(percent: Int) {
+        viewModelScope.launch { preferences.setSubtitleTextSize(percent) }
+    }
+
+    val subtitleBackgroundStyle: StateFlow<SubtitleBackgroundStyle> = preferences.subtitleBackgroundStyle
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SubtitleBackgroundStyle.OUTLINE)
+
+    fun setSubtitleBackgroundStyle(style: SubtitleBackgroundStyle) {
+        viewModelScope.launch { preferences.setSubtitleBackgroundStyle(style) }
     }
 
     val dynamicColor: StateFlow<Boolean> = preferences.dynamicColor

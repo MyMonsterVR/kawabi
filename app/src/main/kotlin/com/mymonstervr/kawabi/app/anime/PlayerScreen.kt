@@ -53,9 +53,12 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
+import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
@@ -91,6 +94,8 @@ fun PlayerScreen(
     val speed by viewModel.speed.collectAsState()
     val nextEpisodeKey by viewModel.nextEpisodeKey.collectAsState()
     val previousEpisodeKey by viewModel.previousEpisodeKey.collectAsState()
+    val subtitleTextSize by viewModel.subtitleTextSize.collectAsState()
+    val subtitleBackgroundStyle by viewModel.subtitleBackgroundStyle.collectAsState()
     val autoSkip by viewModel.autoSkip.collectAsState()
 
     LaunchedEffect(episodeKey) { viewModel.load(episodeKey) }
@@ -118,6 +123,7 @@ fun PlayerScreen(
                     )
                 }
             },
+            update = { view -> applySubtitleAppearance(view, subtitleTextSize, subtitleBackgroundStyle) },
         )
 
         if (state is PlayerUiState.Loading) {
@@ -249,6 +255,35 @@ private fun PauseOnStop(onStop: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+}
+
+// Settings screen stores size as a whole-number percent of PlayerView's own default (see
+// AppPreferences.SUBTITLE_TEXT_SIZE_DEFAULT); DEFAULT_TEXT_SIZE_FRACTION is that default
+// expressed the way SubtitleView actually wants it (fraction of view height).
+@OptIn(UnstableApi::class)
+private fun applySubtitleAppearance(view: PlayerView, textSizePercent: Int, background: SubtitleBackgroundStyle) {
+    val subtitleView = view.subtitleView ?: return
+    subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * textSizePercent / 100f)
+    subtitleView.setStyle(
+        when (background) {
+            SubtitleBackgroundStyle.BOX -> CaptionStyleCompat(
+                android.graphics.Color.WHITE,
+                android.graphics.Color.argb(180, 0, 0, 0),
+                android.graphics.Color.TRANSPARENT,
+                CaptionStyleCompat.EDGE_TYPE_NONE,
+                android.graphics.Color.TRANSPARENT,
+                null,
+            )
+            SubtitleBackgroundStyle.OUTLINE -> CaptionStyleCompat(
+                android.graphics.Color.WHITE,
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT,
+                CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                android.graphics.Color.BLACK,
+                null,
+            )
+        },
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)

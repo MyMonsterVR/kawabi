@@ -21,6 +21,8 @@ import com.mymonstervr.kawabi.data.network.dto.VideoDto
 import com.mymonstervr.kawabi.data.network.dto.VideoTimestampDto
 import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.settings.SUBTITLE_TEXT_SIZE_DEFAULT
+import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.AnimeTrackerSyncClient
 import com.mymonstervr.kawabi.domain.model.Episode
@@ -30,9 +32,11 @@ import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -132,6 +136,13 @@ class PlayerViewModel(
 
     private val _previousEpisodeKey = MutableStateFlow<String?>(null)
     val previousEpisodeKey: StateFlow<String?> = _previousEpisodeKey.asStateFlow()
+
+    // Reactive (not snapshotted like markReadOnScroll) -- a size/style change in Settings
+    // should apply to a player already open, not just the next one.
+    val subtitleTextSize: StateFlow<Int> = preferences.subtitleTextSize
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SUBTITLE_TEXT_SIZE_DEFAULT)
+    val subtitleBackgroundStyle: StateFlow<SubtitleBackgroundStyle> = preferences.subtitleBackgroundStyle
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SubtitleBackgroundStyle.OUTLINE)
 
     private val _autoSkip = MutableStateFlow(false)
     val autoSkip: StateFlow<Boolean> = _autoSkip.asStateFlow()
@@ -285,13 +296,21 @@ class PlayerViewModel(
         player.setPlaybackSpeed(speed)
     }
 
-    /** The Opening/Ending range the playhead is currently inside, if any. */
+    /**
+     * The Opening/Ending range the playhead is currently inside, if any. [VideoTimestampDto]'s
+     * start/end are seconds (the engine's wire format), not milliseconds like [positionMs] --
+     * without the *1000 here this window was only "active" for the first ~100ms of playback,
+     * which made the skip button flash and vanish almost immediately instead of staying up
+     * for the whole intro/outro.
+     */
     fun activeSkipRange(positionMs: Long): VideoTimestampDto? =
-        _currentVideo.value?.video?.timestamps?.firstOrNull { it.isSkippable() && positionMs in it.start until it.end }
+        _currentVideo.value?.video?.timestamps?.firstOrNull {
+            it.isSkippable() && positionMs in (it.start * 1000) until (it.end * 1000)
+        }
 
     fun skip(range: VideoTimestampDto) {
         skippedRanges += range.start.toInt()
-        player.seekTo(range.end)
+        player.seekTo(range.end * 1000)
     }
 
     fun pause() {
@@ -422,7 +441,7 @@ class PlayerViewModel(
 
         if (_autoSkip.value) {
             activeSkipRange(position)?.let { range ->
-                if (skippedRanges.add(range.start.toInt())) player.seekTo(range.end)
+                if (skippedRanges.add(range.start.toInt())) player.seekTo(range.end * 1000)
             }
         }
 
