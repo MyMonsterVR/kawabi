@@ -736,16 +736,27 @@ private const val PAGE_LOAD_STUCK_TIMEOUT_MS = 8_000L
 // used to recover from a corrupted local cache entry, see VerticalPageImage's retry logic.
 // diskCacheKey is pinned to the URL explicitly so that retry logic can evict the exact
 // entry it means to (Coil's own default key derivation isn't guaranteed to be the raw URL).
+// remember()'d so the SAME ImageRequest instance survives recomposition (a scroll tick,
+// for example) as long as url/forceNetwork haven't changed. Coil keys an image load off
+// this object's identity, not its field values -- a fresh instance every recomposition
+// was making it restart the load from scratch on every scroll-triggered recompose, even
+// for a page already fully loaded. Confirmed live: the same page hit the backend 5 times
+// in 5 seconds while scrolling, and a page well above the viewport occasionally reloading
+// and flashing back to its placeholder height was very likely what caused the reader to
+// visibly jump back to an earlier page -- LazyColumn recalculates its scroll anchor when
+// an off-screen-but-composed item's measured height changes underneath it.
 @Composable
 private fun pageImageRequest(url: String, forceNetwork: Boolean = false): ImageRequest {
     val context = LocalContext.current
-    return ImageRequest.Builder(context)
-        .data(url)
-        .diskCacheKey(url)
-        .size(Size.ORIGINAL)
-        .maxBitmapSize(Size(PAGE_MAX_BITMAP_WIDTH, PAGE_MAX_BITMAP_HEIGHT))
-        .apply { if (forceNetwork) diskCachePolicy(CachePolicy.WRITE_ONLY) }
-        .build()
+    return remember(url, forceNetwork) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .diskCacheKey(url)
+            .size(Size.ORIGINAL)
+            .maxBitmapSize(Size(PAGE_MAX_BITMAP_WIDTH, PAGE_MAX_BITMAP_HEIGHT))
+            .apply { if (forceNetwork) diskCachePolicy(CachePolicy.WRITE_ONLY) }
+            .build()
+    }
 }
 
 // Some sources (confirmed: MangaFire unofficial/scanlation releases) return a single page
