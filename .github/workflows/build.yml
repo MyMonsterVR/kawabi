@@ -164,9 +164,19 @@ jobs:
           # /v2/ -- distinct from the old fork's /v1/ path on the same domain
           # (apk.rasmushk.dk), so neither app's release clobbers the other's.
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p /opt/apk/v2"
+          # scp straight to kawabi.apk isn't atomic -- Caddy's file_server can read the
+          # file mid-overwrite (confirmed live: a downloaded APK had the exact right total
+          # size but one corrupted zip entry, the signature of a client's read landing
+          # while a redeploy was still writing new bytes over the old ones). Upload to a
+          # staging name instead and rename into place: same-filesystem `mv` is an atomic
+          # directory-entry swap, so a concurrent reader always sees either the fully-old
+          # or fully-new file, never a torn mix -- important now that pushes to this repo
+          # happen in quick succession more often than when this step was first written.
           scp "${SIGNED_RELEASE_FILE}" \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/v2/kawabi.apk
-          scp manifest.json ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/v2/manifest.json
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/v2/kawabi.apk.new
+          scp manifest.json ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/v2/manifest.json.new
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "mv /opt/apk/v2/kawabi.apk.new /opt/apk/v2/kawabi.apk && mv /opt/apk/v2/manifest.json.new /opt/apk/v2/manifest.json"
 
       # Renames CHANGELOG.md's "## Unreleased" section to this release's version (and
       # opens a fresh blank "## Unreleased" above it for the next round of changes) --
