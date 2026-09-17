@@ -728,13 +728,23 @@ private val READER_MAX_PAGE_WIDTH = 720.dp
 private const val PAGE_MAX_BITMAP_WIDTH = 4096
 private const val PAGE_MAX_BITMAP_HEIGHT = 4096
 
+// How long a page is allowed to sit un-loaded before VerticalPageImage gives up waiting and
+// forces a cache-bypassing retry -- see its retryAttempt doc comment.
+private const val PAGE_LOAD_STUCK_TIMEOUT_MS = 8_000L
+
+// forceNetwork bypasses a READ of the disk cache (still writes the fresh result back) --
+// used to recover from a corrupted local cache entry, see VerticalPageImage's retry logic.
+// diskCacheKey is pinned to the URL explicitly so that retry logic can evict the exact
+// entry it means to (Coil's own default key derivation isn't guaranteed to be the raw URL).
 @Composable
-private fun pageImageRequest(url: String): ImageRequest {
+private fun pageImageRequest(url: String, forceNetwork: Boolean = false): ImageRequest {
     val context = LocalContext.current
     return ImageRequest.Builder(context)
         .data(url)
+        .diskCacheKey(url)
         .size(Size.ORIGINAL)
         .maxBitmapSize(Size(PAGE_MAX_BITMAP_WIDTH, PAGE_MAX_BITMAP_HEIGHT))
+        .apply { if (forceNetwork) diskCachePolicy(CachePolicy.WRITE_ONLY) }
         .build()
 }
 
@@ -813,20 +823,50 @@ private fun VerticalPageImage(key: String, url: String, fitMode: PageFitMode, wi
     var hasLoaded by remember(key) { mutableStateOf(false) }
     var diskCacheKey by remember(key) { mutableStateOf<String?>(null) }
     var tiles by remember(key) { mutableStateOf<List<ImageBitmap>?>(null) }
+    // Bumped once to force a clean network refetch instead of leaving recovery to chance.
+    // Confirmed live (2026-09-17, MangaFire via the Suwayomi source): a corrupted/truncated
+    // cached JPEG doesn't reliably fail -- Android's hardware decoder is non-deterministic
+    // on it, sometimes returning a bitmap, sometimes sitting in Loading indefinitely,
+    // depending on scheduling/memory state at decode time. The backend validates every
+    // image byte-for-byte before ever returning it (internal/handler/image.go), so a bad
+    // cache entry -- not a bad source -- is the only realistic cause; one evict-and-refetch
+    // is enough.
+    var retryAttempt by remember(key) { mutableStateOf(0) }
 
     LaunchedEffect(diskCacheKey) {
         val cacheKey = diskCacheKey ?: return@LaunchedEffect
         tiles = loadOversizedTiles(context, cacheKey)?.map { it.asImageBitmap() }
     }
 
+    // Safety net for the "stuck in Loading forever" case above, where onState's Error
+    // branch below never fires because the decode never reaches a terminal state at all.
+    LaunchedEffect(key, retryAttempt) {
+        delay(PAGE_LOAD_STUCK_TIMEOUT_MS)
+        if (!hasLoaded && retryAttempt == 0) {
+            context.imageLoader.diskCache?.remove(url)
+            retryAttempt = 1
+        }
+    }
+
     if (tiles == null) {
         AsyncImage(
-            model = pageImageRequest(url),
+            model = pageImageRequest(url, forceNetwork = retryAttempt > 0),
             contentDescription = null,
             contentScale = fitMode.toContentScale(),
             onState = { state ->
-                hasLoaded = state is AsyncImagePainter.State.Success
-                if (state is AsyncImagePainter.State.Success) diskCacheKey = state.result.diskCacheKey
+                when (state) {
+                    is AsyncImagePainter.State.Success -> {
+                        hasLoaded = true
+                        diskCacheKey = state.result.diskCacheKey
+                    }
+                    is AsyncImagePainter.State.Error -> {
+                        if (retryAttempt == 0) {
+                            context.imageLoader.diskCache?.remove(url)
+                            retryAttempt = 1
+                        }
+                    }
+                    else -> Unit
+                }
             },
             modifier = widthModifier
                 .then(if (hasLoaded) Modifier else Modifier.defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT)),
