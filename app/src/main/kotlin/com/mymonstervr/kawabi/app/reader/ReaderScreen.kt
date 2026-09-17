@@ -46,6 +46,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,7 +57,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -280,6 +283,17 @@ private fun ContinuousVerticalScreen(
     val context = LocalContext.current
     val thresholdFraction = markReadThreshold / 100f
     val flatItems = remember(sections) { buildFlatItems(sections) }
+    // Scoped to the whole screen, not per-item, so it survives a page's own composable
+    // being disposed and recreated when LazyColumn recycles it after it scrolls far
+    // enough out of the retention window. Without this, a page that's been seen once
+    // still starts every later recomposition at PAGE_PLACEHOLDER_MIN_HEIGHT and only
+    // snaps to its real (usually different) height once the disk-cached image reloads
+    // -- confirmed as the likely cause of a reported "jumps back to an earlier page"
+    // bug: LazyColumn recalculates its scroll anchor when an off-screen-but-composed
+    // item's measured height changes underneath it, and this reflow happens on ANY
+    // scroll far enough to recycle a page, not just the corrupted-cache case the retry
+    // logic in VerticalPageImage already covers.
+    val pageHeightsPx = remember { mutableStateMapOf<String, Int>() }
     // Section 0 (the chapter this screen was opened on) has no divider before it, so its
     // page indices map 1:1 onto flat indices -- current.startPage IS the flat index to
     // resume at. Unlike PagedChapterScreen's rememberPagerState(initialPage = ...), a
@@ -434,6 +448,8 @@ private fun ContinuousVerticalScreen(
                                 fitMode = pageFitMode,
                                 widthModifier = Modifier.fillMaxWidth()
                                     .widthIn(max = READER_MAX_PAGE_WIDTH * LocalKawabiScale.current.spacing),
+                                knownHeightPx = pageHeightsPx[item.key],
+                                onHeightKnown = { heightPx -> pageHeightsPx[item.key] = heightPx },
                             )
                         }
                         is FlatItem.ChapterDivider -> ChapterDividerRow(item.label)
@@ -778,10 +794,24 @@ private fun samplePow2For(nativePx: Int, capPx: Int): Int {
     return sample
 }
 
+// Coil's disk-cache write doesn't necessarily commit before it reports the load a
+// Success -- confirmed live: a page recovered via VerticalPageImage's forced-network
+// retry sometimes rendered at capped/downsampled quality (as if this function had never
+// run) until the user backed out and back into the chapter, which re-triggered this same
+// lookup and found the entry that time. A few short-backoff retries on the snapshot open
+// covers that race without resorting to a manual reload.
+private suspend fun openSnapshotWithRetry(diskCache: coil3.disk.DiskCache, key: String): coil3.disk.DiskCache.Snapshot? {
+    repeat(3) { attempt ->
+        diskCache.openSnapshot(key)?.let { return it }
+        if (attempt < 2) delay(150L)
+    }
+    return null
+}
+
 private suspend fun loadOversizedTiles(context: Context, diskCacheKey: String): List<Bitmap>? =
     withContext(Dispatchers.IO) {
         val diskCache = context.imageLoader.diskCache ?: return@withContext null
-        val snapshot = diskCache.openSnapshot(diskCacheKey) ?: return@withContext null
+        val snapshot = openSnapshotWithRetry(diskCache, diskCacheKey) ?: return@withContext null
         try {
             val path = snapshot.data.toString()
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -823,8 +853,16 @@ private fun PageFitMode.toContentScale(): ContentScale = when (this) {
 }
 
 @Composable
-private fun VerticalPageImage(key: String, url: String, fitMode: PageFitMode, widthModifier: Modifier) {
+private fun VerticalPageImage(
+    key: String,
+    url: String,
+    fitMode: PageFitMode,
+    widthModifier: Modifier,
+    knownHeightPx: Int?,
+    onHeightKnown: (Int) -> Unit,
+) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     // The min-height placeholder must only hold space open before the real image reports
     // its size -- some sources (confirmed: MangaFire official chapters) split one tall
     // panel across several page files, each individually much shorter than a normal page.
@@ -880,7 +918,21 @@ private fun VerticalPageImage(key: String, url: String, fitMode: PageFitMode, wi
                 }
             },
             modifier = widthModifier
-                .then(if (hasLoaded) Modifier else Modifier.defaultMinSize(minHeight = PAGE_PLACEHOLDER_MIN_HEIGHT)),
+                .then(
+                    if (hasLoaded) {
+                        // Report the real, final height once loaded so a later recomposition
+                        // (this composable getting disposed and recreated after LazyColumn
+                        // recycles it off-screen, then scrolled back into view) can seed its
+                        // placeholder with this instead of the generic floor below -- see
+                        // pageHeightsPx's doc comment on why that reflow was likely causing
+                        // the reported "jumps back to an earlier page" bug.
+                        Modifier.onSizeChanged { onHeightKnown(it.height) }
+                    } else {
+                        val placeholderHeight = knownHeightPx?.let { with(density) { it.toDp() } }
+                            ?: PAGE_PLACEHOLDER_MIN_HEIGHT
+                        Modifier.defaultMinSize(minHeight = placeholderHeight)
+                    },
+                ),
         )
     } else {
         // Always FillWidth regardless of fitMode -- these tiles are pieces of one giant
@@ -888,7 +940,7 @@ private fun VerticalPageImage(key: String, url: String, fitMode: PageFitMode, wi
         // loadOversizedTiles above); a per-tile fit-height/original scale would break
         // that seam, and a multi-screen-tall panel doesn't meaningfully support those
         // modes anyway.
-        Column(modifier = widthModifier) {
+        Column(modifier = widthModifier.onSizeChanged { onHeightKnown(it.height) }) {
             tiles!!.forEach { tile ->
                 Image(
                     bitmap = tile,
