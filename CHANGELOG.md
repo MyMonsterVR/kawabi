@@ -14,23 +14,54 @@ stamp, it won't fail the build).
 
 ## 0.1.0-82 - 2026-09-19
 
+- Manga/anime library refresh is faster on a large library -- chapter/episode
+  sync now writes each manga/anime's changes in one database transaction
+  instead of one per chapter/episode.
+
 ## 0.1.0-80 - 2026-09-17
+
+- Manga reader: fixed pages sometimes jumping or losing their scroll position
+  when scrolling back over previously-read pages.
 
 ## 0.1.0-78 - 2026-09-17
 
+- Fixed a rare corrupted update download (the installer would fail partway
+  through) caused by downloading mid-deploy.
+- Manga reader: fixed pages occasionally reloading/flickering instead of
+  staying put.
+
 ## 0.1.0-75 - 2026-09-17
+
+- Manga reader: recovers automatically from a corrupted page cache instead of
+  showing a broken image.
 
 ## 0.1.0-73 - 2026-09-16
 
+- Fixed the anime player's skip-intro/ending button vanishing almost
+  instantly instead of staying up during the skippable range.
+- Added subtitle appearance settings (Settings -> Playback).
+
 ## 0.1.0-71 - 2026-09-16
+
+- Anime: fixed subtitles not showing up on some HLS sources.
 
 ## 0.1.0-69 - 2026-09-16
 
+- Anime: fixed subtitles being missing on some sources where the subtitle
+  file lives on a different host than the video.
+
 ## 0.1.0-67 - 2026-09-16
+
+- Anime library refresh is now near-instant too, same as manga's.
+- Long-press the player's title bar to open that anime's details page.
 
 ## 0.1.0-64 - 2026-09-16
 
+- The app now reopens automatically after installing a sideloaded update.
+
 ## 0.1.0-62 - 2026-09-16
+
+- Anime: fixed a crash when opening an anime that isn't tracked yet.
 
 ## 0.1.0-60 - 2026-09-13
 
