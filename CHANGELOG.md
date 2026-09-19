@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-84 - 2026-09-19
+
 ## 0.1.0-82 - 2026-09-19
 
 - Manga/anime library refresh is faster on a large library -- chapter/episode
