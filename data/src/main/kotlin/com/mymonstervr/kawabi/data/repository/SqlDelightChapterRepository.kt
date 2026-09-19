@@ -6,6 +6,7 @@ import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.db.KawabiDatabase
 import com.mymonstervr.kawabi.data.db.toDomain
 import com.mymonstervr.kawabi.domain.model.Chapter
+import com.mymonstervr.kawabi.domain.model.ChapterUpdate
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -74,6 +75,21 @@ class SqlDelightChapterRepository(
         dateUpload: Long,
     ): Unit = withContext<Unit>(dispatchers.io) {
         queries.updateDetails(name, scanlator, chapterNumber, sourceOrder.toLong(), dateUpload, id)
+    }
+
+    override suspend fun applySync(
+        inserts: List<Chapter>,
+        updates: List<ChapterUpdate>,
+        deleteIds: List<Long>,
+    ): List<Long> = withContext(dispatchers.io) {
+        db.transactionWithResult {
+            val insertedIds = inserts.map { insertRow(it) }
+            for (u in updates) {
+                queries.updateDetails(u.name, u.scanlator, u.chapterNumber, u.sourceOrder.toLong(), u.dateUpload, u.id)
+            }
+            if (deleteIds.isNotEmpty()) queries.deleteChaptersByIds(deleteIds)
+            insertedIds
+        }
     }
 
     override suspend fun setRead(id: Long, read: Boolean): Unit = withContext<Unit>(dispatchers.io) {

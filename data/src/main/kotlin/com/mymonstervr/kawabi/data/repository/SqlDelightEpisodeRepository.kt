@@ -6,6 +6,7 @@ import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.db.KawabiDatabase
 import com.mymonstervr.kawabi.data.db.toDomain
 import com.mymonstervr.kawabi.domain.model.Episode
+import com.mymonstervr.kawabi.domain.model.EpisodeUpdate
 import com.mymonstervr.kawabi.domain.model.NewEpisode
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
 import kotlinx.coroutines.flow.Flow
@@ -83,6 +84,21 @@ class SqlDelightEpisodeRepository(
         dateUpload: Long,
     ): Unit = withContext<Unit>(dispatchers.io) {
         queries.updateDetails(key, name, episodeNumber, sourceOrder.toLong(), dateUpload, id)
+    }
+
+    override suspend fun applySync(
+        inserts: List<Episode>,
+        updates: List<EpisodeUpdate>,
+        deleteIds: List<Long>,
+    ): List<Long> = withContext(dispatchers.io) {
+        db.transactionWithResult {
+            val insertedIds = inserts.map { insertRow(it) }
+            for (u in updates) {
+                queries.updateDetails(u.key, u.name, u.episodeNumber, u.sourceOrder.toLong(), u.dateUpload, u.id)
+            }
+            if (deleteIds.isNotEmpty()) queries.deleteEpisodesByIds(deleteIds)
+            insertedIds
+        }
     }
 
     override suspend fun setWatched(id: Long, watched: Boolean): Unit = withContext<Unit>(dispatchers.io) {

@@ -17,3 +17,13 @@ data class Chapter(
     val version: Long,
     val isSyncing: Boolean,
 )
+
+/** One existing chapter's changed fields, for [ChapterRepository.applySync]. */
+data class ChapterUpdate(
+    val id: Long,
+    val name: String,
+    val scanlator: String?,
+    val chapterNumber: Double,
+    val sourceOrder: Int,
+    val dateUpload: Long,
+)

@@ -1,6 +1,7 @@
 package com.mymonstervr.kawabi.domain.interactor
 
 import com.mymonstervr.kawabi.domain.model.Episode
+import com.mymonstervr.kawabi.domain.model.EpisodeUpdate
 import com.mymonstervr.kawabi.domain.model.SourceEpisode
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
 import kotlinx.coroutines.sync.Mutex
@@ -59,13 +60,14 @@ class SyncEpisodesWithSource(
 
         val now = System.currentTimeMillis()
         var fetchOffset = newEntries.size
-        val newlyAdded = mutableListOf<Episode>()
+        val toInsert = mutableListOf<Episode>()
+        val isGenuinelyNew = mutableListOf<Boolean>()
 
         for ((url, entry) in newEntries) {
             val (sourceEpisode, index) = entry
             val carryover = carryoverByNumber[sourceEpisode.episodeNumber]
 
-            val episode = Episode(
+            toInsert += Episode(
                 id = 0,
                 animeId = animeId,
                 key = sourceEpisode.key,
@@ -82,13 +84,12 @@ class SyncEpisodesWithSource(
                 version = 0,
                 isSyncing = false,
             )
-            val id = episodeRepository.insert(episode)
-            if (carryover == null) newlyAdded += episode.copy(id = id)
+            isGenuinelyNew += (carryover == null)
         }
 
-        for ((current, entry) in updatedEntries) {
+        val toUpdate = updatedEntries.map { (current, entry) ->
             val (sourceEpisode, index) = entry
-            episodeRepository.updateDetails(
+            EpisodeUpdate(
                 id = current.id,
                 key = sourceEpisode.key,
                 name = sourceEpisode.name,
@@ -98,10 +99,18 @@ class SyncEpisodesWithSource(
             )
         }
 
-        if (removedEpisodes.isNotEmpty()) {
-            episodeRepository.deleteByIds(removedEpisodes.map { it.id })
-        }
+        // All inserts/updates/deletes for this anime go through one DB transaction instead
+        // of a separate one per row -- see EpisodeRepository.applySync's doc comment.
+        val insertedIds = episodeRepository.applySync(
+            inserts = toInsert,
+            updates = toUpdate,
+            deleteIds = removedEpisodes.map { it.id },
+        )
 
+        val newlyAdded = mutableListOf<Episode>()
+        for (i in toInsert.indices) {
+            if (isGenuinelyNew[i]) newlyAdded += toInsert[i].copy(id = insertedIds[i])
+        }
         return newlyAdded
     }
 

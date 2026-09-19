@@ -1,6 +1,7 @@
 package com.mymonstervr.kawabi.domain.interactor
 
 import com.mymonstervr.kawabi.domain.model.Chapter
+import com.mymonstervr.kawabi.domain.model.ChapterUpdate
 import com.mymonstervr.kawabi.domain.model.SourceChapter
 import com.mymonstervr.kawabi.domain.repository.ChapterRepository
 import kotlinx.coroutines.sync.Mutex
@@ -65,13 +66,14 @@ class SyncChaptersWithSource(
 
         val now = System.currentTimeMillis()
         var fetchOffset = newEntries.size
-        val newlyAddedChapters = mutableListOf<Chapter>()
+        val toInsert = mutableListOf<Chapter>()
+        val isGenuinelyNew = mutableListOf<Boolean>()
 
         for ((url, entry) in newEntries) {
             val (sourceChapter, index) = entry
             val carryover = carryoverByNumber[sourceChapter.chapterNumber to sourceChapter.scanlator]
 
-            val chapter = Chapter(
+            toInsert += Chapter(
                 id = 0,
                 mangaId = mangaId,
                 url = url,
@@ -88,13 +90,12 @@ class SyncChaptersWithSource(
                 version = 0,
                 isSyncing = false,
             )
-            val id = chapterRepository.insert(chapter)
-            if (carryover == null) newlyAddedChapters += chapter.copy(id = id)
+            isGenuinelyNew += (carryover == null)
         }
 
-        for ((current, entry) in updatedEntries) {
+        val toUpdate = updatedEntries.map { (current, entry) ->
             val (sourceChapter, index) = entry
-            chapterRepository.updateDetails(
+            ChapterUpdate(
                 id = current.id,
                 name = sourceChapter.name,
                 scanlator = sourceChapter.scanlator,
@@ -104,10 +105,18 @@ class SyncChaptersWithSource(
             )
         }
 
-        if (removedChapters.isNotEmpty()) {
-            chapterRepository.deleteByIds(removedChapters.map { it.id })
-        }
+        // All inserts/updates/deletes for this manga go through one DB transaction instead
+        // of a separate one per row -- see ChapterRepository.applySync's doc comment.
+        val insertedIds = chapterRepository.applySync(
+            inserts = toInsert,
+            updates = toUpdate,
+            deleteIds = removedChapters.map { it.id },
+        )
 
+        val newlyAddedChapters = mutableListOf<Chapter>()
+        for (i in toInsert.indices) {
+            if (isGenuinelyNew[i]) newlyAddedChapters += toInsert[i].copy(id = insertedIds[i])
+        }
         return newlyAddedChapters
     }
 
