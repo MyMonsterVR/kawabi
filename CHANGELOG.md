@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-86 - 2026-09-21
+
 - Fixed newly-released chapters showing in a manga's chapter list but not
   being tappable/readable until doing a manual pull-to-refresh.
 
