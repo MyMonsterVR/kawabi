@@ -174,7 +174,7 @@ class MangaDetailViewModel(
                 .onSuccess { response ->
                     _state.value = MangaDetailState.Success(response)
                     if (response.title.isNotBlank()) _lastTitle.value = response.title
-                    resolveLocalFavoriteState(url)
+                    resolveLocalFavoriteState(url, response)
                 }
                 .onFailure { _state.value = MangaDetailState.Error(it.message ?: "Failed to load") }
         }
@@ -355,7 +355,7 @@ class MangaDetailViewModel(
                             // before localMangaId/isFavorite were ever resolved -- do it here too,
                             // not just once in load(), or a favorited manga looks unfavorited and
                             // its chapters look unread after recovering via a source switch.
-                            if (localMangaId == null) resolveLocalFavoriteState(url)
+                            if (localMangaId == null) resolveLocalFavoriteState(url, response)
                             // Switching site changes every chapter URL -- reconcile locally so the
                             // reader (which resolves chapters via the local DB, not this DTO) sees
                             // the new source's chapters instead of retrying the old, broken one.
@@ -408,12 +408,22 @@ class MangaDetailViewModel(
         }
     }
 
-    private suspend fun resolveLocalFavoriteState(url: String) {
+    private suspend fun resolveLocalFavoriteState(url: String, response: MangaResponse) {
         val existing = mangaRepository.getByUrl(url)
         localMangaId = existing?.id
         _isFavorite.value = existing?.favorite == true
         _preferredScanlator.value = preferences.preferredScanlator(url).first()
         _readingDirectionOverride.value = preferences.readingDirectionOverride(url).first()
+        // Reconcile against the response load()/selectSource() already fetched, reusing
+        // RefreshMangaChapters.applyResponse's no-extra-round-trip path -- without this,
+        // a freshly opened manga shows the network's up-to-date chapter list (state.Success)
+        // while _localChaptersByUrl (what taps actually resolve to a reader target) still
+        // reflects whatever was last synced, so a brand-new chapter is visible but not
+        // tappable, and the library's total_chapters badge stays stale, until the user
+        // pulls-to-refresh (which does call applyResponse via refresh()).
+        if (existing != null) {
+            refreshMangaChapters.applyResponse(existing, response)
+        }
         refreshLocalChapters()
         syncTrackers()
     }
