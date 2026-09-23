@@ -1,6 +1,8 @@
 package com.mymonstervr.kawabi.app
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
@@ -12,22 +14,33 @@ import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.mymonstervr.kawabi.app.theme.NightSession
+import com.mymonstervr.kawabi.app.update.AppUpdateDownloadState
+import com.mymonstervr.kawabi.app.update.AppUpdateNotifier
+import com.mymonstervr.kawabi.app.update.AppUpdateStateHolder
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import java.io.File
+import org.koin.compose.koinInject
 import com.mymonstervr.kawabi.app.anime.AnimeBrowseScreen
 import com.mymonstervr.kawabi.app.anime.AnimeDetailScreen
 import com.mymonstervr.kawabi.app.anime.AnimeScreen
@@ -153,36 +166,67 @@ fun KawabiApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    val context = LocalContext.current
+    val updateStateHolder = koinInject<AppUpdateStateHolder>()
+    val updateNotifier = koinInject<AppUpdateNotifier>()
+    val downloadState by updateStateHolder.state.collectAsState()
+
+    // Auto-launches the installer the moment the download finishes, as long as the app is
+    // in the foreground to do it from -- Android blocks starting an activity from a purely
+    // background context, so this only fires while some screen is actually on top; if the
+    // app was fully closed the worker's own notification (tap to install) is the fallback.
+    LaunchedEffect(downloadState) {
+        val ready = downloadState as? AppUpdateDownloadState.ReadyToInstall ?: return@LaunchedEffect
+        context.startActivity(updateNotifier.buildInstallIntent(File(ready.apkPath)))
+    }
+
     Scaffold(
         bottomBar = {
-            if (currentRoute in bottomNavRoutes.map { it.route }) {
-                NavigationBar(containerColor = NightSession.Background) {
-                    bottomNavRoutes.forEach { item ->
-                        val selected = currentRoute == item.route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                navController.navigateSafe(item.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    if (selected) item.selectedIcon else item.unselectedIcon,
-                                    contentDescription = item.label,
-                                )
-                            },
-                            label = { Text(item.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = NightSession.TextDim,
-                                unselectedTextColor = NightSession.TextDim,
-                                indicatorColor = NightSession.Chip,
-                            ),
+            Column {
+                val downloading = downloadState as? AppUpdateDownloadState.Downloading
+                if (downloading != null) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Text(
+                            text = if (downloading.percent >= 0) "Downloading update -- ${downloading.percent}%" else "Downloading update...",
+                            color = NightSession.TextDim,
                         )
+                        LinearProgressIndicator(
+                            progress = { if (downloading.percent >= 0) downloading.percent / 100f else 0f },
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = NightSession.Chip,
+                        )
+                    }
+                }
+                if (currentRoute in bottomNavRoutes.map { it.route }) {
+                    NavigationBar(containerColor = NightSession.Background) {
+                        bottomNavRoutes.forEach { item ->
+                            val selected = currentRoute == item.route
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = {
+                                    navController.navigateSafe(item.route) {
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                icon = {
+                                    Icon(
+                                        if (selected) item.selectedIcon else item.unselectedIcon,
+                                        contentDescription = item.label,
+                                    )
+                                },
+                                label = { Text(item.label) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                                    unselectedIconColor = NightSession.TextDim,
+                                    unselectedTextColor = NightSession.TextDim,
+                                    indicatorColor = NightSession.Chip,
+                                ),
+                            )
+                        }
                     }
                 }
             }

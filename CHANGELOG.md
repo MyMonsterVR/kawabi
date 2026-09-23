@@ -12,6 +12,11 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- App update downloads now keep going even if you leave the app, show a real
+  progress bar (in-app, not just a notification), and the install prompt
+  opens automatically the moment the download finishes instead of needing a
+  tap on the notification.
+
 ## 0.1.0-86 - 2026-09-21
 
 - Fixed newly-released chapters showing in a manga's chapter list but not

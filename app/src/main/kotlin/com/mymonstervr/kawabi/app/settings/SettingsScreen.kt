@@ -85,6 +85,7 @@ fun SettingsScreen(
     val accentIndex by viewModel.accentIndex.collectAsState()
     val libraryGridColumns by viewModel.libraryGridColumns.collectAsState()
     val updateCheckState by viewModel.updateCheckState.collectAsState()
+    val downloadState by viewModel.downloadState.collectAsState()
     val pageFitMode by viewModel.pageFitMode.collectAsState()
     val markReadThreshold by viewModel.markReadThreshold.collectAsState()
     val themePalette by viewModel.themePalette.collectAsState()
@@ -97,6 +98,7 @@ fun SettingsScreen(
     val subtitleBackgroundStyle by viewModel.subtitleBackgroundStyle.collectAsState()
     val expiredTrackerCount by viewModel.expiredTrackerCount.collectAsState()
     val context = LocalContext.current
+    val updateNotifier = org.koin.compose.koinInject<com.mymonstervr.kawabi.app.update.AppUpdateNotifier>()
 
     Scaffold(
         containerColor = NightSession.Background,
@@ -290,8 +292,12 @@ fun SettingsScreen(
                     UpdateRow(
                         currentVersion = viewModel.currentVersion,
                         state = updateCheckState,
+                        downloadState = downloadState,
                         onCheckClick = viewModel::checkForUpdate,
                         onInstallClick = { info -> AppUpdateDownloadWorker.start(context, info.downloadUrl) },
+                        onInstallReadyClick = { apkPath ->
+                            context.startActivity(updateNotifier.buildInstallIntent(java.io.File(apkPath)))
+                        },
                     )
                     HorizontalDivider(color = NightSession.Hairline)
                     SettingsRow(title = "Changelog", subtitle = "What's changed in each version", onClick = onChangelogClick)
@@ -306,16 +312,50 @@ fun SettingsScreen(
 private fun UpdateRow(
     currentVersion: String,
     state: UpdateCheckState,
+    downloadState: com.mymonstervr.kawabi.app.update.AppUpdateDownloadState,
     onCheckClick: () -> Unit,
     onInstallClick: (AppUpdateInfo) -> Unit,
+    onInstallReadyClick: (String) -> Unit,
 ) {
-    val (subtitle, onClick) = when (state) {
-        UpdateCheckState.Idle -> "Version $currentVersion" to onCheckClick
-        UpdateCheckState.Checking -> "Checking..." to ({})
-        UpdateCheckState.UpToDate -> "Up to date ($currentVersion)" to onCheckClick
-        is UpdateCheckState.Available -> "Update available: ${state.info.version} -- tap to download" to { onInstallClick(state.info) }
+    val (subtitle, onClick, progressPercent) = when (downloadState) {
+        is com.mymonstervr.kawabi.app.update.AppUpdateDownloadState.Downloading ->
+            Triple(
+                if (downloadState.percent >= 0) "Downloading update -- ${downloadState.percent}%" else "Downloading update...",
+                {},
+                downloadState.percent,
+            )
+        is com.mymonstervr.kawabi.app.update.AppUpdateDownloadState.ReadyToInstall ->
+            Triple(
+                "Update downloaded -- tap to install",
+                { onInstallReadyClick(downloadState.apkPath) },
+                -1,
+            )
+        com.mymonstervr.kawabi.app.update.AppUpdateDownloadState.Failed ->
+            Triple("Update download failed -- tap to retry", onCheckClick, -1)
+        com.mymonstervr.kawabi.app.update.AppUpdateDownloadState.Idle -> when (state) {
+            UpdateCheckState.Idle -> Triple("Version $currentVersion", onCheckClick, -1)
+            UpdateCheckState.Checking -> Triple("Checking...", {}, -1)
+            UpdateCheckState.UpToDate -> Triple("Up to date ($currentVersion)", onCheckClick, -1)
+            is UpdateCheckState.Available -> Triple(
+                "Update available: ${state.info.version} -- tap to download",
+                { onInstallClick(state.info) },
+                -1,
+            )
+        }
     }
-    SettingsRow(title = "Check for updates", subtitle = subtitle, onClick = onClick)
+    val scale = LocalKawabiScale.current
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp * scale.spacing, vertical = 13.dp * scale.spacing)) {
+        Text(text = "Check for updates", fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+        Text(text = subtitle, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+        if (progressPercent >= 0) {
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { progressPercent / 100f },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = NightSession.Chip,
+            )
+        }
+    }
 }
 
 private fun ReadingDirection.label(): String = when (this) {

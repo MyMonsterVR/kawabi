@@ -44,11 +44,23 @@ class AppUpdateNotifier(private val context: Context) {
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
     }
 
-    fun downloading() = notify {
+    fun downloading(percent: Int = -1) = notify {
         setContentTitle("Downloading update")
         setOngoing(true)
-        setProgress(0, 0, true)
+        if (percent < 0) {
+            setProgress(0, 0, true)
+        } else {
+            setContentText("$percent%")
+            setProgress(100, percent, false)
+        }
     }
+
+    fun buildForegroundNotification() = NotificationCompat.Builder(context, CHANNEL_ID)
+        .setSmallIcon(android.R.drawable.stat_sys_download)
+        .setContentTitle("Downloading update")
+        .setOngoing(true)
+        .setProgress(0, 0, true)
+        .build()
 
     fun downloadFailed() = notify {
         setContentTitle("Update download failed")
@@ -57,12 +69,16 @@ class AppUpdateNotifier(private val context: Context) {
         setProgress(0, 0, false)
     }
 
-    fun promptInstall(apkFile: File) {
+    fun buildInstallIntent(apkFile: File): Intent {
         val apkUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
-        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+        return Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(apkUri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+    }
+
+    fun promptInstall(apkFile: File) {
+        val installIntent = buildInstallIntent(apkFile)
         val pendingIntent = PendingIntent.getActivity(
             context,
             0,

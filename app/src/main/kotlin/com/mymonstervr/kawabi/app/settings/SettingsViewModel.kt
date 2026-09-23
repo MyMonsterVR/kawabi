@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.BuildConfig
 import com.mymonstervr.kawabi.app.update.AppUpdateChecker
+import com.mymonstervr.kawabi.app.update.AppUpdateDownloadState
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
+import com.mymonstervr.kawabi.app.update.AppUpdateStateHolder
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.TrackerManager
@@ -36,9 +38,12 @@ class SettingsViewModel(
     tokenStore: TokenStore,
     private val updateChecker: AppUpdateChecker,
     trackerManager: TrackerManager,
+    updateStateHolder: AppUpdateStateHolder,
 ) : ViewModel() {
 
     val isLoggedIn: StateFlow<Boolean> = tokenStore.isLoggedIn
+
+    val downloadState: StateFlow<AppUpdateDownloadState> = updateStateHolder.state
 
     val expiredTrackerCount: StateFlow<Int> = trackerManager.statuses
         .map { statuses -> statuses.values.count { it.expired } }

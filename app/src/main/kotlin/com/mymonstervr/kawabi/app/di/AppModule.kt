@@ -18,6 +18,7 @@ import com.mymonstervr.kawabi.app.settings.SourcesViewModel
 import com.mymonstervr.kawabi.app.settings.TrackingServicesViewModel
 import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateNotifier
+import com.mymonstervr.kawabi.app.update.AppUpdateStateHolder
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -25,13 +26,14 @@ import org.koin.dsl.module
 val appModule = module {
     single { AppUpdateChecker(get(), get()) }
     single { AppUpdateNotifier(get()) }
+    single { AppUpdateStateHolder(androidContext()) }
     viewModel { LibraryViewModel(get(), get(), get()) }
     viewModel { LoginViewModel(get(), get(), get(), get()) }
     viewModel { SearchViewModel(get(), get()) }
     viewModel { BrowseViewModel(get(), get()) }
     viewModel { MangaDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { ReaderViewModel(get(), get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get(), get()) }
     viewModel { SourcesViewModel(get()) }
     viewModel { BackupViewModel(get()) }
     viewModel { TrackingServicesViewModel(get(), get(), get(), get()) }
