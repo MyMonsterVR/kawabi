@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-88 - 2026-09-23
+
 - App update downloads now keep going even if you leave the app, show a real
   progress bar (in-app, not just a notification), and the install prompt
   opens automatically the moment the download finishes instead of needing a
