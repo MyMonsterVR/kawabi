@@ -28,6 +28,7 @@ data class ChapterSection(
     val chapterId: Long,
     val chapterLabel: String,
     val pages: List<PageDto>,
+    val chapterNumber: Double,
 )
 
 sealed interface ReaderState {
@@ -98,6 +99,17 @@ class ReaderViewModel(
     // meaningful ordering for those.
     private var siblingChapters: List<Chapter> = emptyList()
     private var loadedFor: Long? = null
+
+    // Distinct chapter numbers only, sorted -- collapses duplicate-numbered versions
+    // (e.g. MangaFire official/unofficial pairs) into one slot so "chapter X of Y" and
+    // "Z left" counts the manga's actual chapter count, not every scanlator version.
+    private var distinctChapterNumbers: List<Double> = emptyList()
+
+    fun chapterProgress(chapterNumber: Double): Pair<Int, Int>? {
+        val index = distinctChapterNumbers.indexOf(chapterNumber)
+        if (index < 0) return null
+        return (index + 1) to distinctChapterNumbers.size
+    }
 
     // This manga's per-manga preferred scanlator (null = no preference / show both),
     // snapshotted at load time like markReadOnScroll.
@@ -186,6 +198,7 @@ class ReaderViewModel(
             siblingChapters = chapterRepository.getForManga(chapter.mangaId)
                 .filter { it.chapterNumber != UNKNOWN_CHAPTER_NUMBER }
                 .sortedBy { it.chapterNumber }
+            distinctChapterNumbers = siblingChapters.map { it.chapterNumber }.distinct().sorted()
 
             val prevChapterId = prevOf(chapter)?.id
             val nextChapterId = nextOf(chapter)?.id
@@ -197,7 +210,7 @@ class ReaderViewModel(
                         return@onSuccess
                     }
                     val start = chapter.lastPageRead.coerceIn(0, pages.size - 1)
-                    val section = ChapterSection(chapter.id, chapterLabel(chapter), pages)
+                    val section = ChapterSection(chapter.id, chapterLabel(chapter), pages, chapter.chapterNumber)
                     _state.value = ReaderState.Success(
                         sections = listOf(section),
                         startPage = start,
@@ -251,7 +264,7 @@ class ReaderViewModel(
             sourceApi.getPages(mangaSource, next.url)
                 .onSuccess { pages ->
                     val hasMore = nextOf(next) != null
-                    val newSection = ChapterSection(next.id, chapterLabel(next), pages)
+                    val newSection = ChapterSection(next.id, chapterLabel(next), pages, next.chapterNumber)
                     val stillCurrent = _state.value as? ReaderState.Success
                     if (stillCurrent != null) {
                         _state.value = stillCurrent.copy(

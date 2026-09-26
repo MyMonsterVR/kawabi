@@ -18,6 +18,9 @@ stamp, it won't fail the build).
   progress bar (in-app, not just a notification), and the install prompt
   opens automatically the moment the download finishes instead of needing a
   tap on the notification.
+- Reader now shows a chapter progress button ("X / Y") in the header -- tap
+  it to see how many chapters are left in the manga. Centered in the header
+  on tablets.
 
 ## 0.1.0-86 - 2026-09-21
 

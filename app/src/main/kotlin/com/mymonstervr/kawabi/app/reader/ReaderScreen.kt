@@ -26,6 +26,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.background
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -183,6 +185,13 @@ fun ReaderScreen(
         }
     }
 
+    // Which chapter the "X / Y" button reflects. Fixed for paged mode (single section);
+    // advances as ContinuousVerticalScreen's debounced onPageChanged fires for a later
+    // section's chapterId in vertical mode. null until the first Success state arrives.
+    var activeChapterNumber by remember(chapterId) { mutableStateOf<Double?>(null) }
+    var showProgressDialog by remember(chapterId) { mutableStateOf(false) }
+    val progress = activeChapterNumber?.let { viewModel.chapterProgress(it) }
+
     Box(modifier = Modifier.fillMaxSize().background(NightSession.Background)) {
         when (val current = state) {
             is ReaderState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -204,6 +213,17 @@ fun ReaderScreen(
                 }
             }
             is ReaderState.Success -> {
+                LaunchedEffect(current.sections.first().chapterId) {
+                    activeChapterNumber = current.sections.first().chapterNumber
+                }
+                val chapterNumberById = remember(current.sections) {
+                    current.sections.associate { it.chapterId to it.chapterNumber }
+                }
+                val onPageChangedTracked: (Long, Int, Int, Boolean) -> Unit = { cId, index, total, reachedEnd ->
+                    chapterNumberById[cId]?.let { activeChapterNumber = it }
+                    viewModel.onPageChanged(cId, index, total, reachedEnd)
+                }
+
                 if (mode == ReaderMode.VERTICAL) {
                     ContinuousVerticalScreen(
                         current = current,
@@ -212,7 +232,7 @@ fun ReaderScreen(
                         pageFitMode = pageFitMode,
                         markReadThreshold = markReadThreshold,
                         onToggleChrome = { chromeVisible = !chromeVisible },
-                        onPageChanged = viewModel::onPageChanged,
+                        onPageChanged = onPageChangedTracked,
                         onTrackPosition = viewModel::trackPosition,
                         onNeedNext = viewModel::loadNextSection,
                     )
@@ -224,7 +244,7 @@ fun ReaderScreen(
                         pageFitMode = pageFitMode,
                         scope = scope,
                         onToggleChrome = { chromeVisible = !chromeVisible },
-                        onPageChanged = viewModel::onPageChanged,
+                        onPageChanged = onPageChangedTracked,
                         onTrackPosition = viewModel::trackPosition,
                         onPrevChapter = { current.prevChapterId?.let(onNavigateChapter) },
                         onNextChapter = { current.nextChapterId?.let(onNavigateChapter) },
@@ -234,21 +254,73 @@ fun ReaderScreen(
         }
 
         if (chromeVisible) {
-            TopAppBar(
-                title = { Text("Reader", color = androidx.compose.ui.graphics.Color.White) },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back", color = androidx.compose.ui.graphics.Color.White)
-                    }
+            // MEDIUM/EXPANDED (tablets, per KawabiScale) get the progress button centered
+            // across the whole bar via CenterAlignedTopAppBar's title slot -- a regular
+            // TopAppBar's title only centers between navigationIcon and actions, which on
+            // a wide tablet bar reads off-center. Phones keep the original layout: no
+            // room/need for a separate centered slot, and this preserves that rendering
+            // byte-for-byte.
+            val isTablet = LocalKawabiScale.current.spacing > 1f
+            val barColors = TopAppBarDefaults.topAppBarColors(
+                containerColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f),
+            )
+            val navigationIcon: @Composable () -> Unit = {
+                TextButton(onClick = onBack) {
+                    Text("Back", color = androidx.compose.ui.graphics.Color.White)
+                }
+            }
+            val modeAction: @Composable () -> Unit = {
+                TextButton(onClick = { manualMode = nextMode(mode) }) {
+                    Text(mode.label, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            if (isTablet) {
+                CenterAlignedTopAppBar(
+                    title = {
+                        if (progress != null) {
+                            TextButton(onClick = { showProgressDialog = true }) {
+                                Text("${progress.first}/${progress.second}", color = MaterialTheme.colorScheme.primary)
+                            }
+                        } else {
+                            Text("Reader", color = androidx.compose.ui.graphics.Color.White)
+                        }
+                    },
+                    navigationIcon = navigationIcon,
+                    actions = { modeAction() },
+                    colors = barColors,
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Reader", color = androidx.compose.ui.graphics.Color.White) },
+                    navigationIcon = navigationIcon,
+                    actions = {
+                        if (progress != null) {
+                            TextButton(onClick = { showProgressDialog = true }) {
+                                Text("${progress.first}/${progress.second}", color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        modeAction()
+                    },
+                    colors = barColors,
+                )
+            }
+        }
+
+        if (showProgressDialog && progress != null) {
+            val (position, total) = progress
+            val remaining = total - position
+            AlertDialog(
+                onDismissRequest = { showProgressDialog = false },
+                confirmButton = {
+                    TextButton(onClick = { showProgressDialog = false }) { Text("OK") }
                 },
-                actions = {
-                    TextButton(onClick = { manualMode = nextMode(mode) }) {
-                        Text(mode.label, color = MaterialTheme.colorScheme.primary)
-                    }
+                title = { Text("Chapter $position of $total") },
+                text = {
+                    Text(
+                        if (remaining > 0) "$remaining chapter${if (remaining == 1) "" else "s"} left"
+                        else "Last chapter",
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f),
-                ),
             )
         }
     }
