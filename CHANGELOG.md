@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-90 - 2026-09-26
+
 ## 0.1.0-88 - 2026-09-23
 
 - App update downloads now keep going even if you leave the app, show a real
