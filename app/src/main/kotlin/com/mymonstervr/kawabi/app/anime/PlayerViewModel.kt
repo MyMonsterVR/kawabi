@@ -56,6 +56,12 @@ private const val PERSIST_EVERY_TICKS = 10
 // more annoying than just starting over.
 private const val MIN_RESUME_MS = 5_000L
 
+// Generic transient-error retry (onPlayerError): capped so a genuinely dead stream still
+// ends up at the error card instead of looping forever, with a short pause so a retry
+// doesn't slam straight back into whatever the relay was choking on.
+private const val MAX_TRANSIENT_RETRIES = 2
+private const val TRANSIENT_RETRY_DELAY_MS = 800L
+
 /** One selectable stream: an extension hoster's name plus one of its quality variants. */
 data class PlayerVideo(
     val hosterIndex: Int,
@@ -164,6 +170,11 @@ class PlayerViewModel(
     private var autoSelectedSubtitle = false
     private var usingProxy = false
     private var reachedReadyForCurrent = false
+    // Bounded retry for a transient IO error that doesn't qualify for (or already tried)
+    // the proxy fallback below -- most of the time it's the relay hiccuping, not the stream
+    // actually being dead. Resets on a fresh load/server pick and once playback is genuinely
+    // stable again, so one early stall can't eat the whole episode's retry budget.
+    private var transientRetryCount = 0
     // Skipping is one-shot per range: after a manual seek back into the opening the user
     // clearly wants to watch it, so auto-skip must not yank them forward again.
     private val skippedRanges = mutableSetOf<Int>()
@@ -178,6 +189,7 @@ class PlayerViewModel(
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY) {
                 reachedReadyForCurrent = true
+                transientRetryCount = 0
                 _state.value = PlayerUiState.Ready
                 _ended.value = false
             }
@@ -217,6 +229,17 @@ class PlayerViewModel(
                 play(selection, startAtMs = player.currentPosition.coerceAtLeast(0L))
                 return
             }
+            if (isIoErrorCode(error.errorCode) && selection != null && transientRetryCount < MAX_TRANSIENT_RETRIES) {
+                transientRetryCount++
+                Log.i(TAG, "transient error retry $transientRetryCount/$MAX_TRANSIENT_RETRIES: ${error.errorCodeName}")
+                val resumeAtMs = player.currentPosition.coerceAtLeast(0L)
+                _state.value = PlayerUiState.Loading
+                viewModelScope.launch {
+                    delay(TRANSIENT_RETRY_DELAY_MS)
+                    play(selection, startAtMs = resumeAtMs)
+                }
+                return
+            }
             _state.value = PlayerUiState.Error(
                 message = playerErrorMessage(error),
                 canPickServer = _videos.value.size > 1,
@@ -232,6 +255,7 @@ class PlayerViewModel(
     fun load(episodeKey: String) {
         if (loadedKey == episodeKey) return
         loadedKey = episodeKey
+        transientRetryCount = 0
         viewModelScope.launch {
             _state.value = PlayerUiState.Loading
             markWatchedThreshold = preferences.animeAutoMarkWatchedThreshold.first()
@@ -240,7 +264,9 @@ class PlayerViewModel(
 
             resolveLocalEpisode(episodeKey)
 
-            animeApi.getVideos(episodeKey)
+            // Lets the backend's AniSkip fallback (OP/ED skip times for sources that don't
+            // supply their own) resolve -- it needs the episode number, not just the key.
+            animeApi.getVideos(episodeKey, episodeNumber = episode?.episodeNumber?.takeIf { it > 0 })
                 .onSuccess { hosters ->
                     val flattened = hosters.flatMap { hoster ->
                         hoster.videos.map { PlayerVideo(hoster.hoster.index, hoster.hoster.name, it) }
@@ -262,6 +288,7 @@ class PlayerViewModel(
     fun selectVideo(selection: PlayerVideo) {
         // Switching server/quality mid-episode keeps the place you were at -- the streams
         // are the same episode from different hosts, so the position carries over.
+        transientRetryCount = 0
         play(selection, startAtMs = player.currentPosition.coerceAtLeast(0L))
     }
 

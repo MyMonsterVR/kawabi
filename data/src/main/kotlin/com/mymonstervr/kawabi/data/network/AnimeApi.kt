@@ -138,12 +138,22 @@ class AnimeApi(
         }
     }
 
-    suspend fun getVideos(episodeKey: String, hosterIndex: Int? = null): Result<List<HosterVideosDto>> =
+    // episodeNumber is optional but worth always passing when known: the backend uses it
+    // (together with the mal= id it parses out of the episode url itself) to fill in OP/ED
+    // skip timestamps from the public AniSkip database whenever the source's own extractor
+    // doesn't supply any -- true of every source configured today. Without it that fallback
+    // silently never fires.
+    suspend fun getVideos(
+        episodeKey: String,
+        hosterIndex: Int? = null,
+        episodeNumber: Double? = null,
+    ): Result<List<HosterVideosDto>> =
         withContext(dispatchers.io) {
             runCatching {
                 val request = getRequest("anime/videos") {
                     addQueryParameter("episode", episodeKey)
                     hosterIndex?.let { addQueryParameter("hoster", it.toString()) }
+                    episodeNumber?.let { addQueryParameter("number", it.toInt().toString()) }
                 }
                 executeWithRetry(request, ListSerializer(HosterVideosDto.serializer()), videoClient)
             }

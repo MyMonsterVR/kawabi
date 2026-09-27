@@ -12,6 +12,12 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Skip-intro/outro now shows up for episodes even when the source itself
+  doesn't provide the timing (falls back to a public skip-time database
+  using MAL id + episode number).
+- Playback now retries automatically on a transient network hiccup instead
+  of immediately showing "couldn't play this stream."
+
 ## 0.1.0-90 - 2026-09-26
 
 ## 0.1.0-88 - 2026-09-23
