@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-94 - 2026-09-27
+
 - Fixed the auto-updater sometimes never clearing "Update ready to install"
   even after already updating -- it could keep offering to reinstall the
   same old download indefinitely.
