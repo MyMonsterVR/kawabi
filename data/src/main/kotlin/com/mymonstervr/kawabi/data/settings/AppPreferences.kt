@@ -79,6 +79,7 @@ class AppPreferences(private val context: Context) {
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val animeAutoMarkWatchedThresholdKey = floatPreferencesKey("anime_auto_mark_watched_threshold")
     private val animePreferredQualityKey = stringPreferencesKey("anime_preferred_quality")
+    private val animePreferredAudioKey = stringPreferencesKey("anime_preferred_audio")
     private val animeAutoSkipIntroKey = booleanPreferencesKey("anime_auto_skip_intro")
     private val animeAutoImportEnabledKey = booleanPreferencesKey("anime_auto_import_enabled")
     private val trackerLastVerifiedAtKey = longPreferencesKey("tracker_last_verified_at")
@@ -265,6 +266,17 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setAnimePreferredQuality(quality: String) {
         context.settingsDataStore.edit { it[animePreferredQualityKey] = quality }
+    }
+
+    // "", "sub", or "dub" -- a hoster's video title carries this as a plain word alongside
+    // the resolution (e.g. "Sub 1080p"), same field animePreferredQuality already
+    // substring-matches against. Empty means "no preference, pick from any audio".
+    val animePreferredAudio: Flow<String> = context.settingsDataStore.data.map { prefs ->
+        prefs[animePreferredAudioKey].orEmpty()
+    }
+
+    suspend fun setAnimePreferredAudio(audio: String) {
+        context.settingsDataStore.edit { it[animePreferredAudioKey] = audio }
     }
 
     val animeAutoSkipIntro: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->

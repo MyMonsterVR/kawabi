@@ -4,11 +4,11 @@ import com.mymonstervr.kawabi.app.anime.AnimeBrowseViewModel
 import com.mymonstervr.kawabi.app.anime.AnimeDetailViewModel
 import com.mymonstervr.kawabi.app.anime.AnimeViewModel
 import com.mymonstervr.kawabi.app.anime.AnimeSearchViewModel
-import com.mymonstervr.kawabi.app.anime.PlayerViewModel
 import com.mymonstervr.kawabi.app.auth.LoginViewModel
 import com.mymonstervr.kawabi.app.browse.BrowseViewModel
 import com.mymonstervr.kawabi.app.detail.MangaDetailViewModel
 import com.mymonstervr.kawabi.app.library.LibraryViewModel
+import com.mymonstervr.kawabi.app.pairing.LinkTvViewModel
 import com.mymonstervr.kawabi.app.reader.ReaderViewModel
 import com.mymonstervr.kawabi.app.search.SearchViewModel
 import com.mymonstervr.kawabi.app.settings.AnimeSourcesViewModel
@@ -37,6 +37,7 @@ val appModule = module {
     viewModel { SourcesViewModel(get()) }
     viewModel { BackupViewModel(get()) }
     viewModel { TrackingServicesViewModel(get(), get(), get(), get()) }
+    viewModel { LinkTvViewModel(get()) }
     viewModel { AnimeViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AnimeSearchViewModel(get(), get(), get()) }
     viewModel { AnimeBrowseViewModel(get(), get(), get()) }
@@ -45,6 +46,5 @@ val appModule = module {
             get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(),
         )
     }
-    viewModel { PlayerViewModel(androidContext(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AnimeSourcesViewModel(get()) }
 }

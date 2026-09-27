@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import java.io.File
 
 sealed interface AppUpdateDownloadState {
     data object Idle : AppUpdateDownloadState
@@ -17,9 +18,17 @@ sealed interface AppUpdateDownloadState {
     data object Failed : AppUpdateDownloadState
 }
 
+// WorkManager keeps a unique work chain's last SUCCEEDED result around indefinitely -- with
+// no consumption/expiry, every future app launch (this is an app-wide singleton -- see
+// AppUpdateStateHolder below) would replay "ready to install" for whatever APK a past update
+// downloaded, even long after it was installed. The file-still-exists check is what actually
+// distinguishes "still pending" from "already actioned" -- AppUpdateReplacedReceiver deletes
+// the file once MY_PACKAGE_REPLACED confirms the install went through, which is what makes
+// this fall back to Idle afterward instead of looping "tap to install" forever.
 private fun WorkInfo?.toDownloadState(): AppUpdateDownloadState = when (this?.state) {
     WorkInfo.State.RUNNING -> AppUpdateDownloadState.Downloading(progress.getInt(PROGRESS_KEY, -1))
     WorkInfo.State.SUCCEEDED -> outputData.getString(APK_PATH_KEY)
+        ?.takeIf { File(it).exists() }
         ?.let(AppUpdateDownloadState::ReadyToInstall) ?: AppUpdateDownloadState.Idle
     WorkInfo.State.FAILED -> AppUpdateDownloadState.Failed
     else -> AppUpdateDownloadState.Idle

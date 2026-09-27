@@ -26,6 +26,11 @@ private const val EXTRA_DOWNLOAD_URL = "download_url"
 private const val NOTIFICATION_ID = 1001
 const val PROGRESS_KEY = "progress_percent"
 const val APK_PATH_KEY = "apk_path"
+// Shared with AppUpdateReplacedReceiver, which deletes this file once installed -- WorkManager
+// keeps a finished unique work's SUCCEEDED result around indefinitely (see
+// AppUpdateDownloadState.toDownloadState()), so without that cleanup this filename staying on
+// disk forever is exactly what made "Update ready to install" never go away.
+const val UPDATE_APK_FILENAME = "kawabi-update.apk"
 
 class AppUpdateDownloadWorker(context: Context, params: WorkerParameters) :
     CoroutineWorker(context, params),
@@ -40,7 +45,7 @@ class AppUpdateDownloadWorker(context: Context, params: WorkerParameters) :
         return withContext(Dispatchers.IO) {
             setForeground(foregroundInfo(notifier.buildForegroundNotification()))
             runCatching {
-                val apkFile = File(applicationContext.externalCacheDir, "kawabi-update.apk")
+                val apkFile = File(applicationContext.externalCacheDir, UPDATE_APK_FILENAME)
                 client.newCall(Request.Builder().url(url).build()).execute().use { response ->
                     check(response.isSuccessful) { "HTTP ${response.code}" }
                     val body = response.body

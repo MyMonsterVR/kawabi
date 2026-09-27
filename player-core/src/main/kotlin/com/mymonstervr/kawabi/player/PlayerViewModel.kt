@@ -1,4 +1,4 @@
-package com.mymonstervr.kawabi.app.anime
+package com.mymonstervr.kawabi.player
 
 import android.content.Context
 import android.util.Log
@@ -201,7 +201,16 @@ class PlayerViewModel(
 
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
             if (autoSelectedSubtitle) return
-            val subtitles = _currentVideo.value?.video?.subtitles ?: return
+            val current = _currentVideo.value ?: return
+            // Dub audio already carries the dialogue -- default subtitles off rather
+            // than auto-selecting one, matching how most players treat a dub track.
+            // Decided immediately (not retried like the "no english track yet" case
+            // below), since a dub video's title doesn't change while tracks load in.
+            if (current.video.title.contains("dub", ignoreCase = true)) {
+                autoSelectedSubtitle = true
+                return
+            }
+            val subtitles = current.video.subtitles
             val english = subtitles.indexOfFirst { it.lang.contains("en", ignoreCase = true) }
             if (english >= 0) {
                 autoSelectedSubtitle = true
@@ -261,6 +270,7 @@ class PlayerViewModel(
             markWatchedThreshold = preferences.animeAutoMarkWatchedThreshold.first()
             _autoSkip.value = preferences.animeAutoSkipIntro.first()
             val preferredQuality = preferences.animePreferredQuality.first()
+            val preferredAudio = preferences.animePreferredAudio.first()
 
             resolveLocalEpisode(episodeKey)
 
@@ -272,7 +282,7 @@ class PlayerViewModel(
                         hoster.videos.map { PlayerVideo(hoster.hoster.index, hoster.hoster.name, it) }
                     }
                     _videos.value = flattened
-                    val initial = pickInitialVideo(flattened, preferredQuality)
+                    val initial = pickInitialVideo(flattened, preferredQuality, preferredAudio)
                     if (initial == null) {
                         _state.value = PlayerUiState.Error("No playable streams for this episode", canPickServer = false)
                         return@onSuccess
@@ -530,18 +540,26 @@ class PlayerViewModel(
 }
 
 /**
- * Initial stream choice, in preference order: the user's stored quality if any variant's
- * title mentions it, whatever the extension flagged `preferred`, then the highest
- * resolution -- falling back to parsing "1080p" out of the title, since several extensions
- * leave `resolution` at 0 and only label the variant.
+ * Initial stream choice, in preference order: within whichever videos match the stored
+ * audio preference (sub/dub, falling back to every video if none match -- e.g. no dub
+ * exists for this episode), the user's stored quality if any variant's title mentions it,
+ * whatever the extension flagged `preferred`, then the highest resolution -- falling back
+ * to parsing "1080p" out of the title, since several extensions leave `resolution` at 0 and
+ * only label the variant. Audio and quality are both plain words in the same title string
+ * (e.g. "Sub 1080p"), same field, just two separate substring checks.
  */
-internal fun pickInitialVideo(videos: List<PlayerVideo>, preferredQuality: String): PlayerVideo? {
+internal fun pickInitialVideo(videos: List<PlayerVideo>, preferredQuality: String, preferredAudio: String = ""): PlayerVideo? {
     if (videos.isEmpty()) return null
-    if (preferredQuality.isNotBlank()) {
-        videos.firstOrNull { it.video.title.contains(preferredQuality, ignoreCase = true) }?.let { return it }
+    val pool = if (preferredAudio.isNotBlank()) {
+        videos.filter { it.video.title.contains(preferredAudio, ignoreCase = true) }.ifEmpty { videos }
+    } else {
+        videos
     }
-    videos.firstOrNull { it.video.preferred }?.let { return it }
-    return videos.maxByOrNull { resolutionOf(it.video) } ?: videos.first()
+    if (preferredQuality.isNotBlank()) {
+        pool.firstOrNull { it.video.title.contains(preferredQuality, ignoreCase = true) }?.let { return it }
+    }
+    pool.firstOrNull { it.video.preferred }?.let { return it }
+    return pool.maxByOrNull { resolutionOf(it.video) } ?: pool.first()
 }
 
 internal fun resolutionOf(video: VideoDto): Int =

@@ -76,6 +76,7 @@ fun SettingsScreen(
     onBackupClick: () -> Unit,
     onTrackingClick: () -> Unit,
     onChangelogClick: () -> Unit,
+    onLinkTvClick: () -> Unit,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -138,6 +139,10 @@ fun SettingsScreen(
                         subtitleColor = if (expiredTrackerCount > 0) MaterialTheme.colorScheme.error else null,
                         onClick = onTrackingClick,
                     )
+                    if (isLoggedIn) {
+                        HorizontalDivider(color = NightSession.Hairline)
+                        SettingsRow(title = "Link a TV", subtitle = "Scan a code to sign in on the kawabi TV app", onClick = onLinkTvClick)
+                    }
                 }
             }
             item {

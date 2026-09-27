@@ -12,6 +12,12 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Fixed the auto-updater sometimes never clearing "Update ready to install"
+  even after already updating -- it could keep offering to reinstall the
+  same old download indefinitely.
+- New Settings -> Account -> Link a TV: scan a code with your phone to sign
+  in on the kawabi TV app, no typing a password on a remote.
+
 ## 0.1.0-92 - 2026-09-27
 
 - Skip-intro/outro now shows up for episodes even when the source itself

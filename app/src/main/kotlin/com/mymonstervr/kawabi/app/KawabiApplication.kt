@@ -21,6 +21,7 @@ import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.MergeDuplicateAnimes
 import com.mymonstervr.kawabi.data.usecase.SyncClient
 import com.mymonstervr.kawabi.domain.repository.CategoryRepository
+import com.mymonstervr.kawabi.player.di.playerModule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.get
@@ -40,7 +41,7 @@ class KawabiApplication : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         startKoin {
             androidContext(this@KawabiApplication)
-            modules(coreModule, domainModule, dataModule, appModule)
+            modules(coreModule, domainModule, dataModule, playerModule, appModule)
         }
         // Before anything reads the anime library: a row per source for one show (from a
         // build that allowed them) would otherwise keep hijacking identity resolution.

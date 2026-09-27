@@ -59,6 +59,9 @@ import androidx.media3.ui.SubtitleView
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
+import com.mymonstervr.kawabi.player.PlayerUiState
+import com.mymonstervr.kawabi.player.PlayerVideo
+import com.mymonstervr.kawabi.player.PlayerViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
