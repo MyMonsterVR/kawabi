@@ -25,17 +25,28 @@ private const val DAY_MS = 24 * 60 * 60 * 1000L
  * calls out -- Suwayomi/WARP egress isn't free, so an unthrottled "refresh everything
  * every run" job would be a real ongoing cost, not just a UX nicety to avoid.
  */
+data class LibraryUpdateResult(val checked: Int, val updated: List<Manga>)
+
 class LibraryUpdateManager(
     private val mangaRepository: MangaRepository,
     private val refreshLibraryBatch: RefreshLibraryBatch,
 ) {
-    suspend fun updateDue(now: Long = System.currentTimeMillis()): Int {
-        val due = mangaRepository.getDueForUpdate(now)
-        val results = refreshLibraryBatch.refresh(due)
-        for (manga in due) {
-            updateSchedule(manga, now, foundNew = results[manga.id]?.getOrNull()?.isNotEmpty() == true)
+    suspend fun updateDue(now: Long = System.currentTimeMillis()): LibraryUpdateResult =
+        check(mangaRepository.getDueForUpdate(now), now)
+
+    // Bypasses the due-schedule entirely -- for a manual "check now" action, not the
+    // periodic job. Still updates each manga's schedule same as updateDue, since a real
+    // check just happened.
+    suspend fun checkAllFavoritesNow(now: Long = System.currentTimeMillis()): LibraryUpdateResult =
+        check(mangaRepository.getFavorites(), now)
+
+    private suspend fun check(mangas: List<Manga>, now: Long): LibraryUpdateResult {
+        val results = refreshLibraryBatch.refresh(mangas)
+        val updated = mangas.filter { manga -> results[manga.id]?.getOrNull()?.isNotEmpty() == true }
+        for (manga in mangas) {
+            updateSchedule(manga, now, foundNew = manga in updated)
         }
-        return due.size
+        return LibraryUpdateResult(checked = mangas.size, updated = updated)
     }
 
     private suspend fun updateSchedule(manga: Manga, now: Long, foundNew: Boolean) {

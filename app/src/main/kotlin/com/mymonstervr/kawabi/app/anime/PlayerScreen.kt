@@ -110,6 +110,16 @@ fun PlayerScreen(
     var sheet by remember { mutableStateOf(PlayerSheet.NONE) }
     val skipRange = remember(positionMs, currentVideo) { viewModel.activeSkipRange(positionMs) }
 
+    // Netflix-style: offer Next Episode as soon as the ending credits start playing, not
+    // just once the video actually finishes -- autoSkip already jumps straight past the
+    // credits, so the overlay would be redundant there. Keyed on episodeKey so a fresh
+    // episode always gets to offer it again; keyed per range start (not just "shown once")
+    // so dismissing it doesn't also suppress a real STATE_ENDED prompt moments later.
+    var dismissedEndPromptRanges by remember(episodeKey) { mutableStateOf(emptySet<Int>()) }
+    val earlyEndPrompt = skipRange?.takeIf {
+        it.type.equals("Ending", ignoreCase = true) && !autoSkip && it.start.toInt() !in dismissedEndPromptRanges
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -188,11 +198,19 @@ fun PlayerScreen(
             }
         }
 
-        if (ended) {
+        if (ended || earlyEndPrompt != null) {
             EndOfEpisodeOverlay(
                 nextEpisodeKey = nextEpisodeKey,
                 onNext = onNavigateEpisode,
-                onBack = onBack,
+                onBack = if (ended) {
+                    onBack
+                } else {
+                    // The episode hasn't actually finished yet -- this is the early,
+                    // credits-are-playing offer, so "back" just dismisses it and lets
+                    // the credits keep playing instead of leaving the player.
+                    { dismissedEndPromptRanges = dismissedEndPromptRanges + earlyEndPrompt!!.start.toInt() }
+                },
+                dismissLabel = if (ended) "Back to episodes" else "Dismiss",
                 modifier = Modifier.align(Alignment.Center),
             )
         }
@@ -404,6 +422,7 @@ private fun EndOfEpisodeOverlay(
     nextEpisodeKey: String?,
     onNext: (String) -> Unit,
     onBack: () -> Unit,
+    dismissLabel: String = "Back to episodes",
     modifier: Modifier = Modifier,
 ) {
     var remaining by remember(nextEpisodeKey) { mutableIntStateOf(AUTO_NEXT_SECONDS) }
@@ -433,7 +452,7 @@ private fun EndOfEpisodeOverlay(
                         Text("Play now", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                     }
                 }
-                TextButton(onClick = onBack) { Text("Back to episodes", color = Color.White.copy(alpha = 0.8f)) }
+                TextButton(onClick = onBack) { Text(dismissLabel, color = Color.White.copy(alpha = 0.8f)) }
             }
         }
     }

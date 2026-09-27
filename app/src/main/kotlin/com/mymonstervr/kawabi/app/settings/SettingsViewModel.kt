@@ -7,9 +7,11 @@ import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateDownloadState
 import com.mymonstervr.kawabi.app.update.AppUpdateInfo
 import com.mymonstervr.kawabi.app.update.AppUpdateStateHolder
+import com.mymonstervr.kawabi.app.notification.NewChapterNotifier
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.TrackerManager
+import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
 import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_DEFAULT
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -39,6 +42,8 @@ class SettingsViewModel(
     private val updateChecker: AppUpdateChecker,
     trackerManager: TrackerManager,
     updateStateHolder: AppUpdateStateHolder,
+    private val libraryUpdateManager: LibraryUpdateManager,
+    private val newChapterNotifier: NewChapterNotifier,
 ) : ViewModel() {
 
     val isLoggedIn: StateFlow<Boolean> = tokenStore.isLoggedIn
@@ -84,6 +89,32 @@ class SettingsViewModel(
 
     fun setMarkReadOnScroll(enabled: Boolean) {
         viewModelScope.launch { preferences.setMarkReadOnScroll(enabled) }
+    }
+
+    val newChapterNotificationsEnabled: StateFlow<Boolean> = preferences.newChapterNotificationsEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setNewChapterNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferences.setNewChapterNotificationsEnabled(enabled) }
+    }
+
+    private val _forceLibraryUpdateStatus = MutableStateFlow("Checks every favorite now, ignoring the 6h schedule")
+    val forceLibraryUpdateStatus: StateFlow<String> = _forceLibraryUpdateStatus.asStateFlow()
+
+    // Debug/support action -- WorkManager's periodic scheduling makes the real 6h job
+    // impossible to trigger on demand (even `adb shell cmd jobscheduler run -f` just gets
+    // rescheduled, "before schedule"), so this calls the exact same notifier the worker
+    // calls but against every favorite (checkAllFavoritesNow), bypassing the due-schedule
+    // gate so a manual check can actually surface a real notification.
+    fun forceLibraryUpdate() {
+        viewModelScope.launch {
+            _forceLibraryUpdateStatus.value = "Checking..."
+            val result = libraryUpdateManager.checkAllFavoritesNow()
+            if (result.updated.isNotEmpty() && preferences.newChapterNotificationsEnabled.first()) {
+                newChapterNotifier.notify(result.updated)
+            }
+            _forceLibraryUpdateStatus.value = "Checked ${result.checked}, ${result.updated.size} had new chapters"
+        }
     }
 
     fun setKeepScreenAwake(enabled: Boolean) {
@@ -137,6 +168,13 @@ class SettingsViewModel(
 
     fun setAnimePreferredQuality(quality: String) {
         viewModelScope.launch { preferences.setAnimePreferredQuality(quality) }
+    }
+
+    val animePreferredAudio: StateFlow<String> = preferences.animePreferredAudio
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    fun setAnimePreferredAudio(audio: String) {
+        viewModelScope.launch { preferences.setAnimePreferredAudio(audio) }
     }
 
     val animeAutoSkipIntro: StateFlow<Boolean> = preferences.animeAutoSkipIntro

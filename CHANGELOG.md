@@ -19,6 +19,12 @@ stamp, it won't fail the build).
   same old download indefinitely.
 - New Settings -> Account -> Link a TV: scan a code with your phone to sign
   in on the kawabi TV app, no typing a password on a remote.
+- "Next episode" now offers itself as soon as the ending credits start
+  playing, not just once the episode fully finishes.
+- New Settings -> Preferred audio (Any/Sub/Dub) for anime playback, next to
+  the existing preferred quality option.
+- Subtitles no longer auto-select on a dub stream (dub already has the
+  dialogue) -- still on by default for sub.
 
 ## 0.1.0-92 - 2026-09-27
 

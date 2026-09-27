@@ -3,8 +3,11 @@ package com.mymonstervr.kawabi.app.work
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.mymonstervr.kawabi.app.notification.NewChapterNotifier
+import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -16,10 +19,15 @@ class LibraryUpdateWorker(context: Context, params: WorkerParameters) :
     KoinComponent {
 
     private val libraryUpdateManager: LibraryUpdateManager by inject()
+    private val newChapterNotifier: NewChapterNotifier by inject()
+    private val preferences: AppPreferences by inject()
 
     override suspend fun doWork(): Result {
         return try {
-            libraryUpdateManager.updateDue()
+            val result = libraryUpdateManager.updateDue()
+            if (result.updated.isNotEmpty() && preferences.newChapterNotificationsEnabled.first()) {
+                newChapterNotifier.notify(result.updated)
+            }
             Result.success()
         } catch (e: Exception) {
             // Never retry aggressively -- this runs again on its own schedule anyway, and

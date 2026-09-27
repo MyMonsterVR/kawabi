@@ -66,6 +66,7 @@ import com.mymonstervr.kawabi.data.settings.ThemePalette
 import org.koin.androidx.compose.koinViewModel
 
 private val PREFERRED_QUALITIES = listOf("", "1080p", "720p", "480p")
+private val PREFERRED_AUDIO_OPTIONS = listOf("" to "Any", "sub" to "Sub", "dub" to "Dub")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +83,7 @@ fun SettingsScreen(
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val readingDirection by viewModel.readingDirection.collectAsState()
     val markReadOnScroll by viewModel.markReadOnScroll.collectAsState()
+    val newChapterNotificationsEnabled by viewModel.newChapterNotificationsEnabled.collectAsState()
     val keepScreenAwake by viewModel.keepScreenAwake.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
     val libraryGridColumns by viewModel.libraryGridColumns.collectAsState()
@@ -94,6 +96,7 @@ fun SettingsScreen(
     val dynamicColor by viewModel.dynamicColor.collectAsState()
     val animeAutoMarkWatchedThreshold by viewModel.animeAutoMarkWatchedThreshold.collectAsState()
     val animePreferredQuality by viewModel.animePreferredQuality.collectAsState()
+    val animePreferredAudio by viewModel.animePreferredAudio.collectAsState()
     val animeAutoSkipIntro by viewModel.animeAutoSkipIntro.collectAsState()
     val subtitleTextSize by viewModel.subtitleTextSize.collectAsState()
     val subtitleBackgroundStyle by viewModel.subtitleBackgroundStyle.collectAsState()
@@ -218,6 +221,13 @@ fun SettingsScreen(
                         onCheckedChange = viewModel::setMarkReadOnScroll,
                     )
                     HorizontalDivider(color = NightSession.Hairline)
+                    SettingsSwitchRow(
+                        title = "New chapter notifications",
+                        subtitle = "Notify when the background library update finds new chapters",
+                        checked = newChapterNotificationsEnabled,
+                        onCheckedChange = viewModel::setNewChapterNotificationsEnabled,
+                    )
+                    HorizontalDivider(color = NightSession.Hairline)
                     SettingsSliderRow(
                         title = "Mark read at",
                         subtitle = "$markReadThreshold% scrolled -- lower marks a chapter read sooner",
@@ -288,6 +298,22 @@ fun SettingsScreen(
                             label = quality.ifBlank { "Auto (best available)" },
                             selected = quality == animePreferredQuality,
                             onClick = { viewModel.setAnimePreferredQuality(quality) },
+                        )
+                    }
+                }
+            }
+            item {
+                SettingsGroup("Preferred audio") {
+                    // Same matching approach as quality: sub/dub is a plain word in the
+                    // stream's title alongside the resolution (e.g. "Sub 1080p"). "Any"
+                    // (empty) falls back to every stream when nothing matches -- most
+                    // episodes only have one audio track anyway.
+                    PREFERRED_AUDIO_OPTIONS.forEachIndexed { index, (value, label) ->
+                        if (index > 0) HorizontalDivider(color = NightSession.Hairline)
+                        SettingsRadioRow(
+                            label = label,
+                            selected = value == animePreferredAudio,
+                            onClick = { viewModel.setAnimePreferredAudio(value) },
                         )
                     }
                 }

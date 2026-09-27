@@ -66,6 +66,7 @@ class AppPreferences(private val context: Context) {
 
     private val readingDirectionKey = stringPreferencesKey("reading_direction")
     private val markReadOnScrollKey = booleanPreferencesKey("mark_read_on_scroll")
+    private val newChapterNotificationsEnabledKey = booleanPreferencesKey("new_chapter_notifications_enabled")
     private val keepScreenAwakeKey = booleanPreferencesKey("keep_screen_awake")
     private val accentIndexKey = intPreferencesKey("accent_index")
     private val lastUpdateCheckKey = longPreferencesKey("last_update_check")
@@ -116,6 +117,14 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setMarkReadOnScroll(enabled: Boolean) {
         context.settingsDataStore.edit { it[markReadOnScrollKey] = enabled }
+    }
+
+    val newChapterNotificationsEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[newChapterNotificationsEnabledKey] ?: true
+    }
+
+    suspend fun setNewChapterNotificationsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[newChapterNotificationsEnabledKey] = enabled }
     }
 
     suspend fun setKeepScreenAwake(enabled: Boolean) {
