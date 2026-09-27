@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-92 - 2026-09-27
+
 - Skip-intro/outro now shows up for episodes even when the source itself
   doesn't provide the timing (falls back to a public skip-time database
   using MAL id + episode number).
