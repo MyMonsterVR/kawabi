@@ -389,6 +389,17 @@ private fun ContinuousVerticalScreen(
     // never restarts.
     val latestFlatItems by rememberUpdatedState(flatItems)
     val latestSections by rememberUpdatedState(sections)
+    // Same reasoning as latestFlatItems/latestSections above, and just as easy to miss: this
+    // LaunchedEffect only ever launches once (its key, listState, never changes across the
+    // reading session), so calling the onPageChanged/onTrackPosition *parameters* directly
+    // would permanently freeze the coroutine's closure over whatever those lambdas were on
+    // the very first composition -- e.g. ReaderScreen's chapterNumberById map as it looked
+    // with only the opening chapter loaded. Confirmed live: the reader header's "X / Y"
+    // chapter indicator got stuck on the opening chapter forever once you scrolled into a
+    // later one, since the stale closure's chapterNumberById lookup for the new chapterId
+    // always missed. rememberUpdatedState re-points these on every recomposition instead.
+    val latestOnPageChanged by rememberUpdatedState(onPageChanged)
+    val latestOnTrackPosition by rememberUpdatedState(onTrackPosition)
 
     // Position tracking: the flat index maps back to (section, local page) via the same
     // list buildFlatItems just produced. Crossing into a later section means every
@@ -401,7 +412,7 @@ private fun ContinuousVerticalScreen(
                 if (item.sectionIndex > currentSectionIndex) {
                     for (i in currentSectionIndex until item.sectionIndex) {
                         val finished = latestSections[i]
-                        onPageChanged(finished.chapterId, finished.pages.lastIndex, finished.pages.size, true)
+                        latestOnPageChanged(finished.chapterId, finished.pages.lastIndex, finished.pages.size, true)
                     }
                     currentSectionIndex = item.sectionIndex
                     bannerLabel = latestSections[item.sectionIndex].chapterLabel
@@ -414,9 +425,9 @@ private fun ContinuousVerticalScreen(
                 // final image appeared, long before its bottom was ever seen.
                 val reachedEnd = item.pageIndexInSection == section.pages.lastIndex &&
                     (listState.layoutInfo.itemReachedThreshold(flatIndex, thresholdFraction) || !listState.canScrollForward)
-                onTrackPosition(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
+                latestOnTrackPosition(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
                 if (reachedEnd) {
-                    onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, true)
+                    latestOnPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, true)
                 }
             }
         }
@@ -426,7 +437,7 @@ private fun ContinuousVerticalScreen(
                 val section = latestSections[item.sectionIndex]
                 val reachedEnd = item.pageIndexInSection == section.pages.lastIndex &&
                     (listState.layoutInfo.itemReachedThreshold(flatIndex, thresholdFraction) || !listState.canScrollForward)
-                onPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
+                latestOnPageChanged(section.chapterId, item.pageIndexInSection, section.pages.size, reachedEnd)
             }
         }
         // Rolling prefetch: warm the disk cache for the next PREFETCH_LOOKAHEAD pages
