@@ -3,10 +3,10 @@ package com.mymonstervr.kawabi.app.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.BuildConfig
-import com.mymonstervr.kawabi.app.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateDownloadState
-import com.mymonstervr.kawabi.app.update.AppUpdateInfo
 import com.mymonstervr.kawabi.app.update.AppUpdateStateHolder
+import com.mymonstervr.kawabi.data.update.AppUpdateChecker
+import com.mymonstervr.kawabi.data.update.AppUpdateInfo
 import com.mymonstervr.kawabi.app.notification.NewChapterNotifier
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences

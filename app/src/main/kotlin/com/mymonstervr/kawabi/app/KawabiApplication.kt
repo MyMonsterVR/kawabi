@@ -6,7 +6,7 @@ import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.mymonstervr.kawabi.app.di.appModule
-import com.mymonstervr.kawabi.app.update.AppUpdateChecker
+import com.mymonstervr.kawabi.data.update.AppUpdateChecker
 import com.mymonstervr.kawabi.app.update.AppUpdateNotifier
 import com.mymonstervr.kawabi.app.work.AnimeLibraryUpdateWorker
 import com.mymonstervr.kawabi.app.work.LibraryUpdateWorker

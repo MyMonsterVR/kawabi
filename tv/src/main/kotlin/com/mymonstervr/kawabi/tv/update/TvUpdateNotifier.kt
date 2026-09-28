@@ -1,4 +1,4 @@
-package com.mymonstervr.kawabi.app.update
+package com.mymonstervr.kawabi.tv.update
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,23 +7,24 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.mymonstervr.kawabi.data.update.AppUpdateInfo
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.mymonstervr.kawabi.data.update.AppUpdateInfo
 import java.io.File
 
-private const val CHANNEL_ID = "app_updates"
+private const val CHANNEL_ID = "tv_updates"
 private const val NOTIFICATION_ID = 1001
 
 /**
- * Update-flow notifications only -- this app has no other notification channel yet.
- * Every post is guarded by a POST_NOTIFICATIONS permission check (requested once from
- * MainActivity); on Android 13+ a denied/never-granted permission means these silently
- * no-op rather than crash -- the download/install still completes, just without a
- * progress/tap-to-install prompt to surface it.
+ * TV port of the phone app's AppUpdateNotifier -- same behavior, own notification channel/
+ * FileProvider authority (${applicationId}.fileprovider resolves to
+ * com.mymonstervr.kawabi.tv.fileprovider here, distinct from the phone app's). The Settings
+ * screen is the primary surface for this on TV (a remote-driven notification tap is clunky),
+ * but posting these too costs nothing and covers whichever a given device/launcher makes
+ * easier to notice.
  */
-class AppUpdateNotifier(private val context: Context) {
+class TvUpdateNotifier(private val context: Context) {
 
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -65,7 +66,7 @@ class AppUpdateNotifier(private val context: Context) {
 
     fun downloadFailed() = notify {
         setContentTitle("Update download failed")
-        setContentText("Tap Settings to retry")
+        setContentText("Open Settings to retry")
         setOngoing(false)
         setProgress(0, 0, false)
     }
@@ -88,7 +89,7 @@ class AppUpdateNotifier(private val context: Context) {
         )
         notify {
             setContentTitle("Update ready to install")
-            setContentText("Tap to install")
+            setContentText("Select to install")
             setContentIntent(pendingIntent)
             setAutoCancel(true)
             setOngoing(false)

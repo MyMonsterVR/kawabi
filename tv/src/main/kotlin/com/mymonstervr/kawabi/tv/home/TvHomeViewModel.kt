@@ -65,8 +65,15 @@ class TvHomeViewModel(
     }
 
     private suspend fun loadContinueWatching() {
-        val favorites = animeRepository.getFavorites().sortedByDescending { it.lastWatchedAt }
-        _continueWatching.value = favorites.mapNotNull { anime ->
+        // NOT getFavorites() -- watching something now tracks it (see AddAnimeToLibrary.cache
+        // in TvDetailViewModel.load, and the matching kawabi-web fix the same day) without
+        // requiring the separate, explicit "favorite" action, mirroring the web Home's own
+        // last_watched_at-driven filter. Filtering on favorite here would silently hide every
+        // show tracked that way, which is the exact bug this was fixed for.
+        val watched = animeRepository.getAll()
+            .filter { it.lastWatchedAt > 0 }
+            .sortedByDescending { it.lastWatchedAt }
+        _continueWatching.value = watched.mapNotNull { anime ->
             resumeEpisode(episodeRepository.getForAnime(anime.id))?.let { episode -> ContinueWatchingItem(anime, episode) }
         }
     }

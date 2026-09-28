@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -63,7 +64,7 @@ fun TvHomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(420.dp)
+                    .height(460.dp)
                     .background(
                         Brush.linearGradient(listOf(TvColors.BackgroundGradientTop, TvColors.Background)),
                     ),
@@ -92,6 +93,16 @@ fun TvHomeScreen(
                             color = TvColors.TextSecondary,
                             style = MaterialTheme.typography.bodyLarge,
                         )
+                        hero.anime.description?.takeIf { it.isNotBlank() }?.let { synopsis ->
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                synopsis,
+                                color = TvColors.TextSecondary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 2,
+                                modifier = Modifier.widthIn(max = 640.dp),
+                            )
+                        }
                         Spacer(Modifier.height(16.dp))
                         Button(
                             onClick = { onOpenEpisode(hero.resumeEpisode.key) },
@@ -171,7 +182,11 @@ private fun RailIcon(
         scale = ClickableSurfaceDefaults.scale(focusedScale = TvFocus.ButtonScale),
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            androidx.tv.material3.Icon(icon, contentDescription = label, tint = if (selected) TvColors.Accent else TvColors.TextDim)
+            // TextDim reads fine for body copy but was reported genuinely hard to see as an
+            // unfocused nav icon on real TV hardware (lower brightness/contrast than a
+            // monitor) -- TextSecondary is the same family, just enough brighter to read
+            // from a couch while still visually receding behind the focused/selected state.
+            androidx.tv.material3.Icon(icon, contentDescription = label, tint = if (selected) TvColors.Accent else TvColors.TextSecondary)
         }
     }
 }
@@ -222,8 +237,8 @@ private fun <T> AnimeRow(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             label(item),
-                            color = TvColors.TextSecondary,
-                            style = MaterialTheme.typography.bodyMedium,
+                            color = TvColors.Text,
+                            style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                         )
                     }

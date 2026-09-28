@@ -193,10 +193,28 @@ jobs:
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
             "mv /opt/apk/v2/kawabi.apk.new /opt/apk/v2/kawabi.apk && mv /opt/apk/v2/manifest.json.new /opt/apk/v2/manifest.json"
 
-      # TV app: sideload-only, no in-app updater to feed a manifest to (PLAN Phase 8
-      # decision) -- just the APK itself, same atomic upload-then-rename as above.
-      # apk.rasmushk.dk's Caddy block already roots at /opt/apk with a blanket
-      # file_server, so a new /tv subfolder needs zero Caddy changes to become reachable.
+      # TV app now has an in-app updater too (Settings screen, same manifest.json/
+      # AppUpdateChecker shape as the phone app, pointed at AppReleaseApi.TV_MANIFEST_URL) --
+      # kept private/sideload-only on purpose (no GitHub Release, no Play listing), but still
+      # needs this manifest so the TV app itself can detect a newer build.
+      - name: Generate TV update manifest
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT_COUNT: ${{ steps.version.outputs.commit_count }}
+        run: |
+          cat > tv-manifest.json <<EOF
+          {
+            "version": "${VERSION}",
+            "commit_count": ${COMMIT_COUNT},
+            "info": "Automated build from commit ${GITHUB_SHA:0:7}",
+            "download_url": "https://apk.rasmushk.dk/tv/kawabi-tv.apk?v=${COMMIT_COUNT}"
+          }
+          EOF
+
+      # apk.rasmushk.dk's Caddy block already roots at /opt/apk with a blanket file_server,
+      # so a new /tv subfolder needs zero Caddy changes to become reachable. Same atomic
+      # upload-then-rename as the phone app's deploy step, for the same reason.
       - name: Deploy TV APK to VPS
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
@@ -205,8 +223,9 @@ jobs:
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p /opt/apk/tv"
           scp "${SIGNED_TV_RELEASE_FILE}" \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/tv/kawabi-tv.apk.new
+          scp tv-manifest.json ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/tv/manifest.json.new
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "mv /opt/apk/tv/kawabi-tv.apk.new /opt/apk/tv/kawabi-tv.apk"
+            "mv /opt/apk/tv/kawabi-tv.apk.new /opt/apk/tv/kawabi-tv.apk && mv /opt/apk/tv/manifest.json.new /opt/apk/tv/manifest.json"
 
       # Renames CHANGELOG.md's "## Unreleased" section to this release's version (and
       # opens a fresh blank "## Unreleased" above it for the next round of changes) --

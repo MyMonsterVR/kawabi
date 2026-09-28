@@ -17,15 +17,16 @@ import com.mymonstervr.kawabi.app.settings.BackupViewModel
 import com.mymonstervr.kawabi.app.settings.SettingsViewModel
 import com.mymonstervr.kawabi.app.settings.SourcesViewModel
 import com.mymonstervr.kawabi.app.settings.TrackingServicesViewModel
-import com.mymonstervr.kawabi.app.update.AppUpdateChecker
+import com.mymonstervr.kawabi.BuildConfig
 import com.mymonstervr.kawabi.app.update.AppUpdateNotifier
 import com.mymonstervr.kawabi.app.update.AppUpdateStateHolder
+import com.mymonstervr.kawabi.data.update.AppUpdateChecker
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
-    single { AppUpdateChecker(get(), get()) }
+    single { AppUpdateChecker(get(), get(), BuildConfig.COMMIT_COUNT) }
     single { AppUpdateNotifier(get()) }
     single { NewChapterNotifier(get()) }
     single { AppUpdateStateHolder(androidContext()) }

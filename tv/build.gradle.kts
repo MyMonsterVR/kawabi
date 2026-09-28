@@ -22,6 +22,7 @@ android {
         targetSdk = libs.versions.android.target.sdk.get().toInt()
         versionCode = gitCommitCount
         versionName = "0.1.0"
+        buildConfigField("int", "COMMIT_COUNT", "$gitCommitCount")
     }
 
     buildTypes {
@@ -38,6 +39,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -80,4 +82,5 @@ dependencies {
     implementation(libs.media3.datasource.okhttp)
 
     implementation(libs.zxing.core)
+    implementation(libs.androidx.work.runtime.ktx)
 }

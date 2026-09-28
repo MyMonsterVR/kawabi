@@ -26,13 +26,17 @@ private val releaseJson = Json { ignoreUnknownKeys = true }
 
 /**
  * Reads the update manifest CI publishes on every push to main (see
- * `.github/workflows/build.yml`). `/v2/` -- distinct from the old fork's `/v1/`
- * path on the same domain, so neither app's release clobbers the other's.
+ * `.github/workflows/build.yml`). [manifestUrl] defaults to the phone app's `/v2/` path
+ * (distinct from the old fork's `/v1/` path on the same domain, so neither app's release
+ * clobbers the other's) -- the TV app registers a second instance pointed at `/tv/` instead.
  */
-class AppReleaseApi(private val dispatchers: AppDispatchers) {
+class AppReleaseApi(
+    private val dispatchers: AppDispatchers,
+    private val manifestUrl: String = DEFAULT_MANIFEST_URL,
+) {
     suspend fun latest(): AppReleaseDto? = withContext(dispatchers.io) {
         runCatching {
-            plainHttpClient.newCall(Request.Builder().url(MANIFEST_URL).build()).execute().use { response ->
+            plainHttpClient.newCall(Request.Builder().url(manifestUrl).build()).execute().use { response ->
                 if (!response.isSuccessful) return@use null
                 releaseJson.decodeFromString(AppReleaseDto.serializer(), response.body.string())
             }
@@ -40,6 +44,7 @@ class AppReleaseApi(private val dispatchers: AppDispatchers) {
     }
 
     companion object {
-        private const val MANIFEST_URL = "https://apk.rasmushk.dk/v2/manifest.json"
+        const val DEFAULT_MANIFEST_URL = "https://apk.rasmushk.dk/v2/manifest.json"
+        const val TV_MANIFEST_URL = "https://apk.rasmushk.dk/tv/manifest.json"
     }
 }

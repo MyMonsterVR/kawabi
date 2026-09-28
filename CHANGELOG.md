@@ -12,6 +12,13 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- TV app: Continue Watching now shows anything you've actually watched, not
+  only shows explicitly added to your library -- it was being filtered out
+  entirely before. Added episode counts and a synopsis to the Detail and
+  Home screens, brighter nav icons and row titles, and an in-app updater
+  (Settings -> Update) so new builds no longer require re-running Downloader
+  by hand.
+
 ## 0.1.0-106 - 2026-09-28
 
 - Fixed the reader's "X / Y" chapter header getting permanently stuck on the

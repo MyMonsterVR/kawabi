@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.app.update.AppUpdateDownloadWorker
-import com.mymonstervr.kawabi.app.update.AppUpdateInfo
+import com.mymonstervr.kawabi.data.update.AppUpdateInfo
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_MAX
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_MIN
 import com.mymonstervr.kawabi.data.settings.MARK_READ_THRESHOLD_MAX

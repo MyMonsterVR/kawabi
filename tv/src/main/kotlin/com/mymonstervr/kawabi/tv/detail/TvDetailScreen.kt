@@ -126,8 +126,12 @@ private fun DetailContent(detail: AnimeDetailResponse, resumeEpisodeKey: String?
                     Text(detail.title, color = TvColors.Text, style = MaterialTheme.typography.displayLarge)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        listOfNotNull(detail.author, detail.status.ifBlank { null }, detail.source_name.ifBlank { null })
-                            .joinToString(" · "),
+                        listOfNotNull(
+                            detail.author,
+                            detail.status.ifBlank { null },
+                            detail.total_episodes.takeIf { it > 0 }?.let { "${it.toInt()} episodes" },
+                            detail.source_name.ifBlank { null },
+                        ).joinToString(" · "),
                         color = TvColors.TextSecondary,
                         style = MaterialTheme.typography.bodyMedium,
                     )
