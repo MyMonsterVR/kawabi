@@ -137,6 +137,21 @@ jobs:
         env:
           BUILD_TOOLS_VERSION: '35.0.1'
 
+      # Same key/alias signs both apps fine -- Android signing isn't tied to a package
+      # name, and the TV app is sideload-only (no Play Store identity to protect).
+      - name: Sign TV release APK
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: r0adkll/sign-android-release@a391126403df92c6a0a3988a829dd47f79b89ed7
+        id: sign_tv
+        with:
+          releaseDirectory: tv/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: '35.0.1'
+
       - name: Generate update manifest
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
@@ -177,6 +192,21 @@ jobs:
           scp manifest.json ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/v2/manifest.json.new
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
             "mv /opt/apk/v2/kawabi.apk.new /opt/apk/v2/kawabi.apk && mv /opt/apk/v2/manifest.json.new /opt/apk/v2/manifest.json"
+
+      # TV app: sideload-only, no in-app updater to feed a manifest to (PLAN Phase 8
+      # decision) -- just the APK itself, same atomic upload-then-rename as above.
+      # apk.rasmushk.dk's Caddy block already roots at /opt/apk with a blanket
+      # file_server, so a new /tv subfolder needs zero Caddy changes to become reachable.
+      - name: Deploy TV APK to VPS
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          SIGNED_TV_RELEASE_FILE: ${{ steps.sign_tv.outputs.signedReleaseFile }}
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p /opt/apk/tv"
+          scp "${SIGNED_TV_RELEASE_FILE}" \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/apk/tv/kawabi-tv.apk.new
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "mv /opt/apk/tv/kawabi-tv.apk.new /opt/apk/tv/kawabi-tv.apk"
 
       # Renames CHANGELOG.md's "## Unreleased" section to this release's version (and
       # opens a fresh blank "## Unreleased" above it for the next round of changes) --
