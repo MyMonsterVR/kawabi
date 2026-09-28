@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-108 - 2026-09-28
+
 - TV app: Continue Watching now shows anything you've actually watched, not
   only shows explicitly added to your library -- it was being filtered out
   entirely before. Added episode counts and a synopsis to the Detail and
