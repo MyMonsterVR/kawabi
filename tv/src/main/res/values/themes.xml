@@ -1,0 +1,8 @@
+<resources>
+    <!--
+        Minimal platform theme for the Activity window, same rationale as app's
+        Theme.Kawabi: actual UI theming (colors, typography) is Compose-for-TV's
+        MaterialTheme (see theme/TvTheme.kt), not this.
+    -->
+    <style name="Theme.KawabiTv" parent="android:Theme.Material.NoActionBar" />
+</resources>

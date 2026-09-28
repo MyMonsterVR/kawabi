@@ -38,6 +38,10 @@ media3 = "1.11.1"
 # Phone "Link a TV" QR pairing screen -- Play Services' own scan UI, no CAMERA permission
 play-services-code-scanner = "16.1.0"
 
+# TV app (Phase 5 onward)
+tv-material = "1.1.0"
+zxing-core = "3.5.4"
+
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core-ktx" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }
@@ -83,6 +87,9 @@ media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp", version.ref = "media3" }
 
 play-services-code-scanner = { module = "com.google.android.gms:play-services-code-scanner", version.ref = "play-services-code-scanner" }
+
+tv-material = { module = "androidx.tv:tv-material", version.ref = "tv-material" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing-core" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "android-gradle-plugin" }

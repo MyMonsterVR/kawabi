@@ -12,6 +12,12 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- New Android TV app: sign in by scanning a QR code with your phone, browse
+  Continue Watching / New Releases, search, and watch anime with full D-pad
+  remote support. Separate install from the phone app, sideload only for now.
+- Watching an anime you haven't explicitly added to your library now still
+  tracks it (Continue Watching + linked trackers) instead of going nowhere.
+
 ## 0.1.0-96 - 2026-09-27
 
 ## 0.1.0-94 - 2026-09-27

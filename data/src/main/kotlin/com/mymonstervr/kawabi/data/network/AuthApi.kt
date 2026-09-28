@@ -3,6 +3,7 @@ package com.mymonstervr.kawabi.data.network
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
 import com.mymonstervr.kawabi.data.network.dto.LoginRequest
 import com.mymonstervr.kawabi.data.network.dto.LoginResponse
+import com.mymonstervr.kawabi.data.network.dto.MeResponse
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
@@ -34,6 +35,17 @@ class AuthApi(
                     response.body.string(),
                 )
                 tokenStore.saveToken(loginResponse.token)
+            }
+        }
+    }
+
+    /** Cheap account-identity check -- lets a Settings screen show which account is signed in. */
+    suspend fun me(): Result<MeResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val request = Request.Builder().url("$BASE_URL/auth/me").get().build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error("Couldn't load account (HTTP ${response.code})")
+                networkJson.decodeFromString(MeResponse.serializer(), response.body.string())
             }
         }
     }

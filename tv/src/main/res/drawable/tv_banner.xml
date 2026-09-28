@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder banner (320x180dp slot): the design pass only produced app-icon art, not a
+     literal TV banner; swap for real banner art before Phase 8 distribution. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#000000" />
+        </shape>
+    </item>
+    <item
+        android:width="96dp"
+        android:height="96dp"
+        android:gravity="center">
+        <bitmap android:src="@drawable/ic_launcher_kawabi" android:gravity="center" />
+    </item>
+</layer-list>
