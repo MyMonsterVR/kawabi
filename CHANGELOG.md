@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-100 - 2026-09-28
+
 ## 0.1.0-98 - 2026-09-28
 
 - New Android TV app: sign in by scanning a QR code with your phone, browse
