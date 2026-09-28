@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-106 - 2026-09-28
+
 - Fixed the reader's "X / Y" chapter header getting permanently stuck on the
   opening chapter in vertical mode once you scrolled into a later one.
 
