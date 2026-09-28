@@ -124,16 +124,19 @@ fun TvSearchScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
             itemsIndexed(results, key = { _, it -> it.key }) { index, card ->
-                Surface(
-                    onClick = { onOpenAnime(card.key) },
-                    modifier = if (index == 0) Modifier.focusRequester(firstResultFocusRequester) else Modifier,
-                    shape = ClickableSurfaceDefaults.shape(shape = shape),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = TvFocus.CardScale),
-                    border = TvFocus.border(shape),
-                    glow = TvFocus.glow(),
-                    colors = ClickableSurfaceDefaults.colors(containerColor = TvColors.Surface),
-                ) {
-                    Column(modifier = Modifier.width(TvDimens.CardWidth)) {
+                // Label is a fixed sibling below the artwork, not inside the same scaling/
+                // clipped Surface -- see TvHomeScreen's AnimeRow for why (a focused card's
+                // title got clipped by its own rounded-corner mask on real TV hardware).
+                Column(modifier = Modifier.width(TvDimens.CardWidth)) {
+                    Surface(
+                        onClick = { onOpenAnime(card.key) },
+                        modifier = if (index == 0) Modifier.focusRequester(firstResultFocusRequester) else Modifier,
+                        shape = ClickableSurfaceDefaults.shape(shape = shape),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = TvFocus.CardScale),
+                        border = TvFocus.border(shape),
+                        glow = TvFocus.glow(),
+                        colors = ClickableSurfaceDefaults.colors(containerColor = TvColors.Surface),
+                    ) {
                         AsyncImage(
                             model = resolveCoverUrl(card.cover_url, card.source),
                             contentDescription = card.title,
@@ -144,9 +147,9 @@ fun TvSearchScreen(
                                 .clip(shape)
                                 .background(TvColors.Surface),
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Text(card.title, color = TvColors.TextSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text(card.title, color = TvColors.TextSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                 }
             }
         }

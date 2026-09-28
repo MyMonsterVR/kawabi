@@ -15,7 +15,10 @@ stamp, it won't fail the build).
 - TV app: Home is scrollable now -- confirmed live that the hero plus every
   row never actually fit on screen before, so row titles (and most of the
   New Releases row) rendered entirely below the visible edge, permanently
-  unreachable.
+  unreachable. Fixed a focused card's title sometimes rendering chopped
+  off/washed out (growing the whole image+title as one scaling unit let the
+  title clip against the card's own rounded corner) -- only the artwork
+  itself scales/glows on focus now, same as Search's results grid.
 
 ## 0.1.0-108 - 2026-09-28
 

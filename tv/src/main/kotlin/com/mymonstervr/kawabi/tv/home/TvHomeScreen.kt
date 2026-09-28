@@ -229,15 +229,22 @@ private fun <T> AnimeRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = TvDimens.OverscanHorizontal),
         ) {
             items(items) { item ->
-                Surface(
-                    onClick = { onClick(item) },
-                    shape = ClickableSurfaceDefaults.shape(shape = ClickableShape),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = TvFocus.CardScale),
-                    border = TvFocus.border(ClickableShape),
-                    glow = TvFocus.glow(),
-                    colors = ClickableSurfaceDefaults.colors(containerColor = TvColors.Surface),
-                ) {
-                    Column(modifier = Modifier.width(TvDimens.CardWidth)) {
+                // The label is a fixed-size sibling below the artwork, not content inside the
+                // same scaling/clipped Surface -- confirmed live (screenshot from real TV
+                // hardware) that growing the whole image+text card as one unit on focus let
+                // the title get clipped by the card's own rounded-corner mask right at its
+                // edge (a focused "Liar Game" card rendered as "iar Game", the L chopped off).
+                // Only the artwork scaling/glowing on focus, caption staying put underneath,
+                // is also the standard Netflix-style pattern for exactly this reason.
+                Column(modifier = Modifier.width(TvDimens.CardWidth)) {
+                    Surface(
+                        onClick = { onClick(item) },
+                        shape = ClickableSurfaceDefaults.shape(shape = ClickableShape),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = TvFocus.CardScale),
+                        border = TvFocus.border(ClickableShape),
+                        glow = TvFocus.glow(),
+                        colors = ClickableSurfaceDefaults.colors(containerColor = TvColors.Surface),
+                    ) {
                         AsyncImage(
                             model = resolveCoverUrl(cover(item), source(item)),
                             contentDescription = label(item),
@@ -248,14 +255,14 @@ private fun <T> AnimeRow(
                                 .clip(ClickableShape)
                                 .background(TvColors.Surface),
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            label(item),
-                            color = TvColors.Text,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                        )
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        label(item),
+                        color = TvColors.Text,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
                 }
             }
         }
