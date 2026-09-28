@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,12 +60,20 @@ fun TvHomeScreen(
     Row(modifier = Modifier.fillMaxSize().background(TvColors.Background)) {
         NavRail(onOpenSearch = onOpenSearch, onOpenSettings = onOpenSettings)
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        // The whole screen scrolls -- hero + every row used to sit in a plain, non-scrolling
+        // Column, which only ever fit inside the viewport by accident. At the real 960x540dp
+        // canvas a 460dp-tall hero plus a full row (label + 310dp cards + title) is nowhere
+        // close to fitting: confirmed live on real TV hardware, row card titles (and most of
+        // the row itself) rendered entirely below the visible screen, permanently unreachable
+        // by any input. LazyColumn makes the overflow scrollable instead of silently clipped,
+        // and D-pad down from the hero button now naturally continues scrolling into it.
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
             // Hero
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(460.dp)
+                    .height(340.dp)
                     .background(
                         Brush.linearGradient(listOf(TvColors.BackgroundGradientTop, TvColors.Background)),
                     ),
@@ -116,13 +125,12 @@ fun TvHomeScreen(
                     }
                 }
             }
+            }
 
-            // Rows
-            Column(
-                modifier = Modifier.fillMaxSize().padding(top = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(32.dp),
-            ) {
-                if (continueWatching.isNotEmpty()) {
+            item { Spacer(Modifier.height(24.dp)) }
+
+            if (continueWatching.isNotEmpty()) {
+                item {
                     AnimeRow(
                         title = "Continue Watching",
                         items = continueWatching,
@@ -132,6 +140,10 @@ fun TvHomeScreen(
                         onClick = { onOpenEpisode(it.resumeEpisode.key) },
                     )
                 }
+                item { Spacer(Modifier.height(32.dp)) }
+            }
+
+            item {
                 AnimeRow(
                     title = "New Releases",
                     items = newReleases,
@@ -141,6 +153,8 @@ fun TvHomeScreen(
                     onClick = { onOpenAnime(it.key) },
                 )
             }
+
+            item { Spacer(Modifier.height(TvDimens.OverscanVertical)) }
         }
     }
 }
