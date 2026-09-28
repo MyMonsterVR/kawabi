@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-113 - 2026-09-28
+
 - TV app: Settings now has the same anime playback options as the phone
   app -- preferred audio, preferred quality, skip intros/endings, mark-
   watched threshold, and subtitle size/background -- previously there was
