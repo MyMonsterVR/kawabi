@@ -55,7 +55,7 @@ fun LinkTvScreen(
     fun launchScan() {
         scanError = null
         GmsBarcodeScanning.getClient(context, scannerOptions).startScan()
-            .addOnSuccessListener { barcode -> barcode.rawValue?.let(viewModel::onCodeEntered) }
+            .addOnSuccessListener { barcode -> barcode.rawValue?.let(viewModel::onScanned) }
             .addOnFailureListener { e -> scanError = e.message ?: "Scan failed -- try again or enter the code manually" }
     }
 
@@ -88,7 +88,7 @@ fun LinkTvScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     TextButton(
-                        onClick = { if (manualCode.isNotBlank()) viewModel.onCodeEntered(manualCode) },
+                        onClick = { if (manualCode.isNotBlank()) viewModel.onManualCode(manualCode) },
                         enabled = manualCode.isNotBlank(),
                     ) { Text("Continue") }
                     scanError?.let {

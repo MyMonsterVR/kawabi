@@ -19,10 +19,9 @@ sealed interface LinkTvState {
 }
 
 /**
- * Backs the phone's "Link a TV" screen. [onCodeEntered] takes either a scanned QR payload
- * (`kawabi-pair:v1:<code>`, see PairingApi) or a manually typed code -- either way it's a
- * confirm step before calling the backend, so scanning the wrong/malicious QR doesn't
- * silently link a stranger's TV to this account.
+ * Backs the phone's "Link a TV" screen. Either a scanned QR ([onScanned]) or a manually
+ * typed code ([onManualCode]) leads to the same confirm step before calling the backend, so
+ * approving the wrong/malicious code doesn't silently link a stranger's TV to this account.
  */
 class LinkTvViewModel(
     private val pairingApi: PairingApi,
@@ -33,8 +32,26 @@ class LinkTvViewModel(
 
     private var pendingCode: String? = null
 
-    fun onCodeEntered(raw: String) {
-        val code = raw.trim().removePrefix(QR_PREFIX)
+    /**
+     * A scan is a raw QR payload, not user-chosen text -- unlike manual entry, a real kawabi
+     * TV code always carries [QR_PREFIX], so anything else (a random QR, someone else's app's
+     * code) is rejected outright here instead of reaching the confirm step with a scanned
+     * string that merely happens to be non-blank.
+     */
+    fun onScanned(raw: String) {
+        val trimmed = raw.trim()
+        if (!trimmed.startsWith(QR_PREFIX)) {
+            _state.value = LinkTvState.Error("That doesn't look like a kawabi TV code")
+            return
+        }
+        submitCode(trimmed.removePrefix(QR_PREFIX))
+    }
+
+    fun onManualCode(raw: String) {
+        submitCode(raw.trim())
+    }
+
+    private fun submitCode(code: String) {
         if (code.isBlank()) {
             _state.value = LinkTvState.Error("That doesn't look like a kawabi TV code")
             return
