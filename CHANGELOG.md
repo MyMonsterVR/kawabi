@@ -20,6 +20,9 @@ stamp, it won't fail the build).
   no way to set any of these on the TV at all (it silently used its own
   always-default value regardless of what the phone had). Accent color is
   purple now instead of orange.
+- TV player: the server panel now shows Sub/Dub tabs when both are
+  available, and subtitle size/background settings actually apply during
+  playback now -- both were previously invisible/ignored on the TV.
 
 ## 0.1.0-111 - 2026-09-28
 

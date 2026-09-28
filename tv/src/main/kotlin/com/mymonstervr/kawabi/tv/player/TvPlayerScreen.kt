@@ -34,13 +34,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
 import com.mymonstervr.kawabi.player.PlayerUiState
 import com.mymonstervr.kawabi.player.PlayerVideo
 import com.mymonstervr.kawabi.player.PlayerViewModel
@@ -91,6 +95,8 @@ fun TvPlayerScreen(
     val videos by viewModel.videos.collectAsState()
     val currentVideo by viewModel.currentVideo.collectAsState()
     val selectedSubtitle by viewModel.selectedSubtitle.collectAsState()
+    val subtitleTextSize by viewModel.subtitleTextSize.collectAsState()
+    val subtitleBackgroundStyle by viewModel.subtitleBackgroundStyle.collectAsState()
     val nextEpisodeKey by viewModel.nextEpisodeKey.collectAsState()
     val autoSkip by viewModel.autoSkip.collectAsState()
     val skipRange = remember(positionMs, currentVideo) { viewModel.activeSkipRange(positionMs) }
@@ -230,6 +236,10 @@ fun TvPlayerScreen(
                     keepScreenOn = true
                 }
             },
+            // PlayerView renders subtitles on its own regardless of this, but never picked up
+            // the size/background preference -- confirmed live the Settings controls added
+            // today had no visible effect. Same fix as the phone player's own update block.
+            update = { view -> applySubtitleAppearance(view, subtitleTextSize, subtitleBackgroundStyle) },
         )
 
         if (state is PlayerUiState.Loading) {
@@ -362,17 +372,46 @@ private fun TvPlayerSidePanel(
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(Modifier.height(16.dp))
-            LazyColumn {
-                if (panel == TvPlayerPanel.SERVERS) {
-                    items(videos) { option ->
+            if (panel == TvPlayerPanel.SERVERS) {
+                // Flattening every hoster x quality x audio combo into one plain list buried
+                // "Sub"/"Dub" inside each row's own label text -- reported live as "I don't
+                // see sub or dub", matching web's own dedicated tabs (PlayerControls.tsx)
+                // instead of a flat list makes the choice an explicit, visible one.
+                val hasSub = videos.any { audioOf(it) == "sub" }
+                val hasDub = videos.any { audioOf(it) == "dub" }
+                var tab by remember(videos) {
+                    mutableStateOf(currentVideo?.let(::audioOf) ?: if (hasSub) "sub" else "dub")
+                }
+                if (hasSub && hasDub) {
+                    Row {
+                        listOf("sub" to "Sub", "dub" to "Dub").forEach { (value, label) ->
+                            if (value == "dub") Spacer(Modifier.width(12.dp))
+                            Button(
+                                onClick = { tab = value },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = if (tab == value) TvColors.ChipHover else TvColors.SurfaceOverlay,
+                                    contentColor = if (tab == value) TvColors.Accent else TvColors.TextSecondary,
+                                    focusedContainerColor = TvColors.Accent,
+                                    focusedContentColor = TvColors.OnAccent,
+                                ),
+                            ) { Text(label) }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+                val shown = if (hasSub && hasDub) videos.filter { audioOf(it) == tab } else videos
+                LazyColumn {
+                    items(shown) { option ->
                         PanelRow(
-                            label = "${option.displayHoster} · ${option.video.title.ifBlank { "Default" }}",
+                            label = option.displayHoster,
                             selected = option == currentVideo,
                             initialFocus = option == currentVideo,
                             onClick = { onSelectVideo(option) },
                         )
                     }
-                } else {
+                }
+            } else {
+                LazyColumn {
                     item {
                         PanelRow(
                             label = "Off",
@@ -489,4 +528,44 @@ private fun RetryFocusedButton(onClick: () -> Unit, label: String = "Back") {
             focusedContentColor = TvColors.OnAccent,
         ),
     ) { Text(label) }
+}
+
+// Duplicated from the phone app's PlayerScreen.kt rather than shared via :player-core --
+// that module deliberately has no media3-ui dependency (see its build.gradle.kts), and this
+// is the one place that needs CaptionStyleCompat/SubtitleView/PlayerView. Settings screens
+// store size as a whole-number percent of PlayerView's own default;
+// DEFAULT_TEXT_SIZE_FRACTION is that default expressed the way SubtitleView wants it
+// (fraction of view height). Keep both copies in sync if this ever changes.
+@OptIn(UnstableApi::class)
+private fun applySubtitleAppearance(view: PlayerView, textSizePercent: Int, background: SubtitleBackgroundStyle) {
+    val subtitleView = view.subtitleView ?: return
+    subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * textSizePercent / 100f)
+    subtitleView.setStyle(
+        when (background) {
+            SubtitleBackgroundStyle.BOX -> CaptionStyleCompat(
+                android.graphics.Color.WHITE,
+                android.graphics.Color.argb(180, 0, 0, 0),
+                android.graphics.Color.TRANSPARENT,
+                CaptionStyleCompat.EDGE_TYPE_NONE,
+                android.graphics.Color.TRANSPARENT,
+                null,
+            )
+            SubtitleBackgroundStyle.OUTLINE -> CaptionStyleCompat(
+                android.graphics.Color.WHITE,
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT,
+                CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                android.graphics.Color.BLACK,
+                null,
+            )
+        },
+    )
+}
+
+/** Same substring convention as PlayerViewModel's own dub-detection (audio isn't a separate
+ * structured field anywhere in this pipeline, just a plain word in the stream's title). */
+private fun audioOf(video: PlayerVideo): String? = when {
+    video.video.title.contains("dub", ignoreCase = true) -> "dub"
+    video.video.title.contains("sub", ignoreCase = true) -> "sub"
+    else -> null
 }
