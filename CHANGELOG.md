@@ -12,6 +12,13 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- TV app: Settings now has the same anime playback options as the phone
+  app -- preferred audio, preferred quality, skip intros/endings, mark-
+  watched threshold, and subtitle size/background -- previously there was
+  no way to set any of these on the TV at all (it silently used its own
+  always-default value regardless of what the phone had). Accent color is
+  purple now instead of orange.
+
 ## 0.1.0-111 - 2026-09-28
 
 - TV app: Home is scrollable now -- confirmed live that the hero plus every

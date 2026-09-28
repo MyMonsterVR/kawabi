@@ -19,7 +19,7 @@ val tvModule = module {
     viewModel { TvHomeViewModel(get(), get(), get()) }
     viewModel { TvSearchViewModel(get()) }
     viewModel { TvDetailViewModel(get(), get(), get(), get()) }
-    viewModel { TvSettingsViewModel(get(), get(), get(), get()) }
+    viewModel { TvSettingsViewModel(get(), get(), get(), get(), get()) }
 
     // Own AppReleaseApi instance pointed at the TV manifest -- not the shared dataModule
     // single, which points at the phone app's /v2/ path.
