@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-111 - 2026-09-28
+
 - TV app: Home is scrollable now -- confirmed live that the hero plus every
   row never actually fit on screen before, so row titles (and most of the
   New Releases row) rendered entirely below the visible edge, permanently
