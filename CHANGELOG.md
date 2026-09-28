@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-115 - 2026-09-28
+
 ## 0.1.0-113 - 2026-09-28
 
 - TV app: Settings now has the same anime playback options as the phone
