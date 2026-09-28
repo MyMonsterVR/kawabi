@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-98 - 2026-09-28
+
 - New Android TV app: sign in by scanning a QR code with your phone, browse
   Continue Watching / New Releases, search, and watch anime with full D-pad
   remote support. Separate install from the phone app, sideload only for now.
