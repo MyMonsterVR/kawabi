@@ -1,5 +1,6 @@
 package com.mymonstervr.kawabi.app.library
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.data.settings.AppPreferences
@@ -40,7 +41,13 @@ class LibraryViewModel(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                refreshLibraryBatch.refresh(favorites.value.map { it.manga })
+                val mangas = favorites.value.map { it.manga }
+                val results = refreshLibraryBatch.refresh(mangas)
+                mangas.forEach { manga ->
+                    results[manga.id]?.exceptionOrNull()?.let { error ->
+                        Log.w("LibraryRefresh", "refresh failed for ${manga.title} (${manga.url})", error)
+                    }
+                }
             } finally {
                 _isRefreshing.value = false
             }

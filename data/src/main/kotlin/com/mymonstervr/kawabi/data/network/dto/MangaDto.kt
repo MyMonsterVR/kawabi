@@ -4,7 +4,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class MangaResponse(
-    val source: String,
+    // Defaulted so one entry without it can't fail decoding of a whole batch response.
+    val source: String = "",
     val served_from: String? = null,
     // Non-null only when this response was served via an explicit per-manga source pin
     // (empty/absent for the auto-pick chain) -- lets the UI show "Comick" instead of

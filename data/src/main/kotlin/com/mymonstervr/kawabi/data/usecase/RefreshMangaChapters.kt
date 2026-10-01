@@ -28,7 +28,7 @@ class RefreshMangaChapters(
     // by POST /manga/batch) can reconcile against local storage the same way a single
     // GET /manga response does, without a second network round trip.
     suspend fun applyResponse(manga: Manga, response: MangaResponse): Result<List<Chapter>> {
-        if (response.source != manga.source) {
+        if (response.source.isNotEmpty() && response.source != manga.source) {
             mangaRepository.updateSource(manga.id, response.source)
         }
 
