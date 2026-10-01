@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-119 - 2026-10-01
+
 - Library: refreshing could silently do nothing for the whole library (no new
   chapters, no unread badges) when the server's reply was missing a field for
   even one title. The app now tolerates that, and logs which titles failed to
