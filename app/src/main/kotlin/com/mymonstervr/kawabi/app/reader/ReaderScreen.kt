@@ -829,7 +829,10 @@ private const val PAGE_MAX_BITMAP_HEIGHT = 4096
 
 // How long a page is allowed to sit un-loaded before VerticalPageImage gives up waiting and
 // forces a cache-bypassing retry -- see its retryAttempt doc comment.
-private const val PAGE_LOAD_STUCK_TIMEOUT_MS = 8_000L
+// Well above the backend's worst normal first-load latency for an uncached page (10s+ when
+// the shared source engine is busy): a shorter timeout cancelled loads that were still
+// progressing and restarted them from scratch, adding load to the same busy backend.
+private const val PAGE_LOAD_STUCK_TIMEOUT_MS = 30_000L
 
 // forceNetwork bypasses a READ of the disk cache (still writes the fresh result back) --
 // used to recover from a corrupted local cache entry, see VerticalPageImage's retry logic.
@@ -881,12 +884,16 @@ private fun samplePow2For(nativePx: Int, capPx: Int): Int {
 // Success -- confirmed live: a page recovered via VerticalPageImage's forced-network
 // retry sometimes rendered at capped/downsampled quality (as if this function had never
 // run) until the user backed out and back into the chapter, which re-triggered this same
-// lookup and found the entry that time. A few short-backoff retries on the snapshot open
-// covers that race without resorting to a manual reload.
+// lookup and found the entry that time. Retries on the snapshot open with a backoff long
+// enough (~2.4s total; the earlier 3 tries over 300ms lost this race under load) cover that
+// race without resorting to a manual reload.
+private const val SNAPSHOT_OPEN_ATTEMPTS = 8
+private const val SNAPSHOT_OPEN_BACKOFF_MS = 300L
+
 private suspend fun openSnapshotWithRetry(diskCache: coil3.disk.DiskCache, key: String): coil3.disk.DiskCache.Snapshot? {
-    repeat(3) { attempt ->
+    repeat(SNAPSHOT_OPEN_ATTEMPTS) { attempt ->
         diskCache.openSnapshot(key)?.let { return it }
-        if (attempt < 2) delay(150L)
+        if (attempt < SNAPSHOT_OPEN_ATTEMPTS - 1) delay(SNAPSHOT_OPEN_BACKOFF_MS)
     }
     return null
 }

@@ -12,6 +12,11 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Reader: pages that were slow to load could end up blurry until you backed
+  out and reopened the chapter. A slow page is no longer restarted after 8
+  seconds (now 30), and large pages now wait long enough for their sharp
+  version to be ready instead of staying at the downscaled one.
+
 ## 0.1.0-115 - 2026-09-28
 
 ## 0.1.0-113 - 2026-09-28
