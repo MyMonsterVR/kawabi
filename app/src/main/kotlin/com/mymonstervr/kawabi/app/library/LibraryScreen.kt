@@ -14,13 +14,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,7 +53,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.mymonstervr.kawabi.app.common.MediaGridCard
 import com.mymonstervr.kawabi.app.common.NightChip
+import com.mymonstervr.kawabi.app.common.PageTitle
+import com.mymonstervr.kawabi.app.common.SectionHeader
+import com.mymonstervr.kawabi.app.common.roundIconButton
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
@@ -136,6 +145,9 @@ private fun sortFavorites(favorites: List<MangaWithUnreadCount>, sort: LibrarySo
     else -> favorites
 }
 
+private fun MangaWithUnreadCount.isStarted(): Boolean =
+    lastReadChapterNumber != null || manga.lastReadAt > 0L
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
@@ -146,31 +158,49 @@ fun LibraryScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val gridColumns by viewModel.gridColumns.collectAsState()
     val pullState = rememberPullToRefreshState()
+    val scale = LocalKawabiScale.current
 
     var sort by remember { mutableStateOf(LibrarySort.LAST_READ) }
     var sortMenuOpen by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf(CategoryFilter.ALL) }
 
-    val sorted = remember(favorites, sort, selectedCategory) {
-        filterByCategory(sortFavorites(dedupeByManga(favorites), sort), selectedCategory)
+    val deduped = remember(favorites) { dedupeByManga(favorites) }
+    val started = remember(deduped, sort, selectedCategory) {
+        filterByCategory(sortFavorites(deduped.filter { it.isStarted() }, sort), selectedCategory)
+    }
+    val notStarted = remember(deduped, selectedCategory) {
+        filterByCategory(deduped.filterNot { it.isStarted() }, selectedCategory)
+            .sortedByDescending { it.manga.totalChapters }
     }
 
-    Scaffold(
-        containerColor = NightSession.Background,
-        topBar = {
-            TopAppBar(
-                title = {
+    Scaffold(containerColor = NightSession.Background) { padding ->
+        Column(modifier = Modifier.padding(padding).fillMaxSize().background(NightSession.Background)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    PageTitle("Library")
                     Text(
-                        text = "Kawabi",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 19.sp * LocalKawabiScale.current.font,
-                        color = MaterialTheme.colorScheme.primary,
+                        text = "${deduped.size} manga · started titles by ${sort.label.lowercase()}",
+                        fontSize = 13.sp * scale.font,
+                        color = NightSession.TextDim,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
-                },
-                actions = {
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box {
-                        IconButton(onClick = { sortMenuOpen = true }) {
-                            Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "Sort", tint = NightSession.TextDim)
+                        Box(
+                            modifier = Modifier.roundIconButton { sortMenuOpen = true },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.Sort,
+                                contentDescription = "Sort",
+                                tint = NightSession.TextDim,
+                                modifier = Modifier.size(20.dp),
+                            )
                         }
                         DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
                             LibrarySort.entries.forEach { option ->
@@ -181,17 +211,26 @@ fun LibraryScreen(
                             }
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
-            )
-        },
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize().background(NightSession.Background)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    Box(
+                        modifier = Modifier.roundIconButton(viewModel::refreshAll),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Outlined.Refresh,
+                            contentDescription = "Update library",
+                            tint = NightSession.TextDim,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
+
+            LazyRow(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                CategoryFilter.entries.forEach { filter ->
+                items(CategoryFilter.entries) { filter ->
                     NightChip(label = filter.label, selected = selectedCategory == filter, onClick = { selectedCategory = filter })
                 }
             }
@@ -202,22 +241,50 @@ fun LibraryScreen(
                 state = pullState,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                if (sorted.isEmpty()) {
+                if (started.isEmpty() && notStarted.isEmpty()) {
                     EmptyLibrary(modifier = Modifier.fillMaxSize())
                 } else {
                     LazyVerticalGrid(
-                        // Fixed, not Adaptive(minSize=) -- Adaptive keeps adding columns as
-                        // available width grows, so the same minSize meant very different
-                        // column counts on phone vs tablet. A direct user-adjustable column
-                        // count (Settings -> Library grid columns) works the same at any size.
                         columns = GridCells.Fixed(gridColumns),
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(sorted, key = { it.manga.id }) { entry ->
-                            MangaCard(entry, onClick = { onMangaClick(entry.manga.url) })
+                        items(started, key = { it.manga.id }) { entry ->
+                            MediaGridCard(
+                                title = entry.manga.title,
+                                coverUrl = entry.manga.thumbnailUrl,
+                                subtitle = null,
+                                onClick = { onMangaClick(entry.manga.url) },
+                                badge = entry.unreadCount.takeIf { it > 0 }?.toString(),
+                            )
+                        }
+                        if (notStarted.isNotEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                    verticalAlignment = Alignment.Bottom,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    SectionHeader(title = "Not started", modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = "Most chapters first",
+                                        fontSize = 12.sp * scale.font,
+                                        color = NightSession.TextDim,
+                                        modifier = Modifier.padding(bottom = 2.dp),
+                                    )
+                                }
+                            }
+                            items(notStarted, key = { it.manga.id }) { entry ->
+                                MediaGridCard(
+                                    title = entry.manga.title,
+                                    coverUrl = entry.manga.thumbnailUrl,
+                                    subtitle = null,
+                                    onClick = { onMangaClick(entry.manga.url) },
+                                    pill = "${formatChapterNumber(entry.manga.totalChapters)} ch",
+                                )
+                            }
                         }
                     }
                 }
@@ -230,55 +297,5 @@ fun LibraryScreen(
 private fun EmptyLibrary(modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text(text = "Your library is empty", style = MaterialTheme.typography.titleMedium, color = NightSession.Text)
-    }
-}
-
-@Composable
-private fun MangaCard(entry: MangaWithUnreadCount, onClick: () -> Unit) {
-    val manga: Manga = entry.manga
-    val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            AsyncImage(
-                model = resolveCoverUrl(manga.thumbnailUrl),
-                contentDescription = manga.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(NightSession.RadiusMd))
-                    .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
-                    .background(NightSession.Cover),
-            )
-            if (entry.unreadCount > 0) {
-                Text(
-                    text = "${entry.unreadCount}",
-                    fontSize = 9.sp * scale.font,
-                    fontWeight = FontWeight.Bold,
-                    color = NightSession.OnAccent,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp * scale.spacing)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        .padding(horizontal = 6.dp * scale.spacing, vertical = 2.dp * scale.spacing),
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(5.dp * scale.spacing))
-        Text(
-            text = manga.title,
-            fontSize = 10.5.sp * scale.font,
-            fontWeight = FontWeight.SemiBold,
-            color = NightSession.Text,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        entry.lastReadChapterNumber?.let { lastRead ->
-            Text(
-                text = "Ch. ${formatChapterNumber(lastRead)}",
-                fontSize = 9.sp * scale.font,
-                color = NightSession.TextDim,
-            )
-        }
     }
 }

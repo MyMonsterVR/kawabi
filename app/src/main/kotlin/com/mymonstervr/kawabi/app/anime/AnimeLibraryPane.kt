@@ -100,7 +100,7 @@ internal fun AnimeLibraryPane(
                     )
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(NightSession.RadiusMd),
+                shape = RoundedCornerShape(14.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = NightSession.Chip,
@@ -112,7 +112,7 @@ internal fun AnimeLibraryPane(
                 ),
                 modifier = Modifier
                     .weight(1f)
-                    .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
+                    .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(14.dp)),
             )
             Box {
                 IconButton(onClick = { sortMenuOpen = true }) {
@@ -159,7 +159,7 @@ internal fun AnimeLibraryPane(
                 columns = GridCells.Fixed(gridColumns),
                 contentPadding = PaddingValues(16.dp * scale.spacing),
                 horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
-                verticalArrangement = Arrangement.spacedBy(14.dp * scale.spacing),
+                verticalArrangement = Arrangement.spacedBy(18.dp * scale.spacing),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(shown, key = { it.anime.id }) { entry ->

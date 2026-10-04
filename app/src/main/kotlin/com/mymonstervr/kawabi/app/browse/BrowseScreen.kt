@@ -95,8 +95,8 @@ fun BrowseScreen(
         ResponsiveContainer(modifier = Modifier.padding(padding)) {
             Column(modifier = Modifier.fillMaxSize().background(NightSession.Background)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     NightChip(label = BrowseSort.POPULAR.label, selected = sort == BrowseSort.POPULAR, onClick = { viewModel.setSort(BrowseSort.POPULAR) })
                     if (supportsLatest) {
@@ -115,7 +115,7 @@ fun BrowseScreen(
                         columns = GridCells.Fixed(gridColumns),
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(items, key = { it.url }) { result ->

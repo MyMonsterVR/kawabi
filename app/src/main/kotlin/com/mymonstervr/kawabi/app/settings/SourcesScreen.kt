@@ -3,12 +3,13 @@ package com.mymonstervr.kawabi.app.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.app.common.BackScaffold
+import com.mymonstervr.kawabi.app.common.glass
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.SourceToggleDto
@@ -44,10 +46,14 @@ fun SourcesScreen(onBack: () -> Unit, viewModel: SourcesViewModel = koinViewMode
                 is SourcesState.Error -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Text(text = current.message, color = MaterialTheme.colorScheme.error)
                 }
-                is SourcesState.Success -> LazyColumn {
-                    items(current.sources, key = { it.key }) { source ->
-                        SourceRow(source, onToggle = { enabled -> viewModel.toggle(source.key, enabled) })
-                        HorizontalDivider(color = NightSession.Hairline)
+                is SourcesState.Success -> LazyColumn(contentPadding = PaddingValues(16.dp)) {
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth().glass()) {
+                            current.sources.forEachIndexed { index, source ->
+                                if (index > 0) HorizontalDivider(color = NightSession.Hairline)
+                                SourceRow(source, onToggle = { enabled -> viewModel.toggle(source.key, enabled) })
+                            }
+                        }
                     }
                 }
             }
@@ -59,12 +65,12 @@ fun SourcesScreen(onBack: () -> Unit, viewModel: SourcesViewModel = koinViewMode
 private fun SourceRow(source: SourceToggleDto, onToggle: (Boolean) -> Unit) {
     val scale = LocalKawabiScale.current
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 10.dp * scale.spacing),
+        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = source.name, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
-            Text(text = source.key, fontSize = 10.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+            Text(text = source.name, fontSize = 15.sp * scale.font, color = NightSession.Text)
+            Text(text = source.key, fontSize = 12.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
         }
         Switch(
             checked = source.enabled,

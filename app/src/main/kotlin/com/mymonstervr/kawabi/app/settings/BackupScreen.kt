@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.app.common.BackScaffold
+import com.mymonstervr.kawabi.app.common.glass
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import java.text.SimpleDateFormat
@@ -64,17 +65,18 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = koinViewModel(
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(
                 text = "Exports your library, categories, and read/progress state as a JSON file. Doesn't include account/tracker login.",
-                fontSize = 11.5.sp * LocalKawabiScale.current.font,
+                fontSize = 13.sp * LocalKawabiScale.current.font,
                 color = NightSession.TextDim,
+                modifier = Modifier.fillMaxWidth().glass().padding(16.dp),
             )
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
                 onClick = { exportLauncher.launch(defaultBackupFileName()) },
                 enabled = state !is BackupOpState.Running,
-                shape = RoundedCornerShape(NightSession.RadiusMd),
+                shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
             ) { Text("Export backup", fontWeight = FontWeight.Bold) }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -82,10 +84,10 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = koinViewModel(
             OutlinedButton(
                 onClick = { importLauncher.launch(arrayOf("application/json")) },
                 enabled = state !is BackupOpState.Running,
-                shape = RoundedCornerShape(NightSession.RadiusMd),
+                shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = NightSession.Text),
                 border = androidx.compose.foundation.BorderStroke(1.dp, NightSession.Hairline),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
             ) { Text("Import backup") }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -93,7 +95,7 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = koinViewModel(
             when (val current = state) {
                 is BackupOpState.Running -> Text("Working…", color = NightSession.TextDim)
                 is BackupOpState.Success -> Text(current.message, color = NightSession.Read)
-                is BackupOpState.Error -> Text(current.message, color = MaterialTheme.colorScheme.error)
+                is BackupOpState.Error -> Text(current.message, color = NightSession.Danger)
                 BackupOpState.Idle -> {}
             }
         }

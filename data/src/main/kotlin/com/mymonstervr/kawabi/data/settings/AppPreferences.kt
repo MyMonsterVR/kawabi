@@ -76,6 +76,7 @@ class AppPreferences(private val context: Context) {
     private val pageFitModeKey = stringPreferencesKey("page_fit_mode")
     private val markReadThresholdKey = intPreferencesKey("mark_read_threshold")
     private val themePaletteKey = stringPreferencesKey("theme_palette")
+    private val redesignThemeAppliedKey = booleanPreferencesKey("redesign_theme_applied")
     private val amoledBlackKey = booleanPreferencesKey("amoled_black")
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val animeAutoMarkWatchedThresholdKey = floatPreferencesKey("anime_auto_mark_watched_threshold")
@@ -226,6 +227,16 @@ class AppPreferences(private val context: Context) {
 
     val themePalette: Flow<ThemePalette> = context.settingsDataStore.data.map { prefs ->
         prefs[themePaletteKey]?.let { runCatching { ThemePalette.valueOf(it) }.getOrNull() } ?: ThemePalette.NIGHT_SESSION
+    }
+
+    suspend fun applyRedesignThemeOnce() {
+        context.settingsDataStore.edit { prefs ->
+            if (prefs[redesignThemeAppliedKey] == true) return@edit
+            prefs[themePaletteKey] = ThemePalette.NIGHT_SESSION.name
+            prefs[accentIndexKey] = 0
+            prefs[dynamicColorKey] = false
+            prefs[redesignThemeAppliedKey] = true
+        }
     }
 
     suspend fun setThemePalette(palette: ThemePalette) {

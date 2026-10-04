@@ -7,6 +7,16 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.mymonstervr.kawabi.app.common.PrimaryActionButton
+import com.mymonstervr.kawabi.app.common.glass
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -211,7 +221,7 @@ fun PlayerScreen(
                     { dismissedEndPromptRanges = dismissedEndPromptRanges + earlyEndPrompt!!.start.toInt() }
                 },
                 dismissLabel = if (ended) "Back to episodes" else "Dismiss",
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
@@ -434,25 +444,66 @@ private fun EndOfEpisodeOverlay(
         }
         onNext(next)
     }
-    Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(NightSession.RadiusMd),
-        color = Color.Black.copy(alpha = 0.85f),
-        modifier = modifier.padding(24.dp),
+    val accent = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = modifier
+            .background(Color(0xFF07060A).copy(alpha = 0.82f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+            .padding(horizontal = 56.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterHorizontally),
     ) {
-        Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(modifier = Modifier.widthIn(max = 280.dp)) {
+            Text(
+                text = if (nextEpisodeKey != null) "Episode finished" else "Last episode",
+                color = accent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.6.sp,
+            )
             Text(
                 text = if (nextEpisodeKey != null) "Next episode in $remaining…" else "That was the last episode",
-                color = Color.White,
-                fontSize = 13.sp,
+                color = NightSession.Text,
+                fontSize = 26.sp,
+                lineHeight = 28.sp,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp),
             )
-            Row(modifier = Modifier.padding(top = 8.dp)) {
-                if (nextEpisodeKey != null) {
-                    TextButton(onClick = { onNext(nextEpisodeKey) }) {
-                        Text("Play now", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                TextButton(onClick = onBack) { Text(dismissLabel, color = Color.White.copy(alpha = 0.8f)) }
+            Box(
+                modifier = Modifier
+                    .padding(top = 18.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = dismissLabel, color = NightSession.Text, fontSize = 13.sp)
+            }
+        }
+        if (nextEpisodeKey != null) {
+            Column(
+                modifier = Modifier
+                    .width(300.dp)
+                    .glass(RoundedCornerShape(20.dp))
+                    .border(1.dp, accent, RoundedCornerShape(20.dp))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "UP NEXT",
+                    color = NightSession.TextDim,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.1.sp,
+                )
+                PrimaryActionButton(
+                    title = "Play now",
+                    subtitle = "Starting in ${remaining}s",
+                    onClick = { onNext(nextEpisodeKey) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

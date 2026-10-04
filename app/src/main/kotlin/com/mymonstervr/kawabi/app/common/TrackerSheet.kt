@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -109,6 +111,33 @@ private fun unitPlural(mediaType: MediaType) = if (mediaType == MediaType.ANIME)
 private fun progressLabel(mediaType: MediaType) =
     if (mediaType == MediaType.ANIME) "Episodes watched" else "Chapters read"
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TrackerLinkSheet(
+    onDismiss: () -> Unit,
+    rows: List<TrackerSheetRow>,
+    onOpenSearch: (trackerId: String) -> Unit,
+    onOpenEdit: (trackerId: String) -> Unit,
+    onGoToSettings: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = NightSession.Chip,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 10.dp, bottom = 6.dp)
+                    .size(width = 40.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(100))
+                    .background(Color.White.copy(alpha = 0.18f)),
+            )
+        },
+    ) {
+        TrackerLinkSheetContent(rows, onOpenSearch, onOpenEdit, onGoToSettings)
+    }
+}
+
 @Composable
 fun TrackerLinkSheetContent(
     rows: List<TrackerSheetRow>,
@@ -118,21 +147,30 @@ fun TrackerLinkSheetContent(
 ) {
     val scale = LocalKawabiScale.current
     Column(modifier = Modifier.padding(horizontal = 16.dp * scale.spacing).padding(bottom = 24.dp * scale.spacing)) {
-        Text("Tracker links", fontSize = 14.sp * scale.font, fontWeight = FontWeight.Bold, color = NightSession.Text, modifier = Modifier.padding(bottom = 8.dp * scale.spacing))
+        Text(
+            "Tracker links",
+            fontSize = 20.sp * scale.font,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.3).sp,
+            color = NightSession.Text,
+            modifier = Modifier.padding(bottom = 12.dp * scale.spacing),
+        )
         if (rows.isEmpty()) {
-            Text("Not connected to any tracker yet.", fontSize = 11.5.sp * scale.font, color = NightSession.TextDim)
+            Text("Not connected to any tracker yet.", fontSize = 13.sp * scale.font, color = NightSession.TextDim)
             Spacer(Modifier.height(8.dp * scale.spacing))
             TextButton(onClick = onGoToSettings) {
-                Text("Go to Settings -> Tracking services", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
+                Text("Go to Settings -> Tracking services", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp * scale.font, fontWeight = FontWeight.SemiBold)
             }
         } else {
-            rows.forEachIndexed { index, row ->
-                TrackerLinkRowContent(
-                    row = row,
-                    onClick = { if (row.linked != null) onOpenEdit(row.trackerId) else onOpenSearch(row.trackerId) },
-                )
-                if (index != rows.lastIndex) {
-                    HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(vertical = 8.dp * scale.spacing))
+            Column(modifier = Modifier.fillMaxWidth().glass(RoundedCornerShape(18.dp))) {
+                rows.forEachIndexed { index, row ->
+                    TrackerLinkRowContent(
+                        row = row,
+                        onClick = { if (row.linked != null) onOpenEdit(row.trackerId) else onOpenSearch(row.trackerId) },
+                    )
+                    if (index != rows.lastIndex) {
+                        HorizontalDivider(color = NightSession.Hairline)
+                    }
                 }
             }
         }
@@ -144,10 +182,14 @@ private fun TrackerLinkRowContent(row: TrackerSheetRow, onClick: () -> Unit) {
     val scale = LocalKawabiScale.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp * scale.spacing),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 64.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp * scale.spacing, vertical = 10.dp * scale.spacing),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(row.trackerName, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+            Text(row.trackerName, fontSize = 15.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
             val linked = row.linked
             Text(
                 text = when {
@@ -158,14 +200,23 @@ private fun TrackerLinkRowContent(row: TrackerSheetRow, onClick: () -> Unit) {
                         if (linked.score > 0) append(" ★ ${formatChapterNumber(linked.score)}")
                     }
                 },
-                fontSize = 10.5.sp * scale.font,
+                fontSize = 12.sp * scale.font,
                 color = NightSession.TextDim,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
-        if (row.linked != null) {
-            Icon(Icons.Outlined.Edit, contentDescription = "Edit ${row.trackerName} link", tint = NightSession.TextDim, modifier = Modifier.size(16.dp * scale.spacing))
-        } else {
-            Icon(Icons.Filled.Add, contentDescription = "Link on ${row.trackerName}", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp * scale.spacing))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (row.linked != null) Color.White.copy(alpha = 0.07f) else accentSoft()),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (row.linked != null) {
+                Icon(Icons.Outlined.Edit, contentDescription = "Edit ${row.trackerName} link", tint = NightSession.TextDim, modifier = Modifier.size(18.dp))
+            } else {
+                Icon(Icons.Filled.Add, contentDescription = "Link on ${row.trackerName}", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }

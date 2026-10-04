@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.app.common.BackScaffold
+import com.mymonstervr.kawabi.app.common.glass
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 
@@ -87,13 +89,13 @@ fun ChangelogScreen(onBack: () -> Unit) {
 @Composable
 private fun ChangelogEntryCard(entry: ChangelogEntry) {
     val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp * scale.spacing)) {
-        Text(text = entry.title, fontSize = 13.sp * scale.font, fontWeight = FontWeight.Bold, color = NightSession.Text)
-        Column(modifier = Modifier.padding(top = 6.dp * scale.spacing)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp * scale.spacing).glass().padding(16.dp * scale.spacing)) {
+        Text(text = entry.title, fontSize = 15.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+        Column(modifier = Modifier.padding(top = 8.dp * scale.spacing)) {
             entry.changes.forEach { change ->
                 Row(modifier = Modifier.padding(vertical = 3.dp * scale.spacing)) {
-                    Text("-  ", fontSize = 11.5.sp * scale.font, color = NightSession.TextDim)
-                    Text(change, fontSize = 11.5.sp * scale.font, color = NightSession.TextDim)
+                    Text("\u2022  ", fontSize = 13.sp * scale.font, color = MaterialTheme.colorScheme.primary)
+                    Text(change, fontSize = 13.sp * scale.font, color = NightSession.TextDim)
                 }
             }
         }

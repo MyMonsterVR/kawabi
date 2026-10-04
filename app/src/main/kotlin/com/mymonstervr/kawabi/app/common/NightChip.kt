@@ -4,11 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -18,25 +20,27 @@ import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 
-// Shared pill-chip look used by Library's category filter and Search's
-// source row. Non-selectable usages (e.g. tap-to-navigate) just omit
-// `selected` and get the unselected look.
 @Composable
 fun NightChip(label: String, selected: Boolean = false, onClick: () -> Unit) {
     val scale = LocalKawabiScale.current
+    val accent = MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(100)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(100))
-            .background(if (selected) MaterialTheme.colorScheme.primary else NightSession.Chip)
-            .border(1.dp, if (selected) Color.Transparent else NightSession.Hairline, RoundedCornerShape(100))
+            .defaultMinSize(minHeight = 36.dp * scale.spacing)
+            .clip(shape)
+            .background(if (selected) accent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f))
+            .border(1.dp, if (selected) accent else Color.White.copy(alpha = 0.1f), shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp * scale.spacing, vertical = 6.dp * scale.spacing),
+            .padding(horizontal = 14.dp * scale.spacing),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            fontSize = 11.sp * scale.font,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) NightSession.OnAccent else NightSession.TextDim,
+            fontSize = 13.sp * scale.font,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) accent else NightSession.TextDim,
+            maxLines = 1,
         )
     }
 }

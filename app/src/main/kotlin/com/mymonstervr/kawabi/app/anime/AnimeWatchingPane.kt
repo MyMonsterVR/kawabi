@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,8 +99,8 @@ private fun WatchingRow(entry: AnimeLibraryEntry, onClick: () -> Unit, onLongCli
                 modifier = Modifier
                     .width(ROW_THUMB_WIDTH * scale.spacing)
                     .height(ROW_THUMB_HEIGHT * scale.spacing)
-                    .clip(RoundedCornerShape(NightSession.RadiusSm))
-                    .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusSm))
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp))
                     .background(NightSession.Cover),
             )
             Column(modifier = Modifier.weight(1f)) {

@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,25 +21,32 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.mymonstervr.kawabi.app.common.MediaGridCard
+import com.mymonstervr.kawabi.app.common.CoverPill
+import com.mymonstervr.kawabi.app.common.SectionHeader
+import com.mymonstervr.kawabi.app.common.SegmentedTabs
+import com.mymonstervr.kawabi.app.common.glass
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import com.mymonstervr.kawabi.data.network.dto.AnimeCardDto
@@ -50,10 +57,22 @@ import com.mymonstervr.kawabi.domain.model.NewEpisode
 import com.mymonstervr.kawabi.domain.model.formatChapterNumber
 import com.mymonstervr.kawabi.domain.model.formatRelativeTime
 
-private val CONTINUE_CARD_WIDTH = 116.dp
-private val RELEASE_CARD_WIDTH = 104.dp
-private val EPISODE_THUMB_WIDTH = 46.dp
-private val EPISODE_THUMB_HEIGHT = 64.dp
+private val CONTINUE_CARD_WIDTH = 128.dp
+private val PROGRESS_RED = Color(0xFFEF4D55)
+private const val FEED_PAGE_SIZE = 9
+private const val FEED_COLUMNS = 3
+private const val NEW_EPISODE_WINDOW_MS = 3L * 24 * 60 * 60 * 1000
+
+private class FeedCard(
+    val key: String,
+    val title: String,
+    val coverUrl: String?,
+    val source: String?,
+    val pill: String?,
+    val isNew: Boolean,
+    val subtitle: String?,
+    val onClick: () -> Unit,
+)
 
 @Composable
 internal fun AnimeHomePane(
@@ -69,6 +88,8 @@ internal fun AnimeHomePane(
     onRetryNewReleases: () -> Unit,
 ) {
     val scale = LocalKawabiScale.current
+    var feedTab by rememberSaveable { mutableIntStateOf(0) }
+    var page by rememberSaveable { mutableIntStateOf(0) }
     val continueRail = remember(entries) {
         entries.filter { it.status == AnimeWatchStatus.WATCHING && it.unwatchedCount > 0 }
             .sortedByDescending { it.anime.lastWatchedAt }
@@ -85,73 +106,129 @@ internal fun AnimeHomePane(
         return
     }
 
+    val feedState: SectionState<FeedCard> = if (feedTab == 0) {
+        when (newEpisodes) {
+            is SectionState.Loading -> SectionState.Loading
+            is SectionState.Error -> SectionState.Error(newEpisodes.message)
+            is SectionState.Loaded -> SectionState.Loaded(
+                newEpisodes.items.map { episode ->
+                    FeedCard(
+                        key = "e${episode.episodeId}",
+                        title = episode.animeTitle,
+                        coverUrl = episode.animeThumbnailUrl,
+                        source = episode.animeSource,
+                        pill = if (episode.episodeNumber >= 0) "EP ${formatChapterNumber(episode.episodeNumber)}" else null,
+                        isNew = episode.dateUpload > 0 && System.currentTimeMillis() - episode.dateUpload < NEW_EPISODE_WINDOW_MS,
+                        subtitle = formatRelativeTime(episode.dateUpload),
+                        onClick = { onEpisodeClick(episode.episodeKey) },
+                    )
+                },
+            )
+        }
+    } else {
+        when (newReleases) {
+            is SectionState.Loading -> SectionState.Loading
+            is SectionState.Error -> SectionState.Error(newReleases.message)
+            is SectionState.Loaded -> SectionState.Loaded(
+                newReleases.items.map { card ->
+                    FeedCard(
+                        key = "r${card.key}",
+                        title = card.displayTitle ?: card.title,
+                        coverUrl = card.cover_url,
+                        source = card.source,
+                        pill = null,
+                        isNew = false,
+                        subtitle = card.source_name.ifBlank { null },
+                        onClick = { onReleaseClick(card) },
+                    )
+                },
+            )
+        }
+    }
+    val feedTotal = (feedState as? SectionState.Loaded)?.items?.size ?: 0
+    val safePage = page.coerceIn(0, ((feedTotal - 1) / FEED_PAGE_SIZE).coerceAtLeast(0))
+    val hasPrev = safePage > 0
+    val hasNext = (safePage + 1) * FEED_PAGE_SIZE < feedTotal
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp * scale.spacing),
     ) {
         if (continueRail.isNotEmpty()) {
             item {
-                AnimeSectionHeader("Continue watching")
+                SectionHeader(
+                    title = "Continue watching",
+                    actionLabel = "See all",
+                    onAction = onSeeAllWatching,
+                    modifier = Modifier.padding(start = 16.dp * scale.spacing, end = 8.dp * scale.spacing, top = 12.dp * scale.spacing),
+                )
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp * scale.spacing),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
+                    contentPadding = PaddingValues(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp * scale.spacing),
                 ) {
                     items(continueRail, key = { it.anime.id }) { entry ->
                         ContinueCard(entry = entry, onClick = { onContinue(entry.anime.id, entry.anime.key) })
                     }
-                    item { SeeAllTile(onClick = onSeeAllWatching) }
                 }
             }
         }
 
         item {
-            AnimeSectionHeader("New episodes for you", loading = newEpisodes is SectionState.Loading)
-        }
-        when (newEpisodes) {
-            is SectionState.Loading -> item { ShimmerRail() }
-            is SectionState.Error -> item {
-                AnimeSectionError(message = newEpisodes.message, onRetry = onRetryNewEpisodes)
-            }
-            is SectionState.Loaded -> {
-                if (newEpisodes.items.isEmpty()) {
-                    item { AnimeSectionNote("No new episodes in the last two weeks.") }
-                } else {
-                    items(newEpisodes.items, key = { it.episodeId }) { episode ->
-                        NewEpisodeRow(episode = episode, onClick = { onEpisodeClick(episode.episodeKey) })
-                    }
-                }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp * scale.spacing)
+                    .padding(top = 18.dp * scale.spacing, bottom = 14.dp * scale.spacing),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                SegmentedTabs(
+                    options = listOf("Episodes", "Releases"),
+                    selectedIndex = feedTab,
+                    onSelect = { feedTab = it; page = 0 },
+                    equalWidth = false,
+                )
+                FeedPager(
+                    hasPrev = hasPrev,
+                    hasNext = hasNext,
+                    onPrev = { page = safePage - 1 },
+                    onNext = { page = safePage + 1 },
+                )
             }
         }
 
-        // Hidden entirely only once loaded with nothing -- a broken rail is worse than no
-        // rail on a screen that's otherwise fully usable offline, but a loading/error state
-        // still needs to render so the section doesn't look like it's missing.
-        when (newReleases) {
-            is SectionState.Loading -> item {
-                AnimeSectionHeader("New releases", loading = true)
-                ShimmerRail()
-            }
+        when (feedState) {
+            is SectionState.Loading -> item { ShimmerGrid() }
             is SectionState.Error -> item {
-                AnimeSectionHeader("New releases")
-                AnimeSectionError(message = newReleases.message, onRetry = onRetryNewReleases)
+                AnimeSectionError(
+                    message = feedState.message,
+                    onRetry = if (feedTab == 0) onRetryNewEpisodes else onRetryNewReleases,
+                )
             }
-            is SectionState.Loaded -> if (newReleases.items.isNotEmpty()) {
-                item {
-                    AnimeSectionHeader("New releases")
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp * scale.spacing),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
-                    ) {
-                        items(newReleases.items, key = { it.key }) { card ->
-                            Box(modifier = Modifier.width(RELEASE_CARD_WIDTH * scale.spacing)) {
-                                MediaGridCard(
-                                    title = card.title,
-                                    coverUrl = card.cover_url,
-                                    subtitle = card.source_name,
-                                    onClick = { onReleaseClick(card) },
-                                    source = card.source,
-                                )
+            is SectionState.Loaded -> {
+                if (feedState.items.isEmpty()) {
+                    item {
+                        AnimeSectionNote(
+                            if (feedTab == 0) "No new episodes in the last two weeks." else "No new releases right now.",
+                        )
+                    }
+                } else {
+                    val rows = feedState.items
+                        .drop(safePage * FEED_PAGE_SIZE)
+                        .take(FEED_PAGE_SIZE)
+                        .chunked(FEED_COLUMNS)
+                    items(rows, key = { row -> row.first().key }) { row ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp * scale.spacing)
+                                .padding(bottom = 18.dp * scale.spacing),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
+                        ) {
+                            row.forEach { card ->
+                                Box(modifier = Modifier.weight(1f)) { FeedCardView(card) }
                             }
+                            repeat(FEED_COLUMNS - row.size) { Box(modifier = Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -161,7 +238,90 @@ internal fun AnimeHomePane(
 }
 
 @Composable
-private fun ShimmerRail() {
+private fun FeedPager(hasPrev: Boolean, hasNext: Boolean, onPrev: () -> Unit, onNext: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(modifier = Modifier.glass(shape).padding(3.dp)) {
+        PagerButton(enabled = hasPrev, onClick = onPrev, newer = true)
+        PagerButton(enabled = hasNext, onClick = onNext, newer = false)
+    }
+}
+
+@Composable
+private fun PagerButton(enabled: Boolean, onClick: () -> Unit, newer: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = if (newer) Icons.AutoMirrored.Filled.KeyboardArrowLeft else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = if (newer) "Newer" else "Older",
+            tint = if (enabled) MaterialTheme.colorScheme.primary else NightSession.TextDim.copy(alpha = 0.4f),
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+@Composable
+private fun FeedCardView(card: FeedCard) {
+    val scale = LocalKawabiScale.current
+    val shape = RoundedCornerShape(12.dp)
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = card.onClick)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(shape)
+                .background(NightSession.Cover)
+                .border(1.dp, Color.White.copy(alpha = 0.07f), shape),
+        ) {
+            AsyncImage(
+                model = resolveCoverUrl(card.coverUrl, card.source),
+                contentDescription = card.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (card.pill != null) {
+                CoverPill(
+                    text = card.pill,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(7.dp),
+                )
+            }
+            if (card.isNew) {
+                CoverPill(
+                    text = "NEW",
+                    accent = true,
+                    modifier = Modifier.align(Alignment.TopStart).padding(7.dp),
+                )
+            }
+        }
+        Text(
+            text = card.title,
+            fontSize = 12.sp * scale.font,
+            lineHeight = 15.6.sp * scale.font,
+            fontWeight = FontWeight.Medium,
+            color = NightSession.Text,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        if (!card.subtitle.isNullOrBlank()) {
+            Text(
+                text = card.subtitle,
+                fontSize = 11.sp * scale.font,
+                color = NightSession.TextDim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShimmerGrid() {
     val scale = LocalKawabiScale.current
     Row(
         modifier = Modifier
@@ -169,12 +329,12 @@ private fun ShimmerRail() {
             .padding(horizontal = 16.dp * scale.spacing),
         horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
     ) {
-        repeat(3) {
+        repeat(FEED_COLUMNS) {
             Box(
                 modifier = Modifier
-                    .width(RELEASE_CARD_WIDTH * scale.spacing)
+                    .weight(1f)
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(NightSession.RadiusMd))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(NightSession.Chip),
             )
         }
@@ -198,148 +358,61 @@ private fun AnimeSectionError(message: String, onRetry: () -> Unit) {
 @Composable
 private fun ContinueCard(entry: AnimeLibraryEntry, onClick: () -> Unit) {
     val scale = LocalKawabiScale.current
+    val shape = RoundedCornerShape(12.dp)
     Column(
         modifier = Modifier
             .width(CONTINUE_CARD_WIDTH * scale.spacing)
             .clickable(onClick = onClick),
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            AsyncImage(
-                model = resolveCoverUrl(entry.anime.thumbnailUrl, entry.anime.source),
-                contentDescription = entry.anime.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(NightSession.RadiusMd))
-                    .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
-                    .background(NightSession.Cover),
-            )
-            Icon(
-                Icons.Outlined.PlayArrow,
-                contentDescription = null,
-                tint = NightSession.OnAccent,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(6.dp * scale.spacing)
-                    .clip(RoundedCornerShape(100))
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(3.dp * scale.spacing)
-                    .size(13.dp * scale.spacing),
-            )
-        }
-        // Progress is drawn as its own bar under the cover rather than over it: the
-        // watched/total ratio is the point of this rail, and an overlay on a busy cover
-        // is the first thing to become unreadable.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp * scale.spacing)
-                .height(3.dp)
-                .clip(RoundedCornerShape(100))
-                .background(NightSession.Chip),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(entry.watchedFraction)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(100))
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
-        Spacer(modifier = Modifier.height(5.dp * scale.spacing))
-        Text(
-            text = entry.anime.title,
-            fontSize = 10.5.sp * scale.font,
-            fontWeight = FontWeight.SemiBold,
-            color = NightSession.Text,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = entry.nextUnwatchedNumber?.let { "Ep ${formatChapterNumber(it)}" }
-                ?: "${entry.unwatchedCount} to watch",
-            fontSize = 9.5.sp * scale.font,
-            color = MaterialTheme.colorScheme.primary,
-        )
-    }
-}
-
-@Composable
-private fun SeeAllTile(onClick: () -> Unit) {
-    val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.width(CONTINUE_CARD_WIDTH * scale.spacing).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(NightSession.RadiusMd))
-                .background(NightSession.Chip)
-                .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
-            contentAlignment = Alignment.Center,
+                .clip(shape)
+                .background(NightSession.Cover)
+                .border(1.dp, Color.White.copy(alpha = 0.07f), shape),
         ) {
-            Icon(
-                Icons.AutoMirrored.Outlined.ArrowForward,
-                contentDescription = null,
-                tint = NightSession.TextDim,
-                modifier = Modifier.size(18.dp * scale.spacing),
+            AsyncImage(
+                model = resolveCoverUrl(entry.anime.thumbnailUrl, entry.anime.source),
+                contentDescription = entry.anime.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
+            entry.nextUnwatchedNumber?.let { next ->
+                CoverPill(
+                    text = "EP ${formatChapterNumber(next)}",
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(NightSession.Background.copy(alpha = 0.7f)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(entry.watchedFraction.coerceIn(0f, 1f))
+                        .background(PROGRESS_RED),
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(11.dp * scale.spacing))
         Text(
-            text = "See all",
-            fontSize = 10.5.sp * scale.font,
-            fontWeight = FontWeight.SemiBold,
+            text = entry.anime.title,
+            fontSize = 13.sp * scale.font,
+            fontWeight = FontWeight.Medium,
+            color = NightSession.Text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 9.dp),
+        )
+        Text(
+            text = "${entry.unwatchedCount} left",
+            fontSize = 11.sp * scale.font,
             color = NightSession.TextDim,
+            modifier = Modifier.padding(top = 2.dp),
         )
     }
-}
-
-@Composable
-private fun NewEpisodeRow(episode: NewEpisode, onClick: () -> Unit) {
-    val scale = LocalKawabiScale.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp * scale.spacing),
-    ) {
-        AsyncImage(
-            model = resolveCoverUrl(episode.animeThumbnailUrl, episode.animeSource),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .width(EPISODE_THUMB_WIDTH * scale.spacing)
-                .height(EPISODE_THUMB_HEIGHT * scale.spacing)
-                .clip(RoundedCornerShape(NightSession.RadiusSm))
-                .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusSm))
-                .background(NightSession.Cover),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = episode.animeTitle,
-                fontSize = 11.5.sp * scale.font,
-                fontWeight = FontWeight.SemiBold,
-                color = NightSession.Text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = newEpisodeLabel(episode),
-                fontSize = 10.5.sp * scale.font,
-                color = NightSession.TextDim,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        formatRelativeTime(episode.dateUpload)?.let { relative ->
-            Text(text = relative, fontSize = 9.5.sp * scale.font, color = MaterialTheme.colorScheme.primary)
-        }
-    }
-}
-
-private fun newEpisodeLabel(episode: NewEpisode): String = episode.name.ifBlank {
-    if (episode.episodeNumber >= 0) "Episode ${formatChapterNumber(episode.episodeNumber)}" else "New episode"
 }

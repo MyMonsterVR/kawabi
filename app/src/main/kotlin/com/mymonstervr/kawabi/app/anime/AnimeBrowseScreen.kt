@@ -18,14 +18,10 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,17 +29,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mymonstervr.kawabi.app.common.LoadingStateBox
 import com.mymonstervr.kawabi.app.common.MediaGridCard
 import com.mymonstervr.kawabi.app.common.NightChip
+import com.mymonstervr.kawabi.app.common.PageTitle
 import com.mymonstervr.kawabi.app.common.ResponsiveContainer
+import com.mymonstervr.kawabi.app.common.roundIconButton
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnimeBrowseScreen(
     sourceKey: String,
@@ -74,22 +69,24 @@ fun AnimeBrowseScreen(
     Scaffold(
         containerColor = NightSession.Background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        sourceName.ifEmpty { "Browse" },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = NightSession.Text,
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(NightSession.Background)
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(modifier = Modifier.roundIconButton(onBack), contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = NightSession.Text,
+                        modifier = Modifier.padding(horizontal = 12.dp).size(20.dp),
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = NightSession.Text)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
-            )
+                }
+                PageTitle(sourceName.ifEmpty { "Browse" })
+            }
         },
     ) { padding ->
         ResponsiveContainer(modifier = Modifier.padding(padding)) {
@@ -123,12 +120,12 @@ fun AnimeBrowseScreen(
                         columns = GridCells.Fixed(gridColumns),
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(items, key = { it.key }) { result ->
                             MediaGridCard(
-                                title = result.title,
+                                title = result.displayTitle ?: result.title,
                                 coverUrl = result.cover_url,
                                 subtitle = result.source_name.ifBlank { null },
                                 onClick = { viewModel.openKeyFor(result, onResultClick) },

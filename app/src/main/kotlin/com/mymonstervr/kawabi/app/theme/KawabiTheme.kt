@@ -2,6 +2,7 @@ package com.mymonstervr.kawabi.app.theme
 
 import android.os.Build
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -9,6 +10,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -16,11 +18,16 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.R
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.ThemePalette
 import org.koin.compose.koinInject
@@ -47,15 +54,15 @@ data class KawabiColors(
 // provenance), ported byte-for-byte -- this is the default palette, unchanged from before
 // theme picking existed.
 private val NightSessionPalette = KawabiColors(
-    background = Color(0xFF000000),
-    text = Color(0xFFEFE9E2),
-    textDim = Color(0xFF82796D),
-    onAccent = Color(0xFF1A1206),
-    read = Color(0xFF5F7350),
-    chip = Color(0xFF151513),
-    cover = Color(0xFF26221C),
-    hairline = Color(0xFF211F1A),
-    danger = Color(0xFFC0392B),
+    background = Color(0xFF07060A),
+    text = Color(0xFFECE8DF),
+    textDim = Color(0xFF918C9B),
+    onAccent = Color(0xFF07060A),
+    read = Color(0xFF8FD1A0),
+    chip = Color(0xFF15131C),
+    cover = Color(0xFF1F1D28),
+    hairline = Color(0xFF2B2935),
+    danger = Color(0xFFEF8A6C),
 )
 
 // Catppuccin Mocha (https://catppuccin.com/palette, hex values verified against the official
@@ -131,17 +138,17 @@ object NightSession {
     val RadiusSm = 8.dp
     val RadiusMd = 12.dp
 
-    // Swappable, data-driven accent list (locked decision) -- Ember is the default.
+    // Swappable, data-driven accent list (locked decision) -- Violet is the default.
     // Palette-independent: picking Catppuccin Mocha overrides the resolved accent color
     // (see accentFor above) but doesn't change this list or accentIndex itself, so
     // switching back to Night Session restores whichever accent was previously picked.
     data class Accent(val label: String, val color: Color)
     val Accents = listOf(
-        Accent("Ember", Color(0xFFE2984F)),
+        Accent("Violet", Color(0xFF9D84FF)),
         Accent("Rust", Color(0xFFD9633D)),
         Accent("Moss", Color(0xFF7FAE8A)),
         Accent("Signal Blue", Color(0xFF3D8BD9)),
-        Accent("Violet", Color(0xFFB07DE2)),
+        Accent("Ember", Color(0xFFE2984F)),
         Accent("Rose", Color(0xFFD9527A)),
     )
     val DefaultAccent = Accents.first().color
@@ -177,16 +184,34 @@ private fun TextStyle.scaled(factor: Float): TextStyle =
 // not a custom typeface -- Compose's FontFamily.Default already resolves to Roboto on
 // Android, so this is a faithful port, not a placeholder. font=1f (COMPACT) reproduces
 // this byte-for-byte; MEDIUM/EXPANDED multiply every style's fontSize/lineHeight.
+@OptIn(ExperimentalTextApi::class)
+private fun variableFamily(resId: Int, weights: List<Int>): FontFamily = FontFamily(
+    weights.map { w ->
+        Font(resId, FontWeight(w), variationSettings = FontVariation.Settings(FontVariation.weight(w)))
+    },
+)
+
+val DisplayFamily: FontFamily = variableFamily(R.font.bricolage_grotesque, listOf(500, 600, 700))
+val BodyFamily: FontFamily = variableFamily(R.font.instrument_sans, listOf(400, 500, 600, 700))
+
 private fun kawabiTypography(font: Float): Typography {
     val base = Typography().let {
         it.copy(
-            titleLarge = it.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
-            titleMedium = it.titleMedium.copy(fontWeight = FontWeight.Bold),
-            titleSmall = it.titleSmall.copy(fontWeight = FontWeight.Bold),
-            labelLarge = it.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-            labelMedium = it.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-            labelSmall = it.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-            bodyLarge = it.bodyLarge.copy(fontWeight = FontWeight.Medium),
+            displayLarge = it.displayLarge.copy(fontFamily = DisplayFamily),
+            displayMedium = it.displayMedium.copy(fontFamily = DisplayFamily),
+            displaySmall = it.displaySmall.copy(fontFamily = DisplayFamily),
+            headlineLarge = it.headlineLarge.copy(fontFamily = DisplayFamily),
+            headlineMedium = it.headlineMedium.copy(fontFamily = DisplayFamily),
+            headlineSmall = it.headlineSmall.copy(fontFamily = DisplayFamily),
+            bodyMedium = it.bodyMedium.copy(fontFamily = BodyFamily),
+            bodySmall = it.bodySmall.copy(fontFamily = BodyFamily),
+            titleLarge = it.titleLarge.copy(fontFamily = DisplayFamily, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
+            titleMedium = it.titleMedium.copy(fontFamily = DisplayFamily, fontWeight = FontWeight.Bold),
+            titleSmall = it.titleSmall.copy(fontFamily = BodyFamily, fontWeight = FontWeight.Bold),
+            labelLarge = it.labelLarge.copy(fontFamily = BodyFamily, fontWeight = FontWeight.SemiBold),
+            labelMedium = it.labelMedium.copy(fontFamily = BodyFamily, fontWeight = FontWeight.SemiBold),
+            labelSmall = it.labelSmall.copy(fontFamily = BodyFamily, fontWeight = FontWeight.SemiBold),
+            bodyLarge = it.bodyLarge.copy(fontFamily = BodyFamily, fontWeight = FontWeight.Medium),
         )
     }
     if (font == 1f) return base
@@ -218,6 +243,7 @@ fun KawabiTheme(windowSizeClass: WindowSizeClass, content: @Composable () -> Uni
     val dynamicColorEnabled by preferences.dynamicColor.collectAsState(initial = false)
     val context = LocalContext.current
     val scale = scaleOf(windowSizeClass)
+    LaunchedEffect(Unit) { preferences.applyRedesignThemeOnce() }
 
     // dynamicDarkColorScheme requires API 31+ -- the literal SDK_INT check (not just the
     // derived dynamicColorEnabled bool) is what lint's version-gating actually looks for.
@@ -250,6 +276,8 @@ fun KawabiTheme(windowSizeClass: WindowSizeClass, content: @Composable () -> Uni
         onError = Color.White,
     )
     CompositionLocalProvider(LocalKawabiScale provides scale, LocalKawabiColors provides colors) {
-        MaterialTheme(colorScheme = colorScheme, typography = kawabiTypography(scale.font), content = content)
+        MaterialTheme(colorScheme = colorScheme, typography = kawabiTypography(scale.font)) {
+            CompositionLocalProvider(LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = BodyFamily), content = content)
+        }
     }
 }

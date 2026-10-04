@@ -1,30 +1,21 @@
 package com.mymonstervr.kawabi.app.anime
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -32,13 +23,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mymonstervr.kawabi.app.common.PageTitle
 import com.mymonstervr.kawabi.app.common.ResponsiveContainer
+import com.mymonstervr.kawabi.app.common.SegmentedTabs
+import com.mymonstervr.kawabi.app.common.roundIconButton
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
@@ -72,24 +64,32 @@ fun AnimeScreen(
     Scaffold(
         containerColor = NightSession.Background,
         topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "Anime",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp * scale.font,
-                            color = MaterialTheme.colorScheme.primary,
+            Column(modifier = Modifier.fillMaxWidth().background(NightSession.Background)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp * scale.spacing, end = 16.dp * scale.spacing, top = 18.dp * scale.spacing, bottom = 6.dp * scale.spacing),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    PageTitle("Anime")
+                    Box(modifier = Modifier.roundIconButton(onSearchClick), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Outlined.Search,
+                            contentDescription = "Search anime",
+                            tint = NightSession.TextDim,
+                            modifier = Modifier.padding(horizontal = 12.dp).size(20.dp),
                         )
-                    },
-                    actions = {
-                        IconButton(onClick = onSearchClick) {
-                            Icon(Icons.Outlined.Search, contentDescription = "Search anime", tint = NightSession.TextDim)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = NightSession.Background),
+                    }
+                }
+                SegmentedTabs(
+                    options = AnimeTab.entries.map { it.label },
+                    selectedIndex = tab.ordinal,
+                    onSelect = { viewModel.selectTab(AnimeTab.entries[it]) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
                 )
-                AnimeTabRow(selected = tab, onSelect = viewModel::selectTab)
             }
         },
     ) { padding ->
@@ -141,49 +141,6 @@ fun AnimeScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AnimeTabRow(selected: AnimeTab, onSelect: (AnimeTab) -> Unit) {
-    val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.fillMaxWidth().background(NightSession.Background)) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            AnimeTab.entries.forEach { entry ->
-                val isSelected = entry == selected
-                val indicatorAlpha by animateFloatAsState(if (isSelected) 1f else 0f, label = "tabIndicator")
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onSelect(entry) }
-                        .padding(top = 4.dp * scale.spacing),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = entry.label,
-                        fontSize = 12.5.sp * scale.font,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) NightSession.Text else NightSession.TextDim,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(bottom = 8.dp * scale.spacing),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.5f)
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(100))
-                            .background(
-                                if (indicatorAlpha > 0f) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = indicatorAlpha)
-                                } else {
-                                    Color.Transparent
-                                },
-                            ),
-                    )
-                }
-            }
-        }
-        HorizontalDivider(color = NightSession.Hairline)
     }
 }
 

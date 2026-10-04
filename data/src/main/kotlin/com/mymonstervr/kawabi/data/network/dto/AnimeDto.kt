@@ -1,5 +1,6 @@
 package com.mymonstervr.kawabi.data.network.dto
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 // Field names are the backend contract's (PLAN-anime.md section 10) snake_case verbatim --
@@ -33,6 +34,8 @@ data class AnimeCardDto(
     val source_name: String = "",
     val url: String = "",
     val title: String,
+    @SerialName("display_title") val displayTitle: String? = null,
+    @SerialName("canonical_id") val canonicalId: Long? = null,
     val cover_url: String? = null,
     val status: String = "",
 )
@@ -55,6 +58,8 @@ data class AnimeDetailResponse(
     val source_name: String = "",
     val url: String = "",
     val title: String,
+    @SerialName("display_title") val displayTitle: String? = null,
+    @SerialName("full_title") val fullTitle: String? = null,
     val cover_url: String? = null,
     val description: String? = null,
     val author: String? = null,
@@ -62,6 +67,13 @@ data class AnimeDetailResponse(
     val genres: List<String> = emptyList(),
     val total_episodes: Double = 0.0,
     val episodes: List<EpisodeDto> = emptyList(),
+    @SerialName("next_episode") val nextEpisode: NextEpisodeDto? = null,
+)
+
+@Serializable
+data class NextEpisodeDto(
+    val episode: Int,
+    @SerialName("airs_at") val airsAt: Long,
 )
 
 @Serializable
@@ -121,6 +133,7 @@ data class AnimeEntryDto(
     val source: String = "",
     val url: String = "",
     val title: String = "",
+    @SerialName("display_title") val displayTitle: String? = null,
     val cover_url: String? = null,
     val status: String = "",
     val total_episodes: Double = 0.0,

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -43,6 +42,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.mymonstervr.kawabi.app.common.BackScaffold
+import com.mymonstervr.kawabi.app.common.glass
 import com.mymonstervr.kawabi.data.usecase.UnmatchedItem
 import com.mymonstervr.kawabi.domain.model.TrackStatus
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
@@ -92,34 +92,35 @@ fun TrackingServicesScreen(
     }
 
     BackScaffold(title = "Tracking services", onBack = onBack) {
-        LazyColumn(modifier = Modifier.background(NightSession.Background)) {
+        LazyColumn(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            modifier = Modifier.background(NightSession.Background),
+        ) {
             item {
-                TrackingSwitchRow(
-                    title = "Auto-import watching list (every 12h)",
-                    subtitle = "Keeps the Anime library in sync with your trackers automatically",
-                    checked = animeAutoImportEnabled,
-                    onCheckedChange = viewModel::setAnimeAutoImportEnabled,
-                )
-                HorizontalDivider(color = NightSession.Hairline)
-            }
-            items(rows, key = { it.id }) { row ->
-                TrackerRow(
-                    row = row,
-                    onConnect = {
-                        // Browser-OAuth trackers (MAL, AniList) hand off to the system browser
-                        // and come back through MainActivity's kawabi:// redirect handler;
-                        // Kitsu is the in-app form instead. No per-tracker branch needed.
-                        val authUrl = if (row.browserLogin) viewModel.authUrlFor(row.id) else null
-                        if (authUrl != null) {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, authUrl))
-                        } else {
-                            showKitsuDialog = true
-                        }
-                    },
-                    onDisconnect = { viewModel.logout(row.id) },
-                    onImportAnime = { viewModel.startAnimeImport(row.id, row.name) },
-                )
-                HorizontalDivider(color = NightSession.Hairline)
+                Column(modifier = Modifier.fillMaxWidth().glass()) {
+                    TrackingSwitchRow(
+                        title = "Auto-import watching list (every 12h)",
+                        subtitle = "Keeps the Anime library in sync with your trackers automatically",
+                        checked = animeAutoImportEnabled,
+                        onCheckedChange = viewModel::setAnimeAutoImportEnabled,
+                    )
+                    rows.forEach { row ->
+                        HorizontalDivider(color = NightSession.Hairline)
+                        TrackerRow(
+                            row = row,
+                            onConnect = {
+                                val authUrl = if (row.browserLogin) viewModel.authUrlFor(row.id) else null
+                                if (authUrl != null) {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, authUrl))
+                                } else {
+                                    showKitsuDialog = true
+                                }
+                            },
+                            onDisconnect = { viewModel.logout(row.id) },
+                            onImportAnime = { viewModel.startAnimeImport(row.id, row.name) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -133,9 +134,9 @@ private fun TrackingSwitchRow(title: String, subtitle: String?, checked: Boolean
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+            Text(text = title, fontSize = 15.sp * scale.font, color = NightSession.Text)
             if (subtitle != null) {
-                Text(text = subtitle, fontSize = 10.5.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
+                Text(text = subtitle, fontSize = 12.sp * scale.font, color = NightSession.TextDim, modifier = Modifier.padding(top = 1.dp))
             }
         }
         Switch(
@@ -163,25 +164,30 @@ private fun TrackerRow(
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 12.dp * scale.spacing)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = row.name, fontSize = 12.sp * scale.font, fontWeight = FontWeight.SemiBold, color = NightSession.Text)
+                Text(text = row.name, fontSize = 15.sp * scale.font, color = NightSession.Text)
                 Text(
                     text = when {
                         row.expired -> "Needs reconnect"
                         row.connected -> row.userName ?: "Connected"
                         else -> "Not connected"
                     },
-                    fontSize = 10.5.sp * scale.font,
-                    color = if (row.expired) MaterialTheme.colorScheme.error else NightSession.TextDim,
+                    fontSize = 12.sp * scale.font,
+                    color = when {
+                        row.expired -> NightSession.Danger
+                        row.connected -> NightSession.Read
+                        else -> NightSession.TextDim
+                    },
                     modifier = Modifier.padding(top = 1.dp),
                 )
             }
             if (row.connected && !row.expired) {
                 TextButton(onClick = onDisconnect) {
-                    Text("Disconnect", color = MaterialTheme.colorScheme.error, fontSize = 11.sp * scale.font)
+                    Text("Disconnect", color = NightSession.Danger, fontSize = 11.sp * scale.font)
                 }
             } else {
                 Button(
                     onClick = onConnect,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = NightSession.OnAccent,

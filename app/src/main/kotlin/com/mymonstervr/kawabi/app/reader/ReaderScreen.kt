@@ -26,6 +26,19 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -254,55 +267,66 @@ fun ReaderScreen(
         }
 
         if (chromeVisible) {
-            // MEDIUM/EXPANDED (tablets, per KawabiScale) get the progress button centered
-            // across the whole bar via CenterAlignedTopAppBar's title slot -- a regular
-            // TopAppBar's title only centers between navigationIcon and actions, which on
-            // a wide tablet bar reads off-center. Phones keep the original layout: no
-            // room/need for a separate centered slot, and this preserves that rendering
-            // byte-for-byte.
-            val isTablet = LocalKawabiScale.current.spacing > 1f
-            val barColors = TopAppBarDefaults.topAppBarColors(
-                containerColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f),
-            )
-            val navigationIcon: @Composable () -> Unit = {
-                TextButton(onClick = onBack) {
-                    Text("Back", color = androidx.compose.ui.graphics.Color.White)
-                }
+            val activeLabel = (state as? ReaderState.Success)?.let { success ->
+                success.sections.firstOrNull { it.chapterNumber == activeChapterNumber }?.chapterLabel
+                    ?: success.sections.firstOrNull()?.chapterLabel
             }
-            val modeAction: @Composable () -> Unit = {
-                TextButton(onClick = { manualMode = nextMode(mode) }) {
-                    Text(mode.label, color = MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            listOf(
+                                androidx.compose.ui.graphics.Color(0xEB07060A),
+                                androidx.compose.ui.graphics.Color.Transparent,
+                            ),
+                        ),
+                    )
+                    .statusBarsPadding()
+                    .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 28.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = NightSession.Text)
                 }
-            }
-            if (isTablet) {
-                CenterAlignedTopAppBar(
-                    title = {
-                        if (progress != null) {
-                            TextButton(onClick = { showProgressDialog = true }) {
-                                Text("${progress.first}/${progress.second}", color = MaterialTheme.colorScheme.primary)
-                            }
-                        } else {
-                            Text("Reader", color = androidx.compose.ui.graphics.Color.White)
-                        }
-                    },
-                    navigationIcon = navigationIcon,
-                    actions = { modeAction() },
-                    colors = barColors,
-                )
-            } else {
-                TopAppBar(
-                    title = { Text("Reader", color = androidx.compose.ui.graphics.Color.White) },
-                    navigationIcon = navigationIcon,
-                    actions = {
-                        if (progress != null) {
-                            TextButton(onClick = { showProgressDialog = true }) {
-                                Text("${progress.first}/${progress.second}", color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        modeAction()
-                    },
-                    colors = barColors,
-                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = progress != null) { showProgressDialog = true },
+                ) {
+                    Text(
+                        text = activeLabel ?: "Reader",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = NightSession.Text,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                    if (progress != null) {
+                        Text(
+                            text = "Chapter ${progress.first} of ${progress.second}",
+                            fontSize = 12.sp,
+                            color = NightSession.TextDim,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { manualMode = nextMode(mode) }
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(mode.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
 
@@ -599,27 +623,17 @@ private fun ChapterPageSlider(currentPage: Int, totalPages: Int, onSeek: (Int) -
     var isDragging by remember { mutableStateOf(false) }
     val displayedPage = if (isDragging) dragValue.toInt() else currentPage
 
-    Surface(modifier = modifier.fillMaxWidth(), color = NightSession.Chip) {
-        Column {
-            Slider(
-                value = if (isDragging) dragValue else currentPage.toFloat(),
-                onValueChange = { isDragging = true; dragValue = it },
-                onValueChangeFinished = { isDragging = false; onSeek(dragValue.roundToInt()) },
-                valueRange = 0f..(totalPages - 1).coerceAtLeast(1).toFloat(),
-                steps = (totalPages - 2).coerceAtLeast(0),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = NightSession.Hairline,
-                ),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            )
-            Text(
-                text = "${displayedPage + 1} / $totalPages",
-                style = MaterialTheme.typography.labelSmall,
-                color = NightSession.TextDim,
-                modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
-            )
+    ReaderPanel(modifier = modifier) {
+        ReaderSlider(
+            value = if (isDragging) dragValue else currentPage.toFloat(),
+            totalPages = totalPages,
+            leadingLabel = "1",
+            trailingLabel = totalPages.toString(),
+            onValueChange = { isDragging = true; dragValue = it },
+            onValueChangeFinished = { isDragging = false; onSeek(dragValue.roundToInt()) },
+        )
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
+            PagePill("${displayedPage + 1} / $totalPages")
         }
     }
 }
@@ -725,48 +739,131 @@ private fun ReaderBottomBar(
     totalPages: Int,
     hasPrevChapter: Boolean,
     hasNextChapter: Boolean,
+    prevLabel: String? = null,
+    nextLabel: String? = null,
     onSeek: (Int) -> Unit,
     onPrevChapter: () -> Unit,
     onNextChapter: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Slider drags fire onValueChange many times per gesture -- only track the dragged
-    // value locally and commit the (expensive, animated) seek once on release, or the
-    // scroll-position collector above fights the drag and the thumb jitters/stalls.
     var dragValue by remember { mutableFloatStateOf(currentPage.toFloat()) }
     var isDragging by remember { mutableStateOf(false) }
-    // Only used for the page-count text below -- never fed back into the Slider's own
-    // `value`, or rounding it there desyncs the Slider's internal drag-delta tracking
-    // (feeding back a floor()'d value every frame made it stick near the drag's start).
     val displayedPage = if (isDragging) dragValue.toInt() else currentPage
 
-    Surface(modifier = modifier.fillMaxWidth(), color = NightSession.Chip) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onPrevChapter, enabled = hasPrevChapter) {
-                Text("‹", color = if (hasPrevChapter) NightSession.Text else NightSession.TextDim)
-            }
-            Slider(
-                value = if (isDragging) dragValue else currentPage.toFloat(),
-                onValueChange = { isDragging = true; dragValue = it },
-                onValueChangeFinished = { isDragging = false; onSeek(dragValue.roundToInt()) },
-                valueRange = 0f..(totalPages - 1).coerceAtLeast(1).toFloat(),
-                steps = (totalPages - 2).coerceAtLeast(0),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = NightSession.Hairline,
-                ),
-                modifier = Modifier.weight(1f),
+    ReaderPanel(modifier = modifier) {
+        ReaderSlider(
+            value = if (isDragging) dragValue else currentPage.toFloat(),
+            totalPages = totalPages,
+            leadingLabel = "1",
+            trailingLabel = totalPages.toString(),
+            onValueChange = { isDragging = true; dragValue = it },
+            onValueChangeFinished = { isDragging = false; onSeek(dragValue.roundToInt()) },
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+        ) {
+            ChapterNavButton(
+                text = "‹ ${prevLabel ?: "Prev"}",
+                enabled = hasPrevChapter,
+                onClick = onPrevChapter,
             )
-            IconButton(onClick = onNextChapter, enabled = hasNextChapter) {
-                Text("›", color = if (hasNextChapter) NightSession.Text else NightSession.TextDim)
-            }
+            PagePill("${displayedPage + 1} / $totalPages")
+            ChapterNavButton(
+                text = "${nextLabel ?: "Next"} ›",
+                enabled = hasNextChapter,
+                onClick = onNextChapter,
+            )
         }
+    }
+}
+
+@Composable
+private fun ReaderPanel(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier = modifier
+            .navigationBarsPadding()
+            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(androidx.compose.ui.graphics.Color(0xE616141E))
+            .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f), shape)
+            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp),
+        content = content,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReaderSlider(
+    value: Float,
+    totalPages: Int,
+    leadingLabel: String,
+    trailingLabel: String,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(leadingLabel, fontSize = 12.sp, color = NightSession.TextDim, modifier = Modifier.widthIn(min = 16.dp))
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onValueChangeFinished,
+            valueRange = 0f..(totalPages - 1).coerceAtLeast(1).toFloat(),
+            steps = (totalPages - 2).coerceAtLeast(0),
+            colors = SliderDefaults.colors(
+                thumbColor = accent,
+                activeTrackColor = accent,
+                inactiveTrackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f),
+                activeTickColor = androidx.compose.ui.graphics.Color.Transparent,
+                inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent,
+            ),
+            thumb = {
+                Box(
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(accent.copy(alpha = 0.28f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(modifier = Modifier.size(22.dp).clip(CircleShape).background(accent))
+                }
+            },
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+        )
+        Text(trailingLabel, fontSize = 12.sp, color = NightSession.TextDim, modifier = Modifier.widthIn(min = 20.dp))
+    }
+}
+
+@Composable
+private fun PagePill(text: String) {
+    Text(
+        text = text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun ChapterNavButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
-            text = "${displayedPage + 1} / $totalPages",
-            style = MaterialTheme.typography.labelSmall,
-            color = NightSession.TextDim,
-            modifier = Modifier.padding(bottom = 4.dp),
+            text = text,
+            fontSize = 13.sp,
+            color = if (enabled) NightSession.TextDim else NightSession.TextDim.copy(alpha = 0.35f),
+            maxLines = 1,
         )
     }
 }

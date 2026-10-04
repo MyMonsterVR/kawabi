@@ -9,6 +9,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.text.style.TextOverflow
+import com.mymonstervr.kawabi.app.common.CoverPill
+import com.mymonstervr.kawabi.app.common.PrimaryActionButton
+import com.mymonstervr.kawabi.app.common.SegmentedTabs
+import com.mymonstervr.kawabi.app.common.accentSoft
+import com.mymonstervr.kawabi.app.common.glass
+import com.mymonstervr.kawabi.app.common.roundIconButton
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,7 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,16 +38,12 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -83,7 +92,8 @@ import com.mymonstervr.kawabi.domain.model.formatChapterNumber
 import com.mymonstervr.kawabi.domain.model.formatRelativeTime
 import org.koin.androidx.compose.koinViewModel
 
-private val DETAIL_HERO_HEIGHT = 190.dp
+private val DETAIL_BACKDROP_HEIGHT = 380.dp
+private val PROGRESS_RED = Color(0xFFEF4D55)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -292,77 +302,147 @@ private fun AnimeDetailContent(
 ) {
     val scale = LocalKawabiScale.current
     var expandedEpisodeKey by remember { mutableStateOf<String?>(null) }
+    var newestFirst by remember { mutableStateOf(true) }
     val resume = remember(localEpisodesByKey) { resumeEpisode(localEpisodesByKey.values) }
     val hasAnyWatched = remember(localEpisodesByKey) { localEpisodesByKey.values.any { it.watched } }
-    val episodes = remember(anime.episodes) { anime.episodes.sortedByDescending { it.number } }
+    val episodes = remember(anime.episodes, newestFirst) {
+        if (newestFirst) anime.episodes.sortedByDescending { it.number } else anime.episodes.sortedBy { it.number }
+    }
+    val gutter = 16.dp * scale.spacing
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp * scale.spacing)) {
         item {
             Column {
-                Box(modifier = Modifier.fillMaxWidth().height(DETAIL_HERO_HEIGHT * scale.spacing)) {
-                    AsyncImage(
-                        model = resolveCoverUrl(anime.cover_url, anime.source),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().background(NightSession.Cover),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    0f to Color.Transparent,
-                                    0.25f to Color.Transparent,
-                                    1f to NightSession.Background,
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(DETAIL_BACKDROP_HEIGHT * scale.spacing)) {
+                        AsyncImage(
+                            model = resolveCoverUrl(anime.cover_url, anime.source),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().blur(40.dp).alpha(0.55f),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        0f to NightSession.Background.copy(alpha = 0.25f),
+                                        0.96f to NightSession.Background,
+                                    ),
                                 ),
-                            ),
-                    )
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(12.dp * scale.spacing)
-                            .background(Color.Black.copy(alpha = 0.4f), CircleShape),
-                    ) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        )
                     }
-                    AsyncImage(
-                        model = resolveCoverUrl(anime.cover_url, anime.source),
-                        contentDescription = anime.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(start = 16.dp * scale.spacing, bottom = 14.dp * scale.spacing)
-                            .width(80.dp * scale.spacing)
-                            .height(120.dp * scale.spacing)
-                            .clip(RoundedCornerShape(NightSession.RadiusMd))
-                            .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
-                            .background(NightSession.Cover),
-                    )
+                    Column(modifier = Modifier.padding(horizontal = gutter).padding(top = 14.dp * scale.spacing)) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Box(modifier = Modifier.roundIconButton(onBack), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.AutoMirrored.Outlined.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = NightSession.Text,
+                                    modifier = Modifier.padding(horizontal = 12.dp).size(20.dp),
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 14.dp * scale.spacing),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp * scale.spacing),
+                        ) {
+                            AsyncImage(
+                                model = resolveCoverUrl(anime.cover_url, anime.source),
+                                contentDescription = anime.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .width(124.dp * scale.spacing)
+                                    .height(186.dp * scale.spacing)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(14.dp))
+                                    .background(NightSession.Cover),
+                            )
+                            Column(modifier = Modifier.weight(1f).padding(top = 14.dp)) {
+                                Text(
+                                    text = anime.fullTitle ?: anime.displayTitle ?: anime.title,
+                                    fontSize = 24.sp * scale.font,
+                                    lineHeight = 26.sp * scale.font,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.5).sp,
+                                    color = NightSession.Text,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                val meta = listOfNotNull(
+                                    "${episodes.size} eps".takeIf { episodes.isNotEmpty() },
+                                    anime.status.takeIf { it.isNotBlank() },
+                                ).joinToString(" · ")
+                                if (meta.isNotBlank()) {
+                                    Text(
+                                        text = meta,
+                                        fontSize = 13.sp * scale.font,
+                                        color = NightSession.TextDim,
+                                        modifier = Modifier.padding(top = 8.dp),
+                                    )
+                                }
+                                anime.nextEpisode?.let { next ->
+                                    Text(
+                                        text = "Episode ${next.episode} · ${formatAirsAt(next.airsAt)}",
+                                        fontSize = 12.sp * scale.font,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .padding(top = 8.dp)
+                                            .clip(RoundedCornerShape(100))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    )
+                                }
+                                val byline = listOfNotNull(
+                                    anime.author?.takeIf { it.isNotBlank() },
+                                    anime.source_name.takeIf { it.isNotBlank() },
+                                ).joinToString(" · ")
+                                if (byline.isNotBlank()) {
+                                    Text(
+                                        text = byline,
+                                        fontSize = 13.sp * scale.font,
+                                        color = NightSession.TextDim,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
-                Column(modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing)) {
-                    Text(text = anime.title, fontSize = 16.5.sp * scale.font, fontWeight = FontWeight.Bold, color = NightSession.Text)
-                    val byline = listOfNotNull(
-                        anime.author?.takeIf { it.isNotBlank() },
-                        anime.status.takeIf { it.isNotBlank() },
-                        anime.source_name.takeIf { it.isNotBlank() },
-                    ).joinToString(" · ")
-                    if (byline.isNotBlank()) {
-                        Text(
-                            text = byline,
-                            fontSize = 11.sp * scale.font,
-                            color = NightSession.TextDim,
-                            modifier = Modifier.padding(top = 3.dp * scale.spacing),
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = gutter).padding(top = 18.dp * scale.spacing),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (isFavorite && resume != null) {
+                        PrimaryActionButton(
+                            title = continueLabel(resume, hasAnyWatched),
+                            subtitle = minutesLeftLabel(resume),
+                            onClick = { onEpisodeClick(resume.key) },
+                            modifier = Modifier.weight(1f),
                         )
+                    } else if (!isFavorite && libraryMatch == null) {
+                        PrimaryActionButton(
+                            title = "Add to library",
+                            onClick = onToggleFavorite,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        Box(modifier = Modifier.weight(1f))
                     }
-                    if (anime.genres.isNotEmpty()) {
-                        Text(
-                            text = anime.genres.joinToString(", "),
-                            fontSize = 10.5.sp * scale.font,
-                            color = NightSession.TextDim,
-                            modifier = Modifier.padding(top = 3.dp * scale.spacing),
-                        )
+                    SquareGlassButton(onClick = if (isFavorite) onToggleFavorite else ({})) {
+                        if (isFavorite) {
+                            Icon(Icons.Filled.Favorite, contentDescription = "Remove from library", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        } else {
+                            Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Add to library", tint = NightSession.Text, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                    if (isFavorite) {
+                        SquareGlassButton(onClick = onOpenTrackerSheet) {
+                            Icon(Icons.Outlined.Flag, contentDescription = "Tracker links", tint = NightSession.Text, modifier = Modifier.size(22.dp))
+                        }
                     }
                 }
 
@@ -374,128 +454,78 @@ private fun AnimeDetailContent(
                     )
                 }
 
-                run {
-                    AnimeSourcePill(
-                        currentName = anime.source_name.ifBlank { anime.source },
-                        options = sourceOptions,
-                        onOpen = onLoadSourceOptions,
-                        onSelect = onSelectSource,
-                        modifier = Modifier.padding(
-                            start = 16.dp * scale.spacing,
-                            end = 16.dp * scale.spacing,
-                            top = 2.dp * scale.spacing,
-                        ),
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 4.dp * scale.spacing),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp * scale.spacing),
-                ) {
-                    if (isFavorite && resume != null) {
-                        Button(
-                            onClick = { onEpisodeClick(resume.key) },
-                            shape = RoundedCornerShape(NightSession.RadiusMd),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                text = continueLabel(resume, hasAnyWatched),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp * scale.font,
-                            )
-                        }
-                    } else if (!isFavorite && libraryMatch == null) {
-                        Button(
-                            onClick = onToggleFavorite,
-                            shape = RoundedCornerShape(NightSession.RadiusMd),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = NightSession.OnAccent),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Add to library", fontWeight = FontWeight.Bold, fontSize = 12.sp * scale.font)
-                        }
-                    }
-                    IconButton(
-                        onClick = if (isFavorite) onToggleFavorite else ({}),
-                        modifier = Modifier
-                            .size(40.dp * scale.spacing)
-                            .clip(RoundedCornerShape(NightSession.RadiusMd))
-                            .background(NightSession.Chip)
-                            .border(1.dp, if (isFavorite) MaterialTheme.colorScheme.primary else NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
-                    ) {
-                        if (isFavorite) {
-                            Icon(Icons.Filled.Favorite, contentDescription = "Remove from library", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp * scale.spacing))
-                        } else {
-                            Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Add to library", tint = NightSession.Text, modifier = Modifier.size(16.dp * scale.spacing))
-                        }
-                    }
-                    // Tracker linking needs a local row to attach to -- same gating as the
-                    // manga screen's heart.
-                    if (isFavorite) {
-                        IconButton(
-                            onClick = onOpenTrackerSheet,
-                            modifier = Modifier
-                                .size(40.dp * scale.spacing)
-                                .clip(RoundedCornerShape(NightSession.RadiusMd))
-                                .background(NightSession.Chip)
-                                .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd)),
-                        ) {
-                            Icon(Icons.Outlined.Flag, contentDescription = "Tracker links", tint = NightSession.Text, modifier = Modifier.size(16.dp * scale.spacing))
-                        }
-                    }
-                }
+                AnimeSourcePill(
+                    currentName = anime.source_name.ifBlank { anime.source },
+                    options = sourceOptions,
+                    onOpen = onLoadSourceOptions,
+                    onSelect = onSelectSource,
+                    modifier = Modifier.padding(horizontal = gutter).padding(top = 14.dp * scale.spacing),
+                )
 
                 val description = anime.description
                 if (!description.isNullOrBlank()) {
                     Text(
                         text = description,
-                        fontSize = 11.5.sp * scale.font,
-                        lineHeight = 17.sp * scale.font,
+                        fontSize = 12.sp * scale.font,
+                        lineHeight = 18.sp * scale.font,
                         color = NightSession.TextDim,
-                        modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 8.dp * scale.spacing),
+                        modifier = Modifier.padding(horizontal = gutter, vertical = 12.dp * scale.spacing),
                     )
                 }
 
-                Text(
-                    text = "${episodes.size} episodes",
-                    fontSize = 11.sp * scale.font,
-                    fontWeight = FontWeight.SemiBold,
-                    color = NightSession.Text,
-                    modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = gutter)
+                        .padding(top = 12.dp * scale.spacing, bottom = 12.dp * scale.spacing),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "${episodes.size} episodes",
+                        fontSize = 18.sp * scale.font,
+                        fontWeight = FontWeight.SemiBold,
+                        color = NightSession.Text,
+                    )
+                    SegmentedTabs(
+                        options = listOf("Newest", "Oldest"),
+                        selectedIndex = if (newestFirst) 0 else 1,
+                        onSelect = { newestFirst = it == 0 },
+                        equalWidth = false,
+                    )
+                }
 
                 if (episodeError != null) {
                     Text(
                         text = episodeError,
-                        fontSize = 10.5.sp * scale.font,
+                        fontSize = 11.sp * scale.font,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(
-                            start = 16.dp * scale.spacing,
-                            end = 16.dp * scale.spacing,
-                            bottom = 6.dp * scale.spacing,
-                        ),
+                        modifier = Modifier.padding(horizontal = gutter).padding(bottom = 8.dp * scale.spacing),
                     )
                 } else if (!isFavorite && libraryMatch == null) {
                     Text(
                         text = "Not in your library yet — episodes still play, add it to sync progress.",
-                        fontSize = 10.5.sp * scale.font,
+                        fontSize = 11.sp * scale.font,
                         color = NightSession.TextDim,
-                        modifier = Modifier.padding(
-                            start = 16.dp * scale.spacing,
-                            end = 16.dp * scale.spacing,
-                            bottom = 6.dp * scale.spacing,
-                        ),
+                        modifier = Modifier.padding(horizontal = gutter).padding(bottom = 8.dp * scale.spacing),
                     )
                 }
-                HorizontalDivider(color = NightSession.Hairline)
             }
         }
 
-        items(episodes, key = { it.key }) { episode ->
+        itemsIndexed(episodes, key = { _, episode -> episode.key }) { index, episode ->
             val localEpisode = localEpisodesByKey[episode.key]
+            val shape = RoundedCornerShape(
+                topStart = if (index == 0) 18.dp else 0.dp,
+                topEnd = if (index == 0) 18.dp else 0.dp,
+                bottomStart = if (index == episodes.lastIndex) 18.dp else 0.dp,
+                bottomEnd = if (index == episodes.lastIndex) 18.dp else 0.dp,
+            )
             EpisodeRow(
                 episode = episode,
                 localEpisode = localEpisode,
+                isNextUp = isFavorite && resume != null && resume.key == episode.key,
+                showDivider = index > 0,
                 expanded = expandedEpisodeKey == episode.key,
                 onClick = { if (localEpisode != null) onEpisodeClick(episode.key) },
                 onLongClick = { if (localEpisode != null) expandedEpisodeKey = episode.key },
@@ -507,9 +537,24 @@ private fun AnimeDetailContent(
                     localEpisode?.let(onMarkPreviousAsWatched)
                     expandedEpisodeKey = null
                 },
+                modifier = Modifier
+                    .padding(horizontal = gutter)
+                    .clip(shape)
+                    .background(Color.White.copy(alpha = 0.045f)),
             )
         }
     }
+}
+
+@Composable
+private fun SquareGlassButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .glass(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 @Composable
@@ -523,10 +568,8 @@ private fun LibraryMatchBanner(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing)
-            .clip(RoundedCornerShape(NightSession.RadiusMd))
-            .background(NightSession.Chip)
-            .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
-            .padding(horizontal = 12.dp * scale.spacing, vertical = 8.dp * scale.spacing),
+            .glass(RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp * scale.spacing, vertical = 8.dp * scale.spacing),
     ) {
         Text(
             text = "In your library from $sourceName",
@@ -562,85 +605,99 @@ private fun AnimeSourcePill(
             expanded = true
         }
     }
-    Box(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(100))
-                .background(NightSession.Chip)
-                .border(1.dp, NightSession.Hairline, RoundedCornerShape(100))
-                .clickable {
-                    if (options is AnimeSourceOptionsState.Loaded) {
-                        expanded = true
-                    } else {
-                        pendingOpen = true
-                        onOpen()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .glass(RoundedCornerShape(14.dp))
+            .padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(NightSession.Read))
+        Text(text = "Watching on", fontSize = 13.sp * scale.font, color = NightSession.TextDim)
+        Text(
+            text = currentName.ifBlank { "unknown" },
+            fontSize = 13.sp * scale.font,
+            fontWeight = FontWeight.SemiBold,
+            color = NightSession.Text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Box {
+            Box(
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
+                    .clickable {
+                        if (options is AnimeSourceOptionsState.Loaded) {
+                            expanded = true
+                        } else {
+                            pendingOpen = true
+                            onOpen()
+                        }
                     }
-                }
-                .padding(horizontal = 10.dp * scale.spacing, vertical = 5.dp * scale.spacing),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Source: ${currentName.ifBlank { "unknown" }} ",
-                fontSize = 10.5.sp * scale.font,
-                fontWeight = FontWeight.SemiBold,
-                color = NightSession.TextDim,
-            )
-            if (options is AnimeSourceOptionsState.Loading) {
-                CircularProgressIndicator(
-                    color = NightSession.TextDim,
-                    strokeWidth = 1.5.dp,
-                    modifier = Modifier.size(10.dp * scale.font),
-                )
-            } else {
-                Text(
-                    text = "▾",
-                    fontSize = 10.5.sp * scale.font,
-                    fontWeight = FontWeight.SemiBold,
-                    color = NightSession.TextDim,
-                )
-            }
-        }
-        if (expanded) {
-            DropdownMenu(
-                expanded = true,
-                onDismissRequest = { expanded = false },
-                containerColor = NightSession.Chip,
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                when (options) {
-                    AnimeSourceOptionsState.Idle, AnimeSourceOptionsState.Loading -> Box(
-                        Modifier.padding(24.dp * scale.spacing),
-                        Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp * scale.spacing),
-                        )
-                    }
-                    is AnimeSourceOptionsState.Error -> Text(
-                        text = options.message,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 11.sp * scale.font,
-                        modifier = Modifier.padding(16.dp * scale.spacing),
+                if (options is AnimeSourceOptionsState.Loading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 1.5.dp,
+                        modifier = Modifier.size(14.dp),
                     )
-                    is AnimeSourceOptionsState.Loaded -> options.options.forEach { option ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = option.sourceName,
-                                    color = NightSession.Text,
-                                    fontSize = 12.sp * scale.font,
-                                )
-                            },
-                            trailingIcon = if (option.key == options.selected) {
-                                { Text("✓", color = MaterialTheme.colorScheme.primary) }
-                            } else {
-                                null
-                            },
-                            onClick = {
-                                expanded = false
-                                if (option.key != options.selected) onSelect(option.key)
-                            },
+                } else {
+                    Text(
+                        text = "Switch",
+                        fontSize = 12.sp * scale.font,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (expanded) {
+                DropdownMenu(
+                    expanded = true,
+                    onDismissRequest = { expanded = false },
+                    containerColor = NightSession.Chip,
+                ) {
+                    when (options) {
+                        AnimeSourceOptionsState.Idle, AnimeSourceOptionsState.Loading -> Box(
+                            Modifier.padding(24.dp * scale.spacing),
+                            Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp * scale.spacing),
+                            )
+                        }
+                        is AnimeSourceOptionsState.Error -> Text(
+                            text = options.message,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 11.sp * scale.font,
+                            modifier = Modifier.padding(16.dp * scale.spacing),
                         )
+                        is AnimeSourceOptionsState.Loaded -> options.options.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = option.sourceName,
+                                        color = NightSession.Text,
+                                        fontSize = 12.sp * scale.font,
+                                    )
+                                },
+                                trailingIcon = if (option.key == options.selected) {
+                                    { Text("✓", color = MaterialTheme.colorScheme.primary) }
+                                } else {
+                                    null
+                                },
+                                onClick = {
+                                    expanded = false
+                                    if (option.key != options.selected) onSelect(option.key)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -649,12 +706,18 @@ private fun AnimeSourcePill(
 }
 
 private fun continueLabel(target: Episode, hasAnyWatched: Boolean): String {
-    val label = "Ep. ${formatChapterNumber(target.episodeNumber)}"
+    val number = formatChapterNumber(target.episodeNumber)
     return when {
         !hasAnyWatched -> "Start watching"
-        target.positionMs > 0 -> "Continue $label"
-        else -> label
+        target.positionMs > 0 -> "Continue episode $number"
+        else -> "Watch episode $number"
     }
+}
+
+private fun minutesLeftLabel(target: Episode): String? {
+    if (target.watched || target.positionMs <= 0 || target.durationMs <= target.positionMs) return null
+    val minutes = ((target.durationMs - target.positionMs) + 59_999L) / 60_000L
+    return "$minutes min left"
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -662,75 +725,110 @@ private fun continueLabel(target: Episode, hasAnyWatched: Boolean): String {
 private fun EpisodeRow(
     episode: EpisodeDto,
     localEpisode: Episode?,
+    isNextUp: Boolean,
+    showDivider: Boolean,
     expanded: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onMarkWatched: () -> Unit,
     onMarkPreviousWatched: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scale = LocalKawabiScale.current
     val enabled = localEpisode != null
     val isWatched = localEpisode?.watched == true
-    Column {
+    val accent = MaterialTheme.colorScheme.primary
+    Column(modifier = modifier) {
+        if (showDivider) HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(if (isNextUp) accentSoft(0.1f) else Color.Transparent)
                 .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
-                .padding(horizontal = 16.dp * scale.spacing, vertical = 9.dp * scale.spacing),
+                .defaultMinSize(minHeight = 64.dp * scale.spacing)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        when {
+                            isNextUp -> accent
+                            isWatched -> NightSession.Read.copy(alpha = 0.14f)
+                            else -> Color.White.copy(alpha = 0.07f)
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isWatched && !isNextUp) {
+                    Icon(Icons.Filled.Check, contentDescription = "Watched", tint = NightSession.Read, modifier = Modifier.size(18.dp))
+                } else {
+                    Text(
+                        text = if (episode.number >= 0) formatChapterNumber(episode.number) else "-",
+                        fontSize = 13.sp * scale.font,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isNextUp) NightSession.OnAccent else NightSession.Text,
+                        maxLines = 1,
+                    )
+                }
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = episodeLabel(episode),
-                    fontSize = 11.5.sp * scale.font,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp * scale.font,
                     color = if (isWatched) NightSession.TextDim else NightSession.Text,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 val relativeTime = remember(episode.date_upload) {
                     episode.date_upload?.let { formatRelativeTime(it) }
                 }
                 if (relativeTime != null) {
-                    Text(text = relativeTime, fontSize = 9.5.sp * scale.font, color = NightSession.TextDim)
+                    Text(text = relativeTime, fontSize = 11.sp * scale.font, color = NightSession.TextDim)
                 }
-                // Only meaningful once playback has recorded a duration -- an episode with
-                // a position but no known duration can't be drawn as a fraction.
                 val fraction = localEpisode
                     ?.takeIf { !it.watched && it.positionMs > 0 && it.durationMs > 0 }
                     ?.let { (it.positionMs.toFloat() / it.durationMs).coerceIn(0f, 1f) }
                 if (fraction != null) {
-                    LinearProgressIndicator(
-                        progress = { fraction },
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = NightSession.Chip,
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(2.dp)
-                            .padding(top = 4.dp * scale.spacing),
-                    )
+                            .padding(top = 8.dp)
+                            .width(120.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(Color.White.copy(alpha = 0.1f)),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(fraction)
+                                .background(PROGRESS_RED),
+                        )
+                    }
                 }
             }
-            if (isWatched) {
-                Text(text = "✓", fontSize = 11.sp * scale.font, color = NightSession.Read)
-            }
+            if (isNextUp) CoverPill(text = "CONTINUE", accent = true)
         }
         if (expanded && localEpisode != null) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
-                horizontalArrangement = Arrangement.spacedBy(8.dp * scale.spacing),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 TextButton(onClick = onMarkWatched) {
                     Text(
                         text = if (localEpisode.watched) "Mark unwatched" else "Mark watched",
-                        color = MaterialTheme.colorScheme.primary,
+                        color = accent,
                         fontSize = 11.sp * scale.font,
                     )
                 }
                 TextButton(onClick = onMarkPreviousWatched) {
-                    Text("Mark previous watched", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp * scale.font)
+                    Text("Mark previous watched", color = accent, fontSize = 11.sp * scale.font)
                 }
             }
         }
-        HorizontalDivider(color = NightSession.Hairline, modifier = Modifier.padding(horizontal = 16.dp * scale.spacing))
     }
 }
 
@@ -755,4 +853,19 @@ private fun AnimeDetailErrorContent(message: String, onBack: () -> Unit, onRetry
             TextButton(onClick = onBack) { Text("Back", color = NightSession.TextDim) }
         }
     }
+}
+
+private fun formatAirsAt(airsAtSeconds: Long): String {
+    val airs = java.time.Instant.ofEpochSecond(airsAtSeconds)
+    val zone = java.time.ZoneId.systemDefault()
+    val whenText = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", java.util.Locale.getDefault())
+        .format(airs.atZone(zone))
+    val minutes = java.time.Duration.between(java.time.Instant.now(), airs).toMinutes()
+    val remaining = when {
+        minutes <= 0 -> "any moment now"
+        minutes >= 1440 -> "in ${minutes / 1440}d ${(minutes % 1440) / 60}h"
+        minutes >= 60 -> "in ${minutes / 60}h ${minutes % 60}m"
+        else -> "in ${minutes}m"
+    }
+    return "$whenText ($remaining)"
 }

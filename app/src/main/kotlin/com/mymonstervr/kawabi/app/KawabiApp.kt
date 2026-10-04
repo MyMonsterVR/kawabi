@@ -1,7 +1,29 @@
 package com.mymonstervr.kawabi.app
 
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -16,15 +38,13 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -163,6 +183,60 @@ private fun navigateToChapter(navController: androidx.navigation.NavController, 
 }
 
 @Composable
+private fun FloatingNavBar(currentRoute: String?, onSelect: (BottomNavItem) -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+            .height(68.dp)
+            .shadow(16.dp, shape, clip = false)
+            .clip(shape)
+            .background(Color(0xFF16141E).copy(alpha = 0.92f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), shape),
+    ) {
+        bottomNavRoutes.forEach { item ->
+            val selected = currentRoute == item.route
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(68.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onSelect(item) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 52.dp, height = 30.dp)
+                        .clip(RoundedCornerShape(100))
+                        .background(if (selected) accent.copy(alpha = 0.18f) else Color.Transparent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (selected) item.selectedIcon else item.unselectedIcon,
+                        contentDescription = item.label,
+                        tint = if (selected) accent else NightSession.TextDim,
+                        modifier = Modifier.size(21.dp),
+                    )
+                }
+                Text(
+                    text = item.label,
+                    fontSize = 11.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) accent else NightSession.TextDim,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun KawabiApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -201,35 +275,16 @@ fun KawabiApp() {
                     }
                 }
                 if (currentRoute in bottomNavRoutes.map { it.route }) {
-                    NavigationBar(containerColor = NightSession.Background) {
-                        bottomNavRoutes.forEach { item ->
-                            val selected = currentRoute == item.route
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    navController.navigateSafe(item.route) {
-                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = {
-                                    Icon(
-                                        if (selected) item.selectedIcon else item.unselectedIcon,
-                                        contentDescription = item.label,
-                                    )
-                                },
-                                label = { Text(item.label) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                    selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                    unselectedIconColor = NightSession.TextDim,
-                                    unselectedTextColor = NightSession.TextDim,
-                                    indicatorColor = NightSession.Chip,
-                                ),
-                            )
-                        }
-                    }
+                    FloatingNavBar(
+                        currentRoute = currentRoute,
+                        onSelect = { item ->
+                            navController.navigateSafe(item.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                    )
                 }
             }
         },
@@ -237,7 +292,20 @@ fun KawabiApp() {
         NavHost(
             navController = navController,
             startDestination = ROUTE_LIBRARY,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color(0xFF7C5CF0).copy(alpha = 0.22f), Color.Transparent),
+                            center = Offset(size.width / 2f, -size.height * 0.04f),
+                            radius = size.width * 0.95f,
+                        ),
+                        blendMode = BlendMode.Screen,
+                    )
+                },
         ) {
             composable(ROUTE_LIBRARY) {
                 LibraryScreen(
@@ -248,6 +316,7 @@ fun KawabiApp() {
                 SearchScreen(
                     onResultClick = { url -> navigateToMangaDetail(navController, url) },
                     onBrowseClick = { sourceKey -> navigateToBrowse(navController, sourceKey) },
+                    onAnimeClick = { q -> navController.navigateSafe("anime-search?q=${Uri.encode(q)}") },
                 )
             }
             composable(ROUTE_LOGIN) {
@@ -292,6 +361,7 @@ fun KawabiApp() {
                     initialQuery = initialQuery,
                     onResultClick = { key -> navigateToAnimeDetail(navController, key) },
                     onBrowseClick = { sourceKey -> navigateToAnimeBrowse(navController, sourceKey) },
+                    onMangaClick = { navController.navigateSafe(ROUTE_SEARCH) },
                 )
             }
             composable(

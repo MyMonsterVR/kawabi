@@ -109,7 +109,8 @@ class AnimeViewModel(
         SectionState.Loaded(
             state.items.filter { card ->
                 val normalized = normalizeAnimeTitle(card.title).ifBlank { card.key }
-                normalized !in inLibrary && seen.add(normalized)
+                val identity = card.canonicalId?.let { "id:$it" } ?: normalized
+                normalized !in inLibrary && seen.add(identity)
             },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SectionState.Loading)

@@ -11,6 +11,7 @@ import com.mymonstervr.kawabi.app.notification.NewChapterNotifier
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.TrackerManager
+import com.mymonstervr.kawabi.data.track.TrackerStatusState
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
 import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
@@ -36,11 +37,13 @@ sealed interface UpdateCheckState {
     data class Available(val info: AppUpdateInfo) : UpdateCheckState
 }
 
+data class TrackerSummary(val name: String, val connected: Boolean, val expired: Boolean)
+
 class SettingsViewModel(
     private val preferences: AppPreferences,
     tokenStore: TokenStore,
     private val updateChecker: AppUpdateChecker,
-    trackerManager: TrackerManager,
+    private val trackerManager: TrackerManager,
     updateStateHolder: AppUpdateStateHolder,
     private val libraryUpdateManager: LibraryUpdateManager,
     private val newChapterNotifier: NewChapterNotifier,
@@ -53,6 +56,16 @@ class SettingsViewModel(
     val expiredTrackerCount: StateFlow<Int> = trackerManager.statuses
         .map { statuses -> statuses.values.count { it.expired } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    val trackerSummaries: StateFlow<List<TrackerSummary>> = trackerManager.statuses
+        .map { statuses -> summariesFor(statuses) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), summariesFor(trackerManager.statuses.value))
+
+    private fun summariesFor(statuses: Map<String, TrackerStatusState>): List<TrackerSummary> =
+        trackerManager.trackers.map { tracker ->
+            val status = statuses[tracker.id]
+            TrackerSummary(tracker.name, status?.connected == true, status?.expired == true)
+        }
 
     val currentVersion: String = BuildConfig.VERSION_NAME
 

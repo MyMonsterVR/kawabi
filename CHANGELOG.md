@@ -12,6 +12,19 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Anime: shows that are still airing now show the next episode and when it comes
+  out on the details page, with a countdown.
+- New look across the whole app: violet accent, a floating bottom bar, glass
+  cards and rounder covers. Library, search, manga and anime details, the reader
+  controls, settings and the update screen were all redesigned.
+- Library: titles you haven't started now sit in their own "Not started" section
+  at the bottom, sorted by most chapters first. The main grid stays in last-read
+  order.
+- Settings: grouped into cards, with subtitle preview and style up front, and an
+  update sheet showing what's new before you download.
+- Anime: the episode list highlights the one to continue with a progress bar, and
+  episodes can be sorted newest or oldest first.
+
 ## 0.1.0-121 - 2026-10-04
 
 - Anime: "last watched" order on the phone could differ from the website because
