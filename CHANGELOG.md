@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-121 - 2026-10-04
+
 - Anime: "last watched" order on the phone could differ from the website because
   shows you only edited on MAL/Kitsu jumped ahead of ones you actually watched.
   Tracker edits no longer reorder the list, and the app now follows the server's
