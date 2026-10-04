@@ -33,6 +33,7 @@ interface AnimeRepository {
     suspend fun delete(id: Long)
     suspend fun setTotalEpisodes(id: Long, totalEpisodes: Double)
     suspend fun touchLastWatched(id: Long, timestamp: Long)
+    suspend fun setLastWatched(id: Long, timestamp: Long)
 
     /** No-op when a cover is already stored -- repair path for rows imported without one. */
     suspend fun fillMissingThumbnail(id: Long, thumbnailUrl: String)

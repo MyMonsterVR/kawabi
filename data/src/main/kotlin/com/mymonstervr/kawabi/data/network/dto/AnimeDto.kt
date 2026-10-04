@@ -109,8 +109,8 @@ data class VideoTrackDto(
 
 @Serializable
 data class VideoTimestampDto(
-    val start: Long = 0,
-    val end: Long = 0,
+    val start: Double = 0.0,
+    val end: Double = 0.0,
     val name: String = "",
     val type: String = "",
 )

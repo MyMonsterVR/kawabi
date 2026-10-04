@@ -12,6 +12,14 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Anime: "last watched" order on the phone could differ from the website because
+  shows you only edited on MAL/Kitsu jumped ahead of ones you actually watched.
+  Tracker edits no longer reorder the list, and the app now follows the server's
+  last-watched order after each sync.
+- Anime: some episodes (e.g. Exiled Heavy Knight) failed to load with a JSON
+  error because skip-intro/outro times came with decimals. The player now reads
+  them correctly.
+
 ## 0.1.0-119 - 2026-10-01
 
 - Library: refreshing could silently do nothing for the whole library (no new

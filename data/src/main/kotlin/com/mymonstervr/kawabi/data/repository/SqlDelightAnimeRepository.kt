@@ -121,6 +121,10 @@ class SqlDelightAnimeRepository(
         queries.updateTotalEpisodes(totalEpisodes, id)
     }
 
+    override suspend fun setLastWatched(id: Long, timestamp: Long): Unit = withContext<Unit>(dispatchers.io) {
+        queries.setLastWatched(timestamp, id)
+    }
+
     override suspend fun touchLastWatched(id: Long, timestamp: Long): Unit = withContext<Unit>(dispatchers.io) {
         queries.touchLastWatched(timestamp, id)
     }

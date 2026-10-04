@@ -83,10 +83,11 @@ class ImportAnimeFromTracker(
                     malId = malIdOf(trackerId, result),
                 )
             if (existing != null) {
-                // Repair pass for rows imported before the cover/last-watched fixes: both are
-                // local no-ops when already populated, so this costs nothing on a healthy row.
+                // Repair pass for rows imported before the cover/last-watched fixes. The tracker
+                // time only seeds a row that has none: a tracker edit isn't a watch, so it must
+                // never reorder a show the user has really watched.
                 match.cover_url?.let { animeRepository.fillMissingThumbnail(existing.id, it) }
-                if (result.tracker_updated_at > 0) {
+                if (existing.lastWatchedAt == 0L && result.tracker_updated_at > 0) {
                     animeRepository.touchLastWatched(existing.id, result.tracker_updated_at)
                 }
                 if (animeTrackRepository.getByAnimeAndTracker(existing.id, trackerId) != null) {

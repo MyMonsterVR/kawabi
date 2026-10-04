@@ -108,7 +108,7 @@ class AnimeSyncClient(
             if (entry.episodes_watched > 0) {
                 episodeRepository.markWatchedUpToNumber(anime.id, entry.episodes_watched)
             }
-            entry.last_watched_at?.let { animeRepository.touchLastWatched(anime.id, it) }
+            entry.last_watched_at?.let { animeRepository.setLastWatched(anime.id, it) }
             entry.cover_url?.let { animeRepository.fillMissingThumbnail(anime.id, it) }
             applyTracks(anime.id, entry)
             animeIdByKey[entry.key] = anime.id

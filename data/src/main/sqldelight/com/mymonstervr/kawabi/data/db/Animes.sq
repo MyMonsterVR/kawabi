@@ -120,6 +120,9 @@ UPDATE animes SET is_syncing = ? WHERE _id = ?;
 touchLastWatched:
 UPDATE animes SET last_watched_at = MAX(last_watched_at, ?) WHERE _id = ?;
 
+setLastWatched:
+UPDATE animes SET last_watched_at = ? WHERE _id = ?;
+
 updateUpdateSchedule:
 UPDATE animes SET last_update = ?, next_update = ?, calculate_interval = ? WHERE _id = ?;
 

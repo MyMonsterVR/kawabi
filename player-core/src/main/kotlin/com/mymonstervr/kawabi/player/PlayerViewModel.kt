@@ -342,12 +342,12 @@ class PlayerViewModel(
      */
     fun activeSkipRange(positionMs: Long): VideoTimestampDto? =
         _currentVideo.value?.video?.timestamps?.firstOrNull {
-            it.isSkippable() && positionMs in (it.start * 1000) until (it.end * 1000)
+            it.isSkippable() && positionMs in (it.start * 1000).toLong() until (it.end * 1000).toLong()
         }
 
     fun skip(range: VideoTimestampDto) {
         skippedRanges += range.start.toInt()
-        player.seekTo(range.end * 1000)
+        player.seekTo((range.end * 1000).toLong())
     }
 
     fun pause() {
@@ -478,7 +478,7 @@ class PlayerViewModel(
 
         if (_autoSkip.value) {
             activeSkipRange(position)?.let { range ->
-                if (skippedRanges.add(range.start.toInt())) player.seekTo(range.end * 1000)
+                if (skippedRanges.add(range.start.toInt())) player.seekTo((range.end * 1000).toLong())
             }
         }
 
