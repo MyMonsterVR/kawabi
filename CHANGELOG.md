@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-123 - 2026-10-04
+
 - Anime: shows that are still airing now show the next episode and when it comes
   out on the details page, with a countdown.
 - New look across the whole app: violet accent, a floating bottom bar, glass
