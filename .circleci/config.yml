@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   release-enabled:
     type: boolean
-    default: false
+    default: true
   version:
     type: string
     default: ""
@@ -73,7 +73,7 @@ jobs:
       - run:
           name: Stamp changelog
           command: |
-            python3 - <<'PYEOF'
+            python3 - \<<'PYEOF'
             import os, re, datetime
 
             version = os.environ["VERSION"]
@@ -119,7 +119,7 @@ jobs:
           name: Generate update manifests
           command: |
             SHORT_SHA=$(echo "$CIRCLE_SHA1" | cut -c1-7)
-            cat > /tmp/manifest.json <<EOF
+            cat > /tmp/manifest.json \<<EOF
             {
               "version": "${VERSION}",
               "commit_count": ${COMMIT_COUNT},
@@ -127,7 +127,7 @@ jobs:
               "download_url": "https://apk.rasmushk.dk/v2/kawabi.apk?v=${COMMIT_COUNT}"
             }
             EOF
-            cat > /tmp/tv-manifest.json <<EOF
+            cat > /tmp/tv-manifest.json \<<EOF
             {
               "version": "${VERSION}",
               "commit_count": ${COMMIT_COUNT},
@@ -185,7 +185,9 @@ workflows:
     when:
       and:
         - << pipeline.parameters.release-enabled >>
-        - equal: [main, << pipeline.git.branch >>]
+        - or:
+            - << pipeline.parameters.dry-run >>
+            - equal: [main, << pipeline.git.branch >>]
     jobs:
       - release:
           context: kawabi-release

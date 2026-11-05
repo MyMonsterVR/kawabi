@@ -4,15 +4,6 @@ on:
     paths:
       - '**'
       - '!**.md'
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Force versionName (e.g. 1.1.0) -- updates app/build.gradle.kts and commits it. Leave blank to keep the current versionName and just re-run a normal build/deploy.'
-        required: false
-        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
