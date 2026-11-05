@@ -1,0 +1,179 @@
+version: 2.1
+
+parameters:
+  release-enabled:
+    type: boolean
+    default: false
+  version:
+    type: string
+    default: ""
+
+commands:
+  restore-gradle:
+    steps:
+      - run:
+          name: Compute dependency cache key
+          command: |
+            find . -path ./build -prune -o \( -name '*.gradle.kts' -o -name 'libs.versions.toml' -o -name 'gradle-wrapper.properties' \) -type f -print | sort | xargs cat > /tmp/gradle-cache-key
+      - restore_cache:
+          keys:
+            - gradle-v1-{{ checksum "/tmp/gradle-cache-key" }}
+            - gradle-v1-
+  save-gradle:
+    steps:
+      - save_cache:
+          key: gradle-v1-{{ checksum "/tmp/gradle-cache-key" }}
+          paths:
+            - ~/.gradle/caches
+            - ~/.gradle/wrapper
+            - ~/android-sdk/platforms
+            - ~/android-sdk/build-tools
+
+jobs:
+  build:
+    docker:
+      - image: cimg/android:2026.10
+    resource_class: large
+    environment:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=4
+    steps:
+      - checkout
+      - restore-gradle
+      - run:
+          name: Build debug APKs
+          command: ./gradlew assembleDebug --stacktrace
+      - save-gradle
+      - store_artifacts:
+          path: app/build/outputs/apk/debug/app-debug.apk
+          destination: kawabi-debug.apk
+
+  release:
+    docker:
+      - image: cimg/android:2026.10
+    resource_class: large
+    environment:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=4
+    steps:
+      - checkout
+      - run:
+          name: Resolve version
+          command: |
+            FORCE_VERSION="<< pipeline.parameters.version >>"
+            if [ -n "$FORCE_VERSION" ]; then
+              sed -i -E "s/versionName = \"[^\"]+\"/versionName = \"${FORCE_VERSION}\"/" app/build.gradle.kts
+              echo "Bumped app/build.gradle.kts versionName to ${FORCE_VERSION}"
+            fi
+            BASE_VERSION=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*versionName = "([^"]+)".*/\1/')
+            COMMIT_COUNT=$(git rev-list --count HEAD)
+            echo "export VERSION=${BASE_VERSION}-${COMMIT_COUNT}" >> "$BASH_ENV"
+            echo "export COMMIT_COUNT=${COMMIT_COUNT}" >> "$BASH_ENV"
+      - run:
+          name: Stamp changelog
+          command: |
+            python3 - <<'PYEOF'
+            import os, re, datetime
+
+            version = os.environ["VERSION"]
+            path = "CHANGELOG.md"
+            text = open(path, encoding="utf-8").read()
+            today = datetime.date.today().isoformat()
+            new_text, count = re.subn(
+                r"^## Unreleased$",
+                f"## Unreleased\n\n## {version} - {today}",
+                text,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            if count == 0:
+                print("No '## Unreleased' heading found in CHANGELOG.md -- skipping stamp")
+            else:
+                open(path, "w", encoding="utf-8").write(new_text)
+                print(f"Stamped CHANGELOG.md: Unreleased -> {version} ({today})")
+            PYEOF
+      - restore-gradle
+      - run:
+          name: Build release APKs
+          command: ./gradlew assembleRelease --stacktrace
+      - save-gradle
+      - run:
+          name: Sign release APKs
+          command: |
+            BT_DIR="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+            echo "$SIGNING_KEY" | base64 -d > /tmp/release.jks
+            sign() {
+              unsigned=$(ls "$1"/*-unsigned.apk | head -1)
+              "$BT_DIR/zipalign" -p -f 4 "$unsigned" "/tmp/$2-aligned.apk"
+              "$BT_DIR/apksigner" sign \
+                --ks /tmp/release.jks --ks-key-alias "$ALIAS" \
+                --ks-pass env:KEY_STORE_PASSWORD --key-pass env:KEY_PASSWORD \
+                --out "$3" "/tmp/$2-aligned.apk"
+              "$BT_DIR/apksigner" verify "$3"
+            }
+            sign app/build/outputs/apk/release app /tmp/kawabi.apk
+            sign tv/build/outputs/apk/release tv /tmp/kawabi-tv.apk
+            rm -f /tmp/release.jks
+      - run:
+          name: Generate update manifests
+          command: |
+            SHORT_SHA=$(echo "$CIRCLE_SHA1" | cut -c1-7)
+            cat > /tmp/manifest.json <<EOF
+            {
+              "version": "${VERSION}",
+              "commit_count": ${COMMIT_COUNT},
+              "info": "Automated build from commit ${SHORT_SHA}",
+              "download_url": "https://apk.rasmushk.dk/v2/kawabi.apk?v=${COMMIT_COUNT}"
+            }
+            EOF
+            cat > /tmp/tv-manifest.json <<EOF
+            {
+              "version": "${VERSION}",
+              "commit_count": ${COMMIT_COUNT},
+              "info": "Automated build from commit ${SHORT_SHA}",
+              "download_url": "https://apk.rasmushk.dk/tv/kawabi-tv.apk?v=${COMMIT_COUNT}"
+            }
+            EOF
+      - run:
+          name: Deploy APKs to VPS
+          command: |
+            mkdir -p ~/.ssh
+            echo "$VPS_SSH_KEY" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+            TARGET="$VPS_USER@$VPS_HOST"
+            ssh "$TARGET" "mkdir -p /opt/apk/v2 /opt/apk/tv"
+            scp /tmp/kawabi.apk "$TARGET:/opt/apk/v2/kawabi.apk.new"
+            scp /tmp/manifest.json "$TARGET:/opt/apk/v2/manifest.json.new"
+            ssh "$TARGET" "mv /opt/apk/v2/kawabi.apk.new /opt/apk/v2/kawabi.apk && mv /opt/apk/v2/manifest.json.new /opt/apk/v2/manifest.json"
+            scp /tmp/kawabi-tv.apk "$TARGET:/opt/apk/tv/kawabi-tv.apk.new"
+            scp /tmp/tv-manifest.json "$TARGET:/opt/apk/tv/manifest.json.new"
+            ssh "$TARGET" "mv /opt/apk/tv/kawabi-tv.apk.new /opt/apk/tv/kawabi-tv.apk && mv /opt/apk/tv/manifest.json.new /opt/apk/tv/manifest.json"
+      - run:
+          name: Commit version bump and changelog stamp
+          command: |
+            if ! git diff --quiet -- app/build.gradle.kts CHANGELOG.md; then
+              git config user.name "circleci"
+              git config user.email "circleci@users.noreply.github.com"
+              git add app/build.gradle.kts CHANGELOG.md
+              git commit -m "Release ${VERSION} [skip ci]"
+              git push "https://x-access-token:${GITHUB_PUSH_TOKEN}@github.com/MyMonsterVR/kawabi.git" HEAD:main
+            else
+              echo "Nothing to commit"
+            fi
+
+workflows:
+  ci:
+    when:
+      not:
+        and:
+          - << pipeline.parameters.release-enabled >>
+          - equal: [main, << pipeline.git.branch >>]
+    jobs:
+      - build
+  release:
+    when:
+      and:
+        - << pipeline.parameters.release-enabled >>
+        - equal: [main, << pipeline.git.branch >>]
+    jobs:
+      - release:
+          context: kawabi-release
