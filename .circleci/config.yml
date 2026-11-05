@@ -7,6 +7,9 @@ parameters:
   version:
     type: string
     default: ""
+  dry-run:
+    type: boolean
+    default: false
 
 commands:
   restore-gradle:
@@ -140,17 +143,26 @@ jobs:
             chmod 600 ~/.ssh/id_rsa
             ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
             TARGET="$VPS_USER@$VPS_HOST"
-            ssh "$TARGET" "mkdir -p /opt/apk/v2 /opt/apk/tv"
-            scp /tmp/kawabi.apk "$TARGET:/opt/apk/v2/kawabi.apk.new"
-            scp /tmp/manifest.json "$TARGET:/opt/apk/v2/manifest.json.new"
-            ssh "$TARGET" "mv /opt/apk/v2/kawabi.apk.new /opt/apk/v2/kawabi.apk && mv /opt/apk/v2/manifest.json.new /opt/apk/v2/manifest.json"
-            scp /tmp/kawabi-tv.apk "$TARGET:/opt/apk/tv/kawabi-tv.apk.new"
-            scp /tmp/tv-manifest.json "$TARGET:/opt/apk/tv/manifest.json.new"
-            ssh "$TARGET" "mv /opt/apk/tv/kawabi-tv.apk.new /opt/apk/tv/kawabi-tv.apk && mv /opt/apk/tv/manifest.json.new /opt/apk/tv/manifest.json"
+            if [ "<< pipeline.parameters.dry-run >>" = "true" ]; then
+              PHONE_DIR=/opt/apk/trial/v2
+              TV_DIR=/opt/apk/trial/tv
+            else
+              PHONE_DIR=/opt/apk/v2
+              TV_DIR=/opt/apk/tv
+            fi
+            ssh "$TARGET" "mkdir -p $PHONE_DIR $TV_DIR"
+            scp /tmp/kawabi.apk "$TARGET:$PHONE_DIR/kawabi.apk.new"
+            scp /tmp/manifest.json "$TARGET:$PHONE_DIR/manifest.json.new"
+            ssh "$TARGET" "mv $PHONE_DIR/kawabi.apk.new $PHONE_DIR/kawabi.apk && mv $PHONE_DIR/manifest.json.new $PHONE_DIR/manifest.json"
+            scp /tmp/kawabi-tv.apk "$TARGET:$TV_DIR/kawabi-tv.apk.new"
+            scp /tmp/tv-manifest.json "$TARGET:$TV_DIR/manifest.json.new"
+            ssh "$TARGET" "mv $TV_DIR/kawabi-tv.apk.new $TV_DIR/kawabi-tv.apk && mv $TV_DIR/manifest.json.new $TV_DIR/manifest.json"
       - run:
           name: Commit version bump and changelog stamp
           command: |
-            if ! git diff --quiet -- app/build.gradle.kts CHANGELOG.md; then
+            if [ "<< pipeline.parameters.dry-run >>" = "true" ]; then
+              echo "dry run: skipping the release commit"
+            elif ! git diff --quiet -- app/build.gradle.kts CHANGELOG.md; then
               git config user.name "circleci"
               git config user.email "circleci@users.noreply.github.com"
               git add app/build.gradle.kts CHANGELOG.md
