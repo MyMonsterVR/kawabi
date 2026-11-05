@@ -26,4 +26,5 @@ data class Manga(
     val totalChapters: Double,
     val notes: String,
     val lastReadAt: Long,
+    val adult: Boolean = false,
 )

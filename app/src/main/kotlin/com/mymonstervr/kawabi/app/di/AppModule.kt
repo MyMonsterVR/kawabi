@@ -7,6 +7,7 @@ import com.mymonstervr.kawabi.app.anime.AnimeSearchViewModel
 import com.mymonstervr.kawabi.app.auth.LoginViewModel
 import com.mymonstervr.kawabi.app.browse.BrowseViewModel
 import com.mymonstervr.kawabi.app.detail.MangaDetailViewModel
+import com.mymonstervr.kawabi.app.hentai.HentaiViewModel
 import com.mymonstervr.kawabi.app.library.LibraryViewModel
 import com.mymonstervr.kawabi.app.notification.NewChapterNotifier
 import com.mymonstervr.kawabi.app.pairing.LinkTvViewModel
@@ -32,18 +33,19 @@ val appModule = module {
     single { AppUpdateStateHolder(androidContext()) }
     viewModel { LibraryViewModel(get(), get(), get()) }
     viewModel { LoginViewModel(get(), get(), get(), get()) }
-    viewModel { SearchViewModel(get(), get()) }
-    viewModel { BrowseViewModel(get(), get()) }
+    viewModel { params -> SearchViewModel(get(), get(), params.getOrNull<Boolean>() ?: false) }
+    viewModel { params -> BrowseViewModel(get(), get(), params.getOrNull<Boolean>() ?: false) }
     viewModel { MangaDetailViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { ReaderViewModel(get(), get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { SourcesViewModel(get()) }
     viewModel { BackupViewModel(get()) }
     viewModel { TrackingServicesViewModel(get(), get(), get(), get()) }
     viewModel { LinkTvViewModel(get()) }
     viewModel { AnimeViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { AnimeSearchViewModel(get(), get(), get()) }
-    viewModel { AnimeBrowseViewModel(get(), get(), get()) }
+    viewModel { params -> AnimeSearchViewModel(get(), get(), get(), params.getOrNull<Boolean>() ?: false) }
+    viewModel { params -> AnimeBrowseViewModel(get(), get(), get(), params.getOrNull<Boolean>() ?: false) }
+    viewModel { HentaiViewModel(get(), get(), get(), get()) }
     viewModel {
         AnimeDetailViewModel(
             get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(),

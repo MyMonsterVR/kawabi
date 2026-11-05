@@ -2,7 +2,8 @@ package com.mymonstervr.kawabi.app.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -16,8 +17,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.os.Build
 import coil3.compose.AsyncImage
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
@@ -36,6 +44,7 @@ import com.mymonstervr.kawabi.data.network.resolveCoverUrl
  * [coverUrl] is passed through [resolveCoverUrl] here rather than by the caller so every
  * grid gets the same proxy handling, [source] being the site key that decides it.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MediaGridCard(
     title: String,
@@ -45,9 +54,17 @@ fun MediaGridCard(
     source: String? = null,
     badge: String? = null,
     pill: String? = null,
+    blurCover: Boolean = false,
 ) {
     val scale = LocalKawabiScale.current
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
+    var revealed by remember { mutableStateOf(false) }
+    val hidden = blurCover && !revealed
+    Column(
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = if (blurCover) ({ revealed = !revealed }) else null,
+        ),
+    ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             AsyncImage(
                 model = resolveCoverUrl(coverUrl, source),
@@ -58,7 +75,12 @@ fun MediaGridCard(
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(NightSession.RadiusMd))
                     .border(1.dp, NightSession.Hairline, RoundedCornerShape(NightSession.RadiusMd))
-                    .background(NightSession.Cover),
+                    .background(NightSession.Cover)
+                    .then(
+                        if (!hidden) Modifier
+                        else if (Build.VERSION.SDK_INT >= 31) Modifier.blur(28.dp)
+                        else Modifier.alpha(0.1f),
+                    ),
             )
             if (badge != null) {
                 Text(
@@ -106,7 +128,7 @@ fun MediaGridCard(
 
 /** Manga search/browse results, which all arrive as [SearchResultDto]. */
 @Composable
-fun MangaGridCard(result: SearchResultDto, onClick: () -> Unit) {
+fun MangaGridCard(result: SearchResultDto, onClick: () -> Unit, blurCover: Boolean = false) {
     val sourceCount = result.alternates?.takeIf { it.isNotEmpty() }?.let { it.size + 1 }
     MediaGridCard(
         title = result.title,
@@ -114,5 +136,6 @@ fun MangaGridCard(result: SearchResultDto, onClick: () -> Unit) {
         subtitle = if (sourceCount == null) result.source_name else null,
         onClick = onClick,
         pill = sourceCount?.let { "$it sources" },
+        blurCover = blurCover,
     )
 }

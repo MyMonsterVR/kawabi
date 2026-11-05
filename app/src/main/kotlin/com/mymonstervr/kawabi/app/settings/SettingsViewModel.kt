@@ -8,7 +8,9 @@ import com.mymonstervr.kawabi.app.update.AppUpdateStateHolder
 import com.mymonstervr.kawabi.data.update.AppUpdateChecker
 import com.mymonstervr.kawabi.data.update.AppUpdateInfo
 import com.mymonstervr.kawabi.app.notification.NewChapterNotifier
+import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.TokenStore
+import com.mymonstervr.kawabi.data.usecase.AdultSources
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.track.TrackerStatusState
@@ -47,7 +49,30 @@ class SettingsViewModel(
     updateStateHolder: AppUpdateStateHolder,
     private val libraryUpdateManager: LibraryUpdateManager,
     private val newChapterNotifier: NewChapterNotifier,
+    private val sourceApi: SourceApi,
+    private val adultSources: AdultSources,
 ) : ViewModel() {
+
+    val adultEnabled: StateFlow<Boolean> = preferences.adultContentEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    init {
+        viewModelScope.launch {
+            sourceApi.getAdultEnabled().onSuccess { preferences.setAdultContentEnabled(it) }
+        }
+    }
+
+    fun setAdultEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sourceApi.setAdultEnabled(enabled).onSuccess {
+                preferences.setAdultContentEnabled(enabled)
+                if (enabled) {
+                    adultSources.mangaSources()
+                    adultSources.animeSources()
+                }
+            }
+        }
+    }
 
     val isLoggedIn: StateFlow<Boolean> = tokenStore.isLoggedIn
 

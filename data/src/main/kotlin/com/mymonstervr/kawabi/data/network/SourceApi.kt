@@ -1,6 +1,7 @@
 package com.mymonstervr.kawabi.data.network
 
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
+import com.mymonstervr.kawabi.data.network.dto.AdultPrefDto
 import com.mymonstervr.kawabi.data.network.dto.AltTitlesResponse
 import com.mymonstervr.kawabi.data.network.dto.BrowseResponse
 import com.mymonstervr.kawabi.data.network.dto.MangaBatchRequest
@@ -69,21 +70,25 @@ class SourceApi(
     // out across every enabled source server-side and can legitimately take just over
     // 10s (confirmed live: 10.01s/10.003s responses), which OkHttp's default read
     // timeout was cutting off right as the server would've answered.
-    suspend fun search(query: String): Result<SearchResponse> = withContext(dispatchers.io) {
+    suspend fun search(query: String, adult: Boolean = false): Result<SearchResponse> = withContext(dispatchers.io) {
         runCatching {
-            val request = getRequest("search") { addQueryParameter("q", query) }
+            val request = getRequest("search") {
+                addQueryParameter("q", query)
+                if (adult) addQueryParameter("adult", "1")
+            }
             executeWithRetry(request, SearchResponse.serializer(), longReadClient)
         }
     }
 
     // Same fan-out-vs-timeout reasoning as search() -- a single-source listing is
     // normally fast, but reuses the long-read client for consistency and headroom.
-    suspend fun browse(source: String, sort: String, page: Int): Result<BrowseResponse> = withContext(dispatchers.io) {
+    suspend fun browse(source: String, sort: String, page: Int, adult: Boolean = false): Result<BrowseResponse> = withContext(dispatchers.io) {
         runCatching {
             val request = getRequest("browse") {
                 addQueryParameter("source", source)
                 addQueryParameter("sort", sort)
                 addQueryParameter("page", page.toString())
+                if (adult) addQueryParameter("adult", "1")
             }
             executeWithRetry(request, BrowseResponse.serializer(), longReadClient)
         }
@@ -105,6 +110,20 @@ class SourceApi(
         runCatching {
             val request = getRequest("alt-titles") { addQueryParameter("title", title) }
             executeWithRetry(request, AltTitlesResponse.serializer()).titles
+        }
+    }
+
+    suspend fun getAdultEnabled(): Result<Boolean> = withContext(dispatchers.io) {
+        runCatching { executeWithRetry(getRequest("adult") {}, AdultPrefDto.serializer()).enabled }
+    }
+
+    suspend fun setAdultEnabled(enabled: Boolean): Result<Unit> = withContext(dispatchers.io) {
+        runCatching {
+            val body = networkJson.encodeToString(AdultPrefDto.serializer(), AdultPrefDto(enabled)).toRequestBody(JSON_MEDIA_TYPE)
+            val request = Request.Builder().url("$BASE_URL/adult").put(body).build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error(errorMessageFor(response))
+            }
         }
     }
 

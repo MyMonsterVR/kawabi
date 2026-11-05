@@ -23,6 +23,7 @@ class AnimeBrowseViewModel(
     private val animeApi: AnimeApi,
     private val identityMatcher: AnimeIdentityMatcher,
     preferences: AppPreferences,
+    private val adult: Boolean = false,
 ) : ViewModel() {
 
     fun openKeyFor(card: AnimeCardDto, onResolved: (String) -> Unit) =
@@ -89,7 +90,7 @@ class AnimeBrowseViewModel(
             _isLoading.value = true
             _error.value = null
             page = 1
-            animeApi.browse(sourceKey, _sort.value.apiValue, page)
+            animeApi.browse(sourceKey, _sort.value.apiValue, page, adult)
                 .onSuccess {
                     _items.value = it.results
                     hasNext = it.has_next_page
@@ -103,7 +104,7 @@ class AnimeBrowseViewModel(
         if (!hasNext || _isLoadingMore.value || _isLoading.value) return
         viewModelScope.launch {
             _isLoadingMore.value = true
-            animeApi.browse(sourceKey, _sort.value.apiValue, page + 1)
+            animeApi.browse(sourceKey, _sort.value.apiValue, page + 1, adult)
                 .onSuccess {
                     page += 1
                     _items.value = _items.value + it.results

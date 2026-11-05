@@ -21,6 +21,7 @@ enum class BrowseSort(val apiValue: String, val label: String) {
 class BrowseViewModel(
     private val sourceApi: SourceApi,
     preferences: AppPreferences,
+    private val adult: Boolean = false,
 ) : ViewModel() {
 
     val gridColumns: StateFlow<Int> = preferences.libraryGridColumns
@@ -84,7 +85,7 @@ class BrowseViewModel(
             _isLoading.value = true
             _error.value = null
             page = 1
-            sourceApi.browse(sourceKey, _sort.value.apiValue, page)
+            sourceApi.browse(sourceKey, _sort.value.apiValue, page, adult)
                 .onSuccess {
                     _items.value = it.results
                     hasNext = it.has_next_page
@@ -98,7 +99,7 @@ class BrowseViewModel(
         if (!hasNext || _isLoadingMore.value || _isLoading.value) return
         viewModelScope.launch {
             _isLoadingMore.value = true
-            sourceApi.browse(sourceKey, _sort.value.apiValue, page + 1)
+            sourceApi.browse(sourceKey, _sort.value.apiValue, page + 1, adult)
                 .onSuccess {
                     page += 1
                     _items.value = _items.value + it.results

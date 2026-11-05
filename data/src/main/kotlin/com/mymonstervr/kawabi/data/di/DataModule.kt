@@ -32,6 +32,7 @@ import com.mymonstervr.kawabi.data.track.anilist.AniListTracker
 import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
 import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListTracker
 import com.mymonstervr.kawabi.data.usecase.AddAnimeToLibrary
+import com.mymonstervr.kawabi.data.usecase.AdultSources
 import com.mymonstervr.kawabi.data.usecase.AddMangaToLibrary
 import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
 import com.mymonstervr.kawabi.data.usecase.AnimeLibraryUpdateManager
@@ -85,7 +86,8 @@ val dataModule = module {
     single { SyncApi(get(), get()) }
     single { RefreshMangaChapters(get(), get(), get()) }
     single { RefreshLibraryBatch(get(), get()) }
-    single { AddMangaToLibrary(get(), get(), get()) }
+    single { AdultSources(get(), get(), get()) }
+    single { AddMangaToLibrary(get(), get(), get(), get()) }
     single { SyncClient(get(), get(), get(), get(), get()) }
     single { LibraryUpdateManager(get(), get()) }
     single { BackupManager(get(), get(), get(), get(), get(), get(), get()) }
@@ -96,7 +98,7 @@ val dataModule = module {
     // The merge is passed as a provider: it needs the matcher to group rows, so resolving
     // it eagerly here would be a construction cycle.
     single { AnimeIdentityMatcher(get(), get()) { get() } }
-    single { AddAnimeToLibrary(get(), get(), get(), get()) }
+    single { AddAnimeToLibrary(get(), get(), get(), get(), get()) }
     single { MergeDuplicateAnimes(get(), get(), get(), get(), get()) }
     single { AnimeSyncClient(get(), get(), get(), get(), get(), get(), get()) }
     single { SwitchAnimeSource(get(), get(), get(), get(), get(), get(), get()) }

@@ -23,6 +23,7 @@ class AnimeSearchViewModel(
     private val animeApi: AnimeApi,
     private val identityMatcher: AnimeIdentityMatcher,
     preferences: AppPreferences,
+    private val adult: Boolean = false,
 ) : ViewModel() {
 
     fun openKeyFor(card: AnimeCardDto, onResolved: (String) -> Unit) =
@@ -53,7 +54,7 @@ class AnimeSearchViewModel(
         viewModelScope.launch {
             animeApi.getSources().onSuccess { response ->
                 _sources.value = response.sources
-                    .filter { it.enabled }
+                    .filter { it.enabled && it.adult == adult }
                     .sortedByDescending { it.name.lowercase() == PRIMARY_SOURCE_NAME }
             }
         }
@@ -83,7 +84,7 @@ class AnimeSearchViewModel(
         viewModelScope.launch {
             _isSearching.value = true
             _error.value = null
-            animeApi.search(trimmed)
+            animeApi.search(trimmed, adult)
                 .onSuccess { _results.value = it.results }
                 .onFailure { _error.value = it.message ?: "Search failed" }
             _isSearching.value = false

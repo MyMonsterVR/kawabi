@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -87,6 +88,10 @@ class AppPreferences(private val context: Context) {
     private val trackerLastVerifiedAtKey = longPreferencesKey("tracker_last_verified_at")
     private val subtitleTextSizeKey = intPreferencesKey("subtitle_text_size")
     private val subtitleBackgroundStyleKey = stringPreferencesKey("subtitle_background_style")
+    private val adultContentEnabledKey = booleanPreferencesKey("adult_content_enabled")
+    private val adultMangaSourcesKey = stringSetPreferencesKey("adult_manga_sources")
+    private val adultAnimeSourcesKey = stringSetPreferencesKey("adult_anime_sources")
+    private val adultSourcesKnownKey = booleanPreferencesKey("adult_sources_known")
 
     // Index into NightSession.Accents -- local-only styling, no backend concept of it
     // (PLAN.md's Settings step explicitly scoped this as pure local theming).
@@ -353,5 +358,30 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setSubtitleBackgroundStyle(style: SubtitleBackgroundStyle) {
         context.settingsDataStore.edit { it[subtitleBackgroundStyleKey] = style.name }
+    }
+
+    val adultContentEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[adultContentEnabledKey] ?: false
+    }
+
+    suspend fun setAdultContentEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[adultContentEnabledKey] = enabled }
+    }
+
+    suspend fun adultMangaSources(): Set<String> = context.settingsDataStore.data.first()[adultMangaSourcesKey].orEmpty()
+
+    suspend fun adultAnimeSources(): Set<String> = context.settingsDataStore.data.first()[adultAnimeSourcesKey].orEmpty()
+
+    suspend fun adultSourcesKnown(): Boolean = context.settingsDataStore.data.first()[adultSourcesKnownKey] ?: false
+
+    suspend fun setAdultMangaSources(keys: Set<String>) {
+        context.settingsDataStore.edit {
+            it[adultMangaSourcesKey] = keys
+            it[adultSourcesKnownKey] = true
+        }
+    }
+
+    suspend fun setAdultAnimeSources(keys: Set<String>) {
+        context.settingsDataStore.edit { it[adultAnimeSourcesKey] = keys }
     }
 }

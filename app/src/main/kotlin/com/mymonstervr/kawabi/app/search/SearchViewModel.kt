@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 class SearchViewModel(
     private val sourceApi: SourceApi,
     preferences: AppPreferences,
+    private val adult: Boolean = false,
 ) : ViewModel() {
 
     // Same grid-columns preference as the library grid -- one density knob, not a
@@ -44,7 +45,7 @@ class SearchViewModel(
     init {
         viewModelScope.launch {
             sourceApi.getSources().onSuccess { response ->
-                _sources.value = response.sources.filter { it.enabled }
+                _sources.value = response.sources.filter { it.enabled && it.adult == adult }
             }
         }
     }
@@ -59,7 +60,7 @@ class SearchViewModel(
         viewModelScope.launch {
             _isSearching.value = true
             _error.value = null
-            sourceApi.search(trimmed)
+            sourceApi.search(trimmed, adult)
                 .onSuccess { _results.value = it.results }
                 .onFailure { _error.value = it.message ?: "Search failed" }
             _isSearching.value = false

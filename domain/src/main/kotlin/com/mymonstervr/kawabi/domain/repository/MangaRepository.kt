@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.Flow
 
 interface MangaRepository {
     fun observeFavorites(): Flow<List<Manga>>
-    fun observeFavoritesWithUnreadCount(): Flow<List<MangaWithUnreadCount>>
+    fun observeFavoritesWithUnreadCount(adult: Boolean = false): Flow<List<MangaWithUnreadCount>>
     suspend fun getFavorites(): List<Manga>
+    suspend fun getAllFavorites(): List<Manga>
+    suspend fun setAdult(id: Long, adult: Boolean)
     suspend fun getById(id: Long): Manga?
     suspend fun getByUrl(url: String): Manga?
     suspend fun upsert(manga: Manga): Long

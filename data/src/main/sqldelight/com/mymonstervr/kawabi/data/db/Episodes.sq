@@ -55,7 +55,7 @@ SELECT episodes._id AS episode_id, episodes.key AS episode_key, episodes.name AS
     animes._id AS anime_id, animes.title AS anime_title, animes.thumbnail_url, animes.source
 FROM episodes
 JOIN animes ON animes._id = episodes.anime_id
-WHERE animes.favorite = 1 AND episodes.watched = 0 AND episodes.date_upload >= :since
+WHERE animes.favorite = 1 AND animes.adult = 0 AND episodes.watched = 0 AND episodes.date_upload >= :since
 ORDER BY episodes.date_upload DESC
 LIMIT :limit;
 

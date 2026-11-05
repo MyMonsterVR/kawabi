@@ -42,6 +42,7 @@ import com.mymonstervr.kawabi.app.common.NightChip
 import com.mymonstervr.kawabi.app.common.ResponsiveContainer
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +50,8 @@ fun BrowseScreen(
     sourceKey: String,
     onBack: () -> Unit,
     onResultClick: (String) -> Unit,
-    viewModel: BrowseViewModel = koinViewModel(),
+    adult: Boolean = false,
+    viewModel: BrowseViewModel = koinViewModel(parameters = { parametersOf(adult) }),
 ) {
     LaunchedEffect(sourceKey) { viewModel.load(sourceKey) }
 
@@ -119,7 +121,7 @@ fun BrowseScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(items, key = { it.url }) { result ->
-                            MangaGridCard(result = result, onClick = { onResultClick(result.url) })
+                            MangaGridCard(result = result, onClick = { onResultClick(result.url) }, blurCover = adult)
                         }
                         if (isLoadingMore) {
                             item(span = { GridItemSpan(maxLineSpan) }) {

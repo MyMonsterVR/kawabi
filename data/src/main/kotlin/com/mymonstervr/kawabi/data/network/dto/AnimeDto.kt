@@ -19,6 +19,7 @@ data class AnimeSourceDto(
     val lang: String = "",
     val enabled: Boolean = true,
     val supports_latest: Boolean = true,
+    val adult: Boolean = false,
 )
 
 @Serializable
@@ -143,6 +144,7 @@ data class AnimeEntryDto(
     val updated_at: Long = 0,
     val deleted_at: Long? = null,
     val tracks: List<AnimeTrackDto> = emptyList(),
+    val adult: Boolean = false,
 )
 
 @Serializable

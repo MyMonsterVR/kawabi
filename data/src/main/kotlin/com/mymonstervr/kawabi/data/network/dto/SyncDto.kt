@@ -19,6 +19,7 @@ data class EntryDto(
     val total_chapters: Double = 0.0,
     val preferred_source: String? = null,
     val preferred_url: String? = null,
+    val adult: Boolean = false,
 )
 
 @Serializable

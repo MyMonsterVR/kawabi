@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.Flow
 
 interface AnimeRepository {
     fun observeFavorites(): Flow<List<Anime>>
-    fun observeLibraryEntries(): Flow<List<AnimeLibraryEntry>>
+    fun observeLibraryEntries(adult: Boolean = false): Flow<List<AnimeLibraryEntry>>
     suspend fun getFavorites(): List<Anime>
+    suspend fun getAllFavorites(): List<Anime>
+    suspend fun setAdult(id: Long, adult: Boolean)
     suspend fun getAll(): List<Anime>
     suspend fun getById(id: Long): Anime?
     suspend fun getByKey(key: String): Anime?

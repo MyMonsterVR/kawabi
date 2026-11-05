@@ -26,7 +26,7 @@ class SourcesViewModel(private val sourceApi: SourceApi) : ViewModel() {
         viewModelScope.launch {
             _state.value = SourcesState.Loading
             sourceApi.getSources()
-                .onSuccess { _state.value = SourcesState.Success(it.sources) }
+                .onSuccess { _state.value = SourcesState.Success(it.sources.filter { s -> !s.adult }) }
                 .onFailure { _state.value = SourcesState.Error(it.message ?: "Failed to load sources") }
         }
     }

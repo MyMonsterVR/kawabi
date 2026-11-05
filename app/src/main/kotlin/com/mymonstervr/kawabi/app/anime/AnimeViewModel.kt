@@ -196,7 +196,7 @@ class AnimeViewModel(
         viewModelScope.launch {
             _releases.value = SectionState.Loading
             val sourcesResult = animeApi.getSources()
-            val sources = sourcesResult.getOrNull()?.sources?.filter { it.enabled && it.supports_latest }
+            val sources = sourcesResult.getOrNull()?.sources?.filter { it.enabled && it.supports_latest && !it.adult }
             if (sources == null) {
                 _releases.value = SectionState.Error(
                     sourcesResult.exceptionOrNull()?.message ?: "Couldn't load releases",

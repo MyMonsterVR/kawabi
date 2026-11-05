@@ -69,6 +69,7 @@ import com.mymonstervr.kawabi.app.anime.PlayerScreen
 import com.mymonstervr.kawabi.app.auth.LoginScreen
 import com.mymonstervr.kawabi.app.browse.BrowseScreen
 import com.mymonstervr.kawabi.app.detail.MangaDetailScreen
+import com.mymonstervr.kawabi.app.hentai.HentaiScreen
 import com.mymonstervr.kawabi.app.library.LibraryScreen
 import com.mymonstervr.kawabi.app.reader.ReaderScreen
 import com.mymonstervr.kawabi.app.search.SearchScreen
@@ -100,6 +101,9 @@ private const val ROUTE_ANIME_SEARCH = "anime-search?q={q}"
 private const val ROUTE_ANIME_DETAIL = "anime/{key}"
 private const val ROUTE_ANIME_BROWSE = "anime-browse/{sourceKey}"
 private const val ROUTE_PLAYER = "player/{episodeKey}"
+private const val ROUTE_HENTAI = "hentai"
+private const val ROUTE_HENTAI_BROWSE = "hentai-browse/{sourceKey}"
+private const val ROUTE_HENTAI_ANIME_BROWSE = "hentai-anime-browse/{sourceKey}"
 private const val ARG_URL = "url"
 private const val ARG_KEY = "key"
 private const val ARG_CHAPTER_ID = "chapterId"
@@ -331,6 +335,40 @@ fun KawabiApp() {
                     onTrackingClick = { navController.navigateSafe(ROUTE_TRACKING) },
                     onChangelogClick = { navController.navigateSafe(ROUTE_CHANGELOG) },
                     onLinkTvClick = { navController.navigateSafe(ROUTE_LINK_TV) },
+                    onHentaiClick = { navController.navigateSafe(ROUTE_HENTAI) },
+                )
+            }
+            composable(ROUTE_HENTAI) {
+                HentaiScreen(
+                    onBack = { navController.popBackStackSafe() },
+                    onMangaClick = { url -> navigateToMangaDetail(navController, url) },
+                    onAnimeClick = { key -> navigateToAnimeDetail(navController, key) },
+                    onMangaBrowse = { sourceKey -> navController.navigateSafe("hentai-browse/${Uri.encode(sourceKey)}") },
+                    onAnimeBrowse = { sourceKey -> navController.navigateSafe("hentai-anime-browse/${Uri.encode(sourceKey)}") },
+                )
+            }
+            composable(
+                route = ROUTE_HENTAI_BROWSE,
+                arguments = listOf(navArgument(ARG_SOURCE_KEY) { type = NavType.StringType }),
+            ) { entry ->
+                val sourceKey = Uri.decode(entry.arguments?.getString(ARG_SOURCE_KEY).orEmpty())
+                BrowseScreen(
+                    sourceKey = sourceKey,
+                    onBack = { navController.popBackStackSafe() },
+                    onResultClick = { url -> navigateToMangaDetail(navController, url) },
+                    adult = true,
+                )
+            }
+            composable(
+                route = ROUTE_HENTAI_ANIME_BROWSE,
+                arguments = listOf(navArgument(ARG_SOURCE_KEY) { type = NavType.StringType }),
+            ) { entry ->
+                val sourceKey = Uri.decode(entry.arguments?.getString(ARG_SOURCE_KEY).orEmpty())
+                AnimeBrowseScreen(
+                    sourceKey = sourceKey,
+                    onBack = { navController.popBackStackSafe() },
+                    onResultClick = { key -> navigateToAnimeDetail(navController, key) },
+                    adult = true,
                 )
             }
             composable(ROUTE_LINK_TV) {

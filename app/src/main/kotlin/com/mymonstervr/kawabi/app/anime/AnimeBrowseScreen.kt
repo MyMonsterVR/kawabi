@@ -38,13 +38,15 @@ import com.mymonstervr.kawabi.app.common.ResponsiveContainer
 import com.mymonstervr.kawabi.app.common.roundIconButton
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 fun AnimeBrowseScreen(
     sourceKey: String,
     onBack: () -> Unit,
     onResultClick: (String) -> Unit,
-    viewModel: AnimeBrowseViewModel = koinViewModel(),
+    adult: Boolean = false,
+    viewModel: AnimeBrowseViewModel = koinViewModel(parameters = { parametersOf(adult) }),
 ) {
     LaunchedEffect(sourceKey) { viewModel.load(sourceKey) }
 
@@ -130,6 +132,7 @@ fun AnimeBrowseScreen(
                                 subtitle = result.source_name.ifBlank { null },
                                 onClick = { viewModel.openKeyFor(result, onResultClick) },
                                 source = result.source.ifBlank { sourceKey },
+                                blurCover = adult,
                             )
                         }
                         if (isLoadingMore) {

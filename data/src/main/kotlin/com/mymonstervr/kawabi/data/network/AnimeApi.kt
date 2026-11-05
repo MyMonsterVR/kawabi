@@ -57,20 +57,24 @@ class AnimeApi(
         }
     }
 
-    suspend fun browse(source: String, sort: String, page: Int): Result<AnimeBrowseResponse> = withContext(dispatchers.io) {
+    suspend fun browse(source: String, sort: String, page: Int, adult: Boolean = false): Result<AnimeBrowseResponse> = withContext(dispatchers.io) {
         runCatching {
             val request = getRequest("anime/browse") {
                 addQueryParameter("source", source)
                 addQueryParameter("sort", sort)
                 addQueryParameter("page", page.toString())
+                if (adult) addQueryParameter("adult", "1")
             }
             executeWithRetry(request, AnimeBrowseResponse.serializer(), longReadClient)
         }
     }
 
-    suspend fun search(query: String): Result<AnimeSearchResponse> = withContext(dispatchers.io) {
+    suspend fun search(query: String, adult: Boolean = false): Result<AnimeSearchResponse> = withContext(dispatchers.io) {
         runCatching {
-            val request = getRequest("anime/search") { addQueryParameter("q", query) }
+            val request = getRequest("anime/search") {
+                addQueryParameter("q", query)
+                if (adult) addQueryParameter("adult", "1")
+            }
             executeWithRetry(request, AnimeSearchResponse.serializer(), longReadClient)
         }
     }

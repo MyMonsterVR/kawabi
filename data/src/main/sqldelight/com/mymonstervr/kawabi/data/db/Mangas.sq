@@ -23,7 +23,8 @@ CREATE TABLE mangas (
     is_syncing INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
     total_chapters REAL NOT NULL DEFAULT 0,
     notes TEXT NOT NULL DEFAULT '',
-    last_read_at INTEGER NOT NULL DEFAULT 0
+    last_read_at INTEGER NOT NULL DEFAULT 0,
+    adult INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX mangas_source_url_idx ON mangas(source, url);
@@ -49,10 +50,13 @@ insertManga:
 INSERT INTO mangas(source, site_key, url, title, artist, author, description, genre, status,
     thumbnail_url, favorite, last_update, next_update, initialized, chapter_flags, viewer,
     date_added, calculate_interval, last_modified_at, version, is_syncing, total_chapters, notes,
-    last_read_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    last_read_at, adult)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectFavorites:
+SELECT * FROM mangas WHERE favorite = 1 AND adult = 0;
+
+selectAllFavorites:
 SELECT * FROM mangas WHERE favorite = 1;
 
 selectFavoritesWithUnreadCount:
@@ -60,13 +64,16 @@ SELECT mangas.*,
     (SELECT COUNT(*) FROM chapters WHERE chapters.manga_id = mangas._id AND chapters.read = 0) AS unread_count,
     (SELECT MAX(chapter_number) FROM chapters WHERE chapters.manga_id = mangas._id AND chapters.read = 1) AS last_read_chapter
 FROM mangas
-WHERE favorite = 1;
+WHERE favorite = 1 AND adult = :adult;
 
 selectMangaById:
 SELECT * FROM mangas WHERE _id = ?;
 
 selectByUrl:
 SELECT * FROM mangas WHERE url = ? LIMIT 1;
+
+updateAdult:
+UPDATE mangas SET adult = ? WHERE _id = ?;
 
 updateFavorite:
 UPDATE mangas SET favorite = ? WHERE _id = ?;
@@ -105,7 +112,7 @@ updateUpdateSchedule:
 UPDATE mangas SET last_update = ?, next_update = ?, calculate_interval = ? WHERE _id = ?;
 
 selectDueForUpdate:
-SELECT * FROM mangas WHERE favorite = 1 AND (next_update IS NULL OR next_update <= ?);
+SELECT * FROM mangas WHERE favorite = 1 AND adult = 0 AND (next_update IS NULL OR next_update <= ?);
 
 lastInsertMangaRowId:
 SELECT last_insert_rowid();

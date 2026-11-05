@@ -79,8 +79,11 @@ fun SettingsScreen(
     onTrackingClick: () -> Unit,
     onChangelogClick: () -> Unit,
     onLinkTvClick: () -> Unit,
+    onHentaiClick: () -> Unit,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
+    val adultEnabled by viewModel.adultEnabled.collectAsState()
+    var showAdultDialog by remember { mutableStateOf(false) }
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val readingDirection by viewModel.readingDirection.collectAsState()
     val markReadOnScroll by viewModel.markReadOnScroll.collectAsState()
@@ -119,6 +122,23 @@ fun SettingsScreen(
         )
     }
 
+    if (showAdultDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAdultDialog = false },
+            title = { Text("Adult content") },
+            text = { Text("I am 18 or older and want to show adult content") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showAdultDialog = false
+                    viewModel.setAdultEnabled(true)
+                }) { Text("I am 18 or older") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showAdultDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
     androidx.compose.material3.Scaffold(containerColor = NightSession.Background) { padding ->
         ResponsiveContainer(modifier = Modifier.padding(padding)) {
             LazyColumn(
@@ -132,6 +152,17 @@ fun SettingsScreen(
                         SettingsNavRow("S", "Manga sources", onSourcesClick)
                         SettingsDivider()
                         SettingsNavRow("A", "Anime sources", onAnimeSourcesClick)
+                        SettingsDivider()
+                        SettingsToggleRow(
+                            title = "Adult content",
+                            subtitle = "Show the hidden Hentai section",
+                            checked = adultEnabled,
+                            onCheckedChange = { if (it) showAdultDialog = true else viewModel.setAdultEnabled(false) },
+                        )
+                        if (adultEnabled) {
+                            SettingsDivider()
+                            SettingsNavRow("H", "Open Hentai section", onHentaiClick)
+                        }
                     }
                 }
                 item {

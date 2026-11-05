@@ -42,6 +42,7 @@ import com.mymonstervr.kawabi.app.common.ResponsiveContainer
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 fun AnimeSearchScreen(
@@ -49,7 +50,8 @@ fun AnimeSearchScreen(
     onResultClick: (String) -> Unit,
     onBrowseClick: (String) -> Unit,
     onMangaClick: () -> Unit = {},
-    viewModel: AnimeSearchViewModel = koinViewModel(),
+    adult: Boolean = false,
+    viewModel: AnimeSearchViewModel = koinViewModel(parameters = { parametersOf(adult) }),
 ) {
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
@@ -64,7 +66,7 @@ fun AnimeSearchScreen(
     Scaffold(
         containerColor = NightSession.Background,
         topBar = {
-            Column(modifier = Modifier.fillMaxWidth().background(NightSession.Background)) {
+            if (!adult) Column(modifier = Modifier.fillMaxWidth().background(NightSession.Background)) {
                 PageTitle(
                     text = "Search",
                     modifier = Modifier
@@ -145,6 +147,7 @@ fun AnimeSearchScreen(
                                 subtitle = result.source_name,
                                 onClick = { viewModel.openKeyFor(result, onResultClick) },
                                 source = result.source,
+                                blurCover = adult,
                             )
                         }
                     }

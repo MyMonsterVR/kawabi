@@ -66,13 +66,15 @@ import com.mymonstervr.kawabi.app.common.NightChip
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 fun SearchScreen(
     onResultClick: (String) -> Unit,
     onBrowseClick: (String) -> Unit,
     onAnimeClick: (String) -> Unit = {},
-    viewModel: SearchViewModel = koinViewModel(),
+    adult: Boolean = false,
+    viewModel: SearchViewModel = koinViewModel(parameters = { parametersOf(adult) }),
 ) {
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
@@ -89,13 +91,15 @@ fun SearchScreen(
     Scaffold(containerColor = NightSession.Background) { padding ->
         com.mymonstervr.kawabi.app.common.ResponsiveContainer(modifier = Modifier.padding(padding)) {
         Column(modifier = Modifier.fillMaxSize().background(NightSession.Background)) {
-            PageTitle("Search", modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 14.dp))
-            com.mymonstervr.kawabi.app.common.SegmentedTabs(
-                options = listOf("Manga", "Anime"),
-                selectedIndex = 0,
-                onSelect = { if (it == 1) onAnimeClick(query) },
-                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp).fillMaxWidth(),
-            )
+            if (!adult) {
+                PageTitle("Search", modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 14.dp))
+                com.mymonstervr.kawabi.app.common.SegmentedTabs(
+                    options = listOf("Manga", "Anime"),
+                    selectedIndex = 0,
+                    onSelect = { if (it == 1) onAnimeClick(query) },
+                    modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp).fillMaxWidth(),
+                )
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -185,7 +189,7 @@ fun SearchScreen(
                         SectionHeader(title = if (results.size == 1) "1 result" else "${results.size} results")
                     }
                     items(results, key = { it.url }) { result ->
-                        MangaGridCard(result = result, onClick = { onResultClick(result.url) })
+                        MangaGridCard(result = result, onClick = { onResultClick(result.url) }, blurCover = adult)
                     }
                 }
             }

@@ -80,7 +80,7 @@ class TvHomeViewModel(
 
     private suspend fun loadNewReleases() {
         val sources = animeApi.getSources().getOrNull()?.sources.orEmpty()
-            .filter { it.enabled && it.supports_latest }
+            .filter { it.enabled && it.supports_latest && !it.adult }
         if (sources.isEmpty()) return
         // Bounded per-source, same reasoning as kawabi-web's NewReleasesRail: without this,
         // AnimeApi.browse's own client-level read timeout (20s) is the only thing standing

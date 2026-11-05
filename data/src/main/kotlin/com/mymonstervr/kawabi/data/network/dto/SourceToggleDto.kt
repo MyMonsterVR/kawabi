@@ -13,6 +13,12 @@ data class SourceToggleDto(
     val name: String,
     val enabled: Boolean,
     val supports_latest: Boolean = true,
+    val adult: Boolean = false,
+)
+
+@Serializable
+data class AdultPrefDto(
+    val enabled: Boolean = false,
 )
 
 @Serializable

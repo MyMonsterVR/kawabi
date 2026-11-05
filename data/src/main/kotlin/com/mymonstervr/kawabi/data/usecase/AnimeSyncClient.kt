@@ -43,7 +43,7 @@ class AnimeSyncClient(
 
     private suspend fun push() {
         val now = System.currentTimeMillis()
-        val favorites = animeRepository.getFavorites()
+        val favorites = animeRepository.getAllFavorites()
         val entries = favorites.map { anime ->
             val episodes = episodeRepository.getForAnime(anime.id)
             AnimeEntryDto(
@@ -101,8 +101,11 @@ class AnimeSyncClient(
             // details screen keeps a non-favorite one for every key it opens -- so a
             // server entry has to (re)assert favorite rather than assume it.
             val anime = animeRepository.getByKey(entry.key)
-                ?.also { if (!it.favorite) animeRepository.setFavorite(it.id, true) }
-                ?: addAnimeToLibrary.add(entry.key, entry.cover_url).getOrNull()
+                ?.also {
+                    if (!it.favorite) animeRepository.setFavorite(it.id, true)
+                    if (entry.adult && !it.adult) animeRepository.setAdult(it.id, true)
+                }
+                ?: addAnimeToLibrary.add(entry.key, entry.cover_url, adult = entry.adult).getOrNull()
                 ?: continue
 
             if (entry.episodes_watched > 0) {

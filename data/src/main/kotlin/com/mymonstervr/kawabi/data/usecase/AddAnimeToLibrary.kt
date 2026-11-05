@@ -11,10 +11,11 @@ class AddAnimeToLibrary(
     private val animeRepository: AnimeRepository,
     private val refreshAnimeEpisodes: RefreshAnimeEpisodes,
     private val identityMatcher: AnimeIdentityMatcher,
+    private val adultSources: AdultSources,
 ) {
-    suspend fun add(key: String, cardCover: String? = null, malId: String? = null): Result<Anime> {
+    suspend fun add(key: String, cardCover: String? = null, malId: String? = null, adult: Boolean = false): Result<Anime> {
         val response = animeApi.getAnime(key).getOrElse { return Result.failure(it) }
-        return addWithDetail(response, cardCover, malId)
+        return addWithDetail(response, cardCover, malId, adult)
     }
 
     /**
@@ -32,10 +33,11 @@ class AddAnimeToLibrary(
         response: AnimeDetailResponse,
         cardCover: String? = null,
         malId: String? = null,
+        adult: Boolean = false,
     ): Result<Anime> = runCatching {
         identityMatcher.findFavorite(response.title, malId, excludeKey = response.key)
             ?.let { return@runCatching it }
-        val stored = persist(response, cardCover, favorite = true)
+        val stored = persist(response, cardCover, favorite = true, adult = adult)
         animeRepository.setFavorite(stored.id, true)
         refreshAnimeEpisodes.applyResponse(stored, response)
         stored
@@ -91,14 +93,17 @@ class AddAnimeToLibrary(
         )
     }
 
-    private suspend fun persist(response: AnimeDetailResponse, cardCover: String?, favorite: Boolean): Anime {
+    private suspend fun persist(response: AnimeDetailResponse, cardCover: String?, favorite: Boolean, adult: Boolean = false): Anime {
         val fetched = response.toDomain()
+        val isAdult = adult || adultSources.isAdultAnime(response.key, response.source)
         val anime = fetched.copy(
             favorite = favorite,
+            adult = isAdult,
             thumbnailUrl = fetched.thumbnailUrl?.takeIf { it.isNotBlank() }
                 ?: cardCover?.takeIf { it.isNotBlank() },
         )
         val id = animeRepository.upsert(anime)
+        if (isAdult) animeRepository.setAdult(id, true)
         anime.thumbnailUrl?.let { animeRepository.fillMissingThumbnail(id, it) }
         return anime.copy(id = id)
     }

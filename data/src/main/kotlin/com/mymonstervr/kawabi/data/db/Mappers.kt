@@ -39,6 +39,7 @@ private fun mangaFields(
     totalChapters: Double,
     notes: String,
     lastReadAt: Long,
+    adult: Boolean,
 ) = DomainManga(
     id = id,
     source = source,
@@ -65,6 +66,7 @@ private fun mangaFields(
     totalChapters = totalChapters,
     notes = notes,
     lastReadAt = lastReadAt,
+    adult = adult,
 )
 
 fun Mangas.toDomain() = mangaFields(
@@ -74,7 +76,7 @@ fun Mangas.toDomain() = mangaFields(
     nextUpdate = next_update, initialized = initialized, chapterFlags = chapter_flags,
     viewer = viewer, dateAdded = date_added, calculateInterval = calculate_interval,
     lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
-    totalChapters = total_chapters, notes = notes, lastReadAt = last_read_at,
+    totalChapters = total_chapters, notes = notes, lastReadAt = last_read_at, adult = adult,
 )
 
 fun SelectFavoritesWithUnreadCount.toDomain() = DomainMangaWithUnreadCount(
@@ -85,7 +87,7 @@ fun SelectFavoritesWithUnreadCount.toDomain() = DomainMangaWithUnreadCount(
         nextUpdate = next_update, initialized = initialized, chapterFlags = chapter_flags,
         viewer = viewer, dateAdded = date_added, calculateInterval = calculate_interval,
         lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
-        totalChapters = total_chapters, notes = notes, lastReadAt = last_read_at,
+        totalChapters = total_chapters, notes = notes, lastReadAt = last_read_at, adult = adult,
     ),
     unreadCount = unread_count.toInt(),
     lastReadChapterNumber = last_read_chapter,
@@ -160,6 +162,7 @@ private fun animeFields(
     totalEpisodes: Double,
     lastWatchedAt: Long,
     sourceChosenAt: Long,
+    adult: Boolean,
 ) = DomainAnime(
     id = id,
     source = source,
@@ -183,6 +186,7 @@ private fun animeFields(
     totalEpisodes = totalEpisodes,
     lastWatchedAt = lastWatchedAt,
     sourceChosenAt = sourceChosenAt,
+    adult = adult,
 )
 
 fun Animes.toDomain() = animeFields(
@@ -192,7 +196,7 @@ fun Animes.toDomain() = animeFields(
     initialized = initialized, dateAdded = date_added, calculateInterval = calculate_interval,
     lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
     totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
-    sourceChosenAt = source_chosen_at,
+    sourceChosenAt = source_chosen_at, adult = adult,
 )
 
 fun SelectLibraryEntries.toDomain() = DomainAnimeLibraryEntry(
@@ -203,7 +207,7 @@ fun SelectLibraryEntries.toDomain() = DomainAnimeLibraryEntry(
         initialized = initialized, dateAdded = date_added, calculateInterval = calculate_interval,
         lastModifiedAt = last_modified_at, version = version, isSyncing = is_syncing,
         totalEpisodes = total_episodes, lastWatchedAt = last_watched_at,
-        sourceChosenAt = source_chosen_at,
+        sourceChosenAt = source_chosen_at, adult = adult,
     ),
     status = animeWatchStatusOf(track_status, episode_count.toInt(), watched_count.toInt()),
     episodeCount = episode_count.toInt(),

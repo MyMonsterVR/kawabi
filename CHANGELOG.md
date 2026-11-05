@@ -12,6 +12,13 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Updates: after an update installs, the app no longer keeps showing "update ready to install" for it. Some tablets never tell the app the install finished, so it now checks the downloaded file itself.
+- New hidden Hentai section for adult manga and anime. Turn on Settings -> Adult
+  content (18+ confirmation), then tap Open Hentai section. It has its own
+  library, search and browse for adult sources, with covers blurred until you
+  long-press them. Adult titles stay out of the normal library, updates and
+  notifications, and sync with the website's Hentai section.
+
 ## 0.1.0-130 - 2026-11-05
 
 ## 0.1.0-128 - 2026-11-05

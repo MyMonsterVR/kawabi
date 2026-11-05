@@ -23,12 +23,20 @@ class SqlDelightMangaRepository(
         queries.selectFavorites().asFlow().mapToList(dispatchers.io)
             .map { rows -> rows.map { it.toDomain() } }
 
-    override fun observeFavoritesWithUnreadCount(): Flow<List<MangaWithUnreadCount>> =
-        queries.selectFavoritesWithUnreadCount().asFlow().mapToList(dispatchers.io)
+    override fun observeFavoritesWithUnreadCount(adult: Boolean): Flow<List<MangaWithUnreadCount>> =
+        queries.selectFavoritesWithUnreadCount(adult).asFlow().mapToList(dispatchers.io)
             .map { rows -> rows.map { it.toDomain() } }
 
     override suspend fun getFavorites(): List<Manga> = withContext(dispatchers.io) {
         queries.selectFavorites().executeAsList().map { it.toDomain() }
+    }
+
+    override suspend fun getAllFavorites(): List<Manga> = withContext(dispatchers.io) {
+        queries.selectAllFavorites().executeAsList().map { it.toDomain() }
+    }
+
+    override suspend fun setAdult(id: Long, adult: Boolean): Unit = withContext<Unit>(dispatchers.io) {
+        queries.updateAdult(adult, id)
     }
 
     override suspend fun getById(id: Long): Manga? = withContext(dispatchers.io) {
@@ -83,6 +91,7 @@ class SqlDelightMangaRepository(
                     total_chapters = manga.totalChapters,
                     notes = manga.notes,
                     last_read_at = manga.lastReadAt,
+                    adult = manga.adult,
                 )
                 queries.lastInsertMangaRowId().executeAsOne()
             }

@@ -22,7 +22,8 @@ CREATE TABLE animes (
     last_watched_at INTEGER NOT NULL DEFAULT 0,
     -- When the user last explicitly picked this row's source. Beats every other signal
     -- when duplicates are merged: an explicit choice outranks watch counts and recency.
-    source_chosen_at INTEGER NOT NULL DEFAULT 0
+    source_chosen_at INTEGER NOT NULL DEFAULT 0,
+    adult INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0
 );
 
 -- Identity is the backend contract's anime_key ("<engineSourceId>:<relativeUrl>"), not
@@ -50,14 +51,17 @@ END;
 insertAnime:
 INSERT INTO animes(source, key, url, title, author, description, genre, status, thumbnail_url,
     favorite, last_update, next_update, initialized, date_added, calculate_interval,
-    last_modified_at, version, is_syncing, total_episodes, last_watched_at, source_chosen_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    last_modified_at, version, is_syncing, total_episodes, last_watched_at, source_chosen_at, adult)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectFavorites:
+SELECT * FROM animes WHERE favorite = 1 AND adult = 0;
+
+selectAllFavorites:
 SELECT * FROM animes WHERE favorite = 1;
 
 selectAll:
-SELECT * FROM animes;
+SELECT * FROM animes WHERE adult = 0;
 
 -- One row per library anime with everything the Anime tab's three panes need: the
 -- episode tallies, the next unwatched episode number, the newest episode's upload date
@@ -85,13 +89,16 @@ SELECT animes.*,
         WHERE anime_tracks.anime_id = animes._id ORDER BY anime_tracks.updated_at DESC LIMIT 1
     )) AS track_status
 FROM animes
-WHERE animes.favorite = 1;
+WHERE animes.favorite = 1 AND animes.adult = :adult;
 
 selectAnimeById:
 SELECT * FROM animes WHERE _id = ?;
 
 selectByKey:
 SELECT * FROM animes WHERE key = ? LIMIT 1;
+
+updateAdult:
+UPDATE animes SET adult = ? WHERE _id = ?;
 
 updateFavorite:
 UPDATE animes SET favorite = ? WHERE _id = ?;
@@ -127,7 +134,7 @@ updateUpdateSchedule:
 UPDATE animes SET last_update = ?, next_update = ?, calculate_interval = ? WHERE _id = ?;
 
 selectDueForUpdate:
-SELECT * FROM animes WHERE favorite = 1 AND (next_update IS NULL OR next_update <= ?);
+SELECT * FROM animes WHERE favorite = 1 AND adult = 0 AND (next_update IS NULL OR next_update <= ?);
 
 lastInsertAnimeRowId:
 SELECT last_insert_rowid();

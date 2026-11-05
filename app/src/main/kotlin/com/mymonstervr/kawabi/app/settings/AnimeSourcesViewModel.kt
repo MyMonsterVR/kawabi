@@ -26,7 +26,7 @@ class AnimeSourcesViewModel(private val animeApi: AnimeApi) : ViewModel() {
         viewModelScope.launch {
             _state.value = AnimeSourcesState.Loading
             animeApi.getSources()
-                .onSuccess { _state.value = AnimeSourcesState.Success(it.sources) }
+                .onSuccess { _state.value = AnimeSourcesState.Success(it.sources.filter { s -> !s.adult }) }
                 .onFailure { _state.value = AnimeSourcesState.Error(it.message ?: "Failed to load sources") }
         }
     }

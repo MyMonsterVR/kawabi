@@ -23,12 +23,20 @@ class SqlDelightAnimeRepository(
         queries.selectFavorites().asFlow().mapToList(dispatchers.io)
             .map { rows -> rows.map { it.toDomain() } }
 
-    override fun observeLibraryEntries(): Flow<List<AnimeLibraryEntry>> =
-        queries.selectLibraryEntries().asFlow().mapToList(dispatchers.io)
+    override fun observeLibraryEntries(adult: Boolean): Flow<List<AnimeLibraryEntry>> =
+        queries.selectLibraryEntries(adult).asFlow().mapToList(dispatchers.io)
             .map { rows -> rows.map { it.toDomain() } }
 
     override suspend fun getFavorites(): List<Anime> = withContext(dispatchers.io) {
         queries.selectFavorites().executeAsList().map { it.toDomain() }
+    }
+
+    override suspend fun getAllFavorites(): List<Anime> = withContext(dispatchers.io) {
+        queries.selectAllFavorites().executeAsList().map { it.toDomain() }
+    }
+
+    override suspend fun setAdult(id: Long, adult: Boolean): Unit = withContext<Unit>(dispatchers.io) {
+        queries.updateAdult(adult, id)
     }
 
     override suspend fun getAll(): List<Anime> = withContext(dispatchers.io) {
@@ -83,6 +91,7 @@ class SqlDelightAnimeRepository(
                     total_episodes = anime.totalEpisodes,
                     last_watched_at = anime.lastWatchedAt,
                     source_chosen_at = anime.sourceChosenAt,
+                    adult = anime.adult,
                 )
                 queries.lastInsertAnimeRowId().executeAsOne()
             }

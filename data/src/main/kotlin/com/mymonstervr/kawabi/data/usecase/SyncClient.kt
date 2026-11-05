@@ -41,7 +41,7 @@ class SyncClient(
     // #20, then the pull's own GET /entries also 429'd). Both endpoints already accept a
     // batch (`entries: [...]`), so there was never a reason to split them per-manga.
     private suspend fun push() {
-        val favorites = mangaRepository.getFavorites()
+        val favorites = mangaRepository.getAllFavorites()
         val entries = favorites.map { manga ->
             val chaptersRead = chapterRepository.getForManga(manga.id)
                 .filter { it.read }
@@ -83,7 +83,8 @@ class SyncClient(
             val url = entry.source_url ?: entry.manga_key ?: continue
 
             val manga = mangaRepository.getByUrl(url)
-                ?: addMangaToLibrary.add(url).getOrNull()
+                ?.also { if (entry.adult && !it.adult) mangaRepository.setAdult(it.id, true) }
+                ?: addMangaToLibrary.add(url, adult = entry.adult).getOrNull()
                 ?: continue
 
             if (entry.chapters_read > 0) {
