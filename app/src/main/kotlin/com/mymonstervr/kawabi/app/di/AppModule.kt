@@ -42,13 +42,14 @@ val appModule = module {
     viewModel { BackupViewModel(get()) }
     viewModel { TrackingServicesViewModel(get(), get(), get(), get()) }
     viewModel { LinkTvViewModel(get()) }
-    viewModel { AnimeViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AnimeViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { params -> AnimeSearchViewModel(get(), get(), get(), params.getOrNull<Boolean>() ?: false) }
     viewModel { params -> AnimeBrowseViewModel(get(), get(), get(), params.getOrNull<Boolean>() ?: false) }
     viewModel { HentaiViewModel(get(), get(), get(), get()) }
     viewModel {
         AnimeDetailViewModel(
             get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(),
+            get(), get(), get(),
         )
     }
     viewModel { AnimeSourcesViewModel(get()) }

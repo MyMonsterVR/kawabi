@@ -71,6 +71,7 @@ class SqlDelightEpisodeRepository(
             last_modified_at = episode.lastModifiedAt,
             version = episode.version,
             is_syncing = episode.isSyncing,
+            scanlator = episode.scanlator,
         )
         return queries.lastInsertEpisodeRowId().executeAsOne()
     }
@@ -82,8 +83,9 @@ class SqlDelightEpisodeRepository(
         episodeNumber: Double,
         sourceOrder: Int,
         dateUpload: Long,
+        scanlator: String,
     ): Unit = withContext<Unit>(dispatchers.io) {
-        queries.updateDetails(key, name, episodeNumber, sourceOrder.toLong(), dateUpload, id)
+        queries.updateDetails(key, name, episodeNumber, sourceOrder.toLong(), dateUpload, scanlator, id)
     }
 
     override suspend fun applySync(
@@ -94,7 +96,7 @@ class SqlDelightEpisodeRepository(
         db.transactionWithResult {
             val insertedIds = inserts.map { insertRow(it) }
             for (u in updates) {
-                queries.updateDetails(u.key, u.name, u.episodeNumber, u.sourceOrder.toLong(), u.dateUpload, u.id)
+                queries.updateDetails(u.key, u.name, u.episodeNumber, u.sourceOrder.toLong(), u.dateUpload, u.scanlator, u.id)
             }
             if (deleteIds.isNotEmpty()) queries.deleteEpisodesByIds(deleteIds)
             insertedIds

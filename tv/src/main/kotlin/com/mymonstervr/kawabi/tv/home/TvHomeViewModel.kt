@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymonstervr.kawabi.data.network.AnimeApi
 import com.mymonstervr.kawabi.data.network.dto.AnimeCardDto
+import com.mymonstervr.kawabi.domain.model.AUDIO_DUB
 import com.mymonstervr.kawabi.domain.model.Anime
 import com.mymonstervr.kawabi.domain.model.Episode
+import com.mymonstervr.kawabi.domain.model.normalizeAnimeTitle
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
 import com.mymonstervr.kawabi.tv.common.resumeEpisode
@@ -46,6 +48,9 @@ class TvHomeViewModel(
 
     private val _newReleases = MutableStateFlow<List<AnimeCardDto>>(emptyList())
     val newReleases: StateFlow<List<AnimeCardDto>> = _newReleases.asStateFlow()
+
+    private val _newDubs = MutableStateFlow<List<AnimeCardDto>>(emptyList())
+    val newDubs: StateFlow<List<AnimeCardDto>> = _newDubs.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -88,13 +93,19 @@ class TvHomeViewModel(
         // when every other source already answered in well under a second.
         val perSource = coroutineScope {
             sources.map { source ->
-                async { withTimeoutOrNull(BROWSE_TIMEOUT_MS) { animeApi.browse(source.key, "latest", 1).getOrNull()?.results } }
+                async { withTimeoutOrNull(BROWSE_TIMEOUT_MS) { animeApi.browse(source.key, "latest", 1, recent = true, limit = RELEASES_PER_SOURCE).getOrNull()?.results } }
             }.awaitAll()
         }
-        _newReleases.value = perSource.filterNotNull().flatten().distinctBy { it.key }
+        val merged = perSource.filterNotNull().flatten()
+            .distinctBy { it.key }
+            .distinctBy { normalizeAnimeTitle(it.title).ifBlank { it.key } }
+        _newReleases.value = merged
+        _newDubs.value = merged.filter { it.audioKnown && it.audio == AUDIO_DUB }
+            .sortedByDescending { it.dubSince ?: 0L }
     }
 
     private companion object {
         const val BROWSE_TIMEOUT_MS = 8_000L
+        const val RELEASES_PER_SOURCE = 24
     }
 }

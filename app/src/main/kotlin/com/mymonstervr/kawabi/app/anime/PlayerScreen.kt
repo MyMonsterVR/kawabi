@@ -68,17 +68,29 @@ import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import com.mymonstervr.kawabi.app.theme.LocalKawabiScale
 import com.mymonstervr.kawabi.app.theme.NightSession
+import com.mymonstervr.kawabi.data.network.dto.AnimeSeasonDto
 import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
+import com.mymonstervr.kawabi.data.usecase.FillerEpisodes
+import com.mymonstervr.kawabi.domain.model.AUDIO_DUB
+import com.mymonstervr.kawabi.domain.model.AUDIO_SUB
+import com.mymonstervr.kawabi.domain.model.Episode
+import com.mymonstervr.kawabi.domain.model.formatChapterNumber
 import com.mymonstervr.kawabi.player.PlayerUiState
 import com.mymonstervr.kawabi.player.PlayerVideo
 import com.mymonstervr.kawabi.player.PlayerViewModel
+import com.mymonstervr.kawabi.player.SeasonStatus
+import com.mymonstervr.kawabi.player.audioOf
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Switch
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
 private const val AUTO_NEXT_SECONDS = 5
 
-private enum class PlayerSheet { NONE, SERVERS, SUBTITLES, SPEED }
+private enum class PlayerSheet { NONE, SERVERS, SUBTITLES, SPEED, EPISODES }
 
 /**
  * Landscape, immersive Media3 player (PLAN-anime.md P4). PlayerView keeps its stock
@@ -110,6 +122,12 @@ fun PlayerScreen(
     val subtitleTextSize by viewModel.subtitleTextSize.collectAsState()
     val subtitleBackgroundStyle by viewModel.subtitleBackgroundStyle.collectAsState()
     val autoSkip by viewModel.autoSkip.collectAsState()
+    val episodeList by viewModel.episodeList.collectAsState()
+    val fillers by viewModel.fillers.collectAsState()
+    val skipFiller by viewModel.skipFiller.collectAsState()
+    val autoplayActive by viewModel.autoplayCountdownActive.collectAsState()
+    val nextSeason by viewModel.nextSeason.collectAsState()
+    val seasonStatus by viewModel.seasonStatus.collectAsState()
 
     LaunchedEffect(episodeKey) { viewModel.load(episodeKey) }
 
@@ -183,6 +201,7 @@ fun PlayerScreen(
                 onServers = { sheet = PlayerSheet.SERVERS },
                 onSubtitles = { sheet = PlayerSheet.SUBTITLES },
                 onSpeed = { sheet = PlayerSheet.SPEED },
+                onEpisodes = { sheet = PlayerSheet.EPISODES },
                 onPrevious = { previousEpisodeKey?.let(onNavigateEpisode) },
                 onNext = { nextEpisodeKey?.let(onNavigateEpisode) },
                 modifier = Modifier.align(Alignment.BottomStart),
@@ -211,6 +230,10 @@ fun PlayerScreen(
         if (ended || earlyEndPrompt != null) {
             EndOfEpisodeOverlay(
                 nextEpisodeKey = nextEpisodeKey,
+                autoplay = autoplayActive,
+                nextSeason = nextSeason.takeIf { ended },
+                seasonStatus = seasonStatus,
+                onStartSeason = { viewModel.startNextSeason(onOpenAnimeDetail) },
                 onNext = onNavigateEpisode,
                 onBack = if (ended) {
                     onBack
@@ -234,6 +257,15 @@ fun PlayerScreen(
             subtitles = currentVideo?.video?.subtitles.orEmpty().map { it.lang.ifBlank { "Subtitles" } },
             selectedSubtitle = selectedSubtitle,
             speed = speed,
+            episodes = episodeList,
+            currentEpisodeKey = viewModel.currentEpisodeKey,
+            fillers = fillers,
+            skipFiller = skipFiller,
+            onSkipFillerChange = viewModel::setSkipFiller,
+            onSelectEpisode = {
+                sheet = PlayerSheet.NONE
+                onNavigateEpisode(it)
+            },
             onDismiss = { sheet = PlayerSheet.NONE },
             onSelectVideo = {
                 viewModel.selectVideo(it)
@@ -369,6 +401,7 @@ private fun PlayerActionRow(
     onServers: () -> Unit,
     onSubtitles: () -> Unit,
     onSpeed: () -> Unit,
+    onEpisodes: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
@@ -382,6 +415,7 @@ private fun PlayerActionRow(
         OverlayAction(text = serverLabel, onClick = onServers)
         OverlayAction(text = "CC: $subtitleLabel", onClick = onSubtitles)
         OverlayAction(text = "${formatSpeed(speed)}x", onClick = onSpeed)
+        OverlayAction(text = "Episodes", onClick = onEpisodes)
         if (hasPrevious) OverlayAction(text = "Previous", onClick = onPrevious)
         if (hasNext) OverlayAction(text = "Next", onClick = onNext)
     }
@@ -430,14 +464,19 @@ private fun PlayerErrorOverlay(
 @Composable
 private fun EndOfEpisodeOverlay(
     nextEpisodeKey: String?,
+    autoplay: Boolean,
+    nextSeason: AnimeSeasonDto?,
+    seasonStatus: SeasonStatus,
+    onStartSeason: () -> Unit,
     onNext: (String) -> Unit,
     onBack: () -> Unit,
     dismissLabel: String = "Back to episodes",
     modifier: Modifier = Modifier,
 ) {
     var remaining by remember(nextEpisodeKey) { mutableIntStateOf(AUTO_NEXT_SECONDS) }
-    LaunchedEffect(nextEpisodeKey) {
+    LaunchedEffect(nextEpisodeKey, autoplay) {
         val next = nextEpisodeKey ?: return@LaunchedEffect
+        if (!autoplay) return@LaunchedEffect
         while (remaining > 0) {
             delay(1_000)
             remaining--
@@ -454,15 +493,27 @@ private fun EndOfEpisodeOverlay(
         horizontalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterHorizontally),
     ) {
         Column(modifier = Modifier.widthIn(max = 280.dp)) {
+            val seasonText = nextSeason?.takeIf { nextEpisodeKey == null }?.let { season ->
+                val name = season.english?.takeIf { it.isNotBlank() } ?: season.romaji?.takeIf { it.isNotBlank() } ?: season.title
+                if (season.year != null) "$name (${season.year})" else name
+            }
             Text(
-                text = if (nextEpisodeKey != null) "Episode finished" else "Last episode",
+                text = when {
+                    nextEpisodeKey != null -> "Episode finished"
+                    seasonText != null -> "Season finished"
+                    else -> "Last episode"
+                },
                 color = accent,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.6.sp,
             )
             Text(
-                text = if (nextEpisodeKey != null) "Next episode in $remaining…" else "That was the last episode",
+                text = when {
+                    nextEpisodeKey != null -> if (autoplay) "Next episode in $remaining…" else "Up next"
+                    seasonText != null -> seasonText
+                    else -> "That was the last episode"
+                },
                 color = NightSession.Text,
                 fontSize = 26.sp,
                 lineHeight = 28.sp,
@@ -500,10 +551,39 @@ private fun EndOfEpisodeOverlay(
                 )
                 PrimaryActionButton(
                     title = "Play now",
-                    subtitle = "Starting in ${remaining}s",
+                    subtitle = if (autoplay) "Starting in ${remaining}s" else null,
                     onClick = { onNext(nextEpisodeKey) },
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+        } else if (nextSeason != null) {
+            Column(
+                modifier = Modifier
+                    .width(300.dp)
+                    .glass(RoundedCornerShape(20.dp))
+                    .border(1.dp, accent, RoundedCornerShape(20.dp))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "NEXT SEASON",
+                    color = NightSession.TextDim,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.1.sp,
+                )
+                PrimaryActionButton(
+                    title = if (seasonStatus == SeasonStatus.FINDING) "Finding…" else "Start season",
+                    onClick = { if (seasonStatus != SeasonStatus.FINDING) onStartSeason() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (seasonStatus == SeasonStatus.NOT_AVAILABLE) {
+                    Text(
+                        text = "Not available on your enabled sources.",
+                        color = NightSession.TextDim,
+                        fontSize = 12.sp,
+                    )
+                }
             }
         }
     }
@@ -518,6 +598,12 @@ private fun PlayerSheetContent(
     subtitles: List<String>,
     selectedSubtitle: Int?,
     speed: Float,
+    episodes: List<Episode>,
+    currentEpisodeKey: String?,
+    fillers: FillerEpisodes,
+    skipFiller: Boolean,
+    onSkipFillerChange: (Boolean) -> Unit,
+    onSelectEpisode: (String) -> Unit,
     onDismiss: () -> Unit,
     onSelectVideo: (PlayerVideo) -> Unit,
     onSelectSubtitle: (Int?) -> Unit,
@@ -528,6 +614,15 @@ private fun PlayerSheetContent(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = NightSession.Background,
     ) {
+        if (sheet == PlayerSheet.EPISODES) {
+            EpisodeSheetList(
+                episodes = episodes,
+                currentEpisodeKey = currentEpisodeKey,
+                fillers = fillers,
+                onSelect = onSelectEpisode,
+            )
+            return@ModalBottomSheet
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -537,7 +632,28 @@ private fun PlayerSheetContent(
         ) {
             when (sheet) {
                 PlayerSheet.SERVERS -> {
-                    videos.groupBy { it.displayHoster }.forEach { (hoster, hosterVideos) ->
+                    val hasSub = videos.any { audioOf(it) == AUDIO_SUB }
+                    val hasDub = videos.any { audioOf(it) == AUDIO_DUB }
+                    val tabbed = hasSub && hasDub
+                    var tab by remember(videos) {
+                        mutableStateOf(currentVideo?.let(::audioOf) ?: if (hasSub) AUDIO_SUB else AUDIO_DUB)
+                    }
+                    if (tabbed) {
+                        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                            listOf(AUDIO_SUB to "Sub", AUDIO_DUB to "Dub").forEach { (value, label) ->
+                                TextButton(onClick = { tab = value }) {
+                                    Text(
+                                        text = label,
+                                        color = if (tab == value) MaterialTheme.colorScheme.primary else NightSession.TextDim,
+                                        fontWeight = if (tab == value) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                }
+                            }
+                        }
+                        HorizontalDivider(color = NightSession.Hairline)
+                    }
+                    val shown = if (tabbed) videos.filter { audioOf(it) == tab } else videos
+                    shown.groupBy { it.displayHoster }.forEach { (hoster, hosterVideos) ->
                         SheetGroupLabel(hoster)
                         hosterVideos.forEach { option ->
                             SheetRow(
@@ -564,8 +680,85 @@ private fun PlayerSheetContent(
                             onClick = { onSelectSpeed(option) },
                         )
                     }
+                    if (fillers.any) {
+                        SheetGroupLabel("Episodes")
+                        val scale = LocalKawabiScale.current
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp * scale.spacing),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text("Skip filler episodes", color = NightSession.Text, fontSize = 12.sp * scale.font)
+                            Switch(checked = skipFiller, onCheckedChange = onSkipFillerChange)
+                        }
+                    }
                 }
-                PlayerSheet.NONE -> Unit
+                PlayerSheet.EPISODES, PlayerSheet.NONE -> Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeSheetList(
+    episodes: List<Episode>,
+    currentEpisodeKey: String?,
+    fillers: FillerEpisodes,
+    onSelect: (String) -> Unit,
+) {
+    val scale = LocalKawabiScale.current
+    val sorted = remember(episodes) { episodes.sortedBy { it.episodeNumber } }
+    val currentIndex = sorted.indexOfFirst { it.key == currentEpisodeKey }.coerceAtLeast(0)
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentIndex)
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).padding(bottom = 24.dp),
+    ) {
+        item { SheetGroupLabel("Episodes") }
+        items(sorted, key = { it.key }) { ep ->
+            val playing = ep.key == currentEpisodeKey
+            val number = formatChapterNumber(ep.episodeNumber)
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !playing) { onSelect(ep.key) }
+                        .padding(horizontal = 16.dp * scale.spacing, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = number,
+                        color = if (playing) MaterialTheme.colorScheme.primary else NightSession.TextDim,
+                        fontSize = 12.sp * scale.font,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(40.dp),
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = ep.name.ifBlank { "Episode $number" },
+                            color = if (playing) MaterialTheme.colorScheme.primary else NightSession.Text,
+                            fontSize = 12.sp * scale.font,
+                            fontWeight = if (playing) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
+                        val tag = when {
+                            playing -> "Playing"
+                            ep.episodeNumber in fillers.filler -> "FILLER"
+                            ep.episodeNumber in fillers.mixed -> "MIXED"
+                            else -> null
+                        }
+                        if (tag != null) {
+                            Text(text = tag, color = NightSession.TextDim, fontSize = 10.sp * scale.font, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    if (playing && ep.episodeNumber in fillers.filler) {
+                        Text("FILLER", color = NightSession.TextDim, fontSize = 10.sp * scale.font, modifier = Modifier.padding(end = 8.dp))
+                    } else if (playing && ep.episodeNumber in fillers.mixed) {
+                        Text("MIXED", color = NightSession.TextDim, fontSize = 10.sp * scale.font, modifier = Modifier.padding(end = 8.dp))
+                    }
+                    if (ep.watched) Text("✓", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp * scale.font)
+                }
+                HorizontalDivider(color = NightSession.Hairline)
             }
         }
     }

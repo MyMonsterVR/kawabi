@@ -222,6 +222,34 @@ class SettingsViewModel(
         viewModelScope.launch { preferences.setAnimeAutoSkipIntro(enabled) }
     }
 
+    val animeAutoplayNext: StateFlow<Boolean> = preferences.animeAutoplayNext
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setAnimeAutoplayNext(enabled: Boolean) {
+        viewModelScope.launch { preferences.setAnimeAutoplayNext(enabled) }
+    }
+
+    val animeSkipFiller: StateFlow<Boolean> = preferences.animeSkipFiller
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setAnimeSkipFiller(enabled: Boolean) {
+        viewModelScope.launch { preferences.setAnimeSkipFiller(enabled) }
+    }
+
+    val animeFeedNextOnly: StateFlow<Boolean> = preferences.animeFeedNextOnly
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setAnimeFeedNextOnly(enabled: Boolean) {
+        viewModelScope.launch { preferences.setAnimeFeedNextOnly(enabled) }
+    }
+
+    val animeSubtitleLang: StateFlow<String> = preferences.animeSubtitleLang
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "en")
+
+    fun setAnimeSubtitleLang(lang: String) {
+        viewModelScope.launch { preferences.setAnimeSubtitleLang(lang) }
+    }
+
     val subtitleTextSize: StateFlow<Int> = preferences.subtitleTextSize
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SUBTITLE_TEXT_SIZE_DEFAULT)
 

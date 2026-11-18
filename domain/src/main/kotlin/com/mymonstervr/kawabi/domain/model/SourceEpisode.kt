@@ -11,4 +11,5 @@ data class SourceEpisode(
     val name: String,
     val episodeNumber: Double,
     val dateUpload: Long,
+    val scanlator: String = "",
 )

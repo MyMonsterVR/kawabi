@@ -33,9 +33,11 @@ import com.mymonstervr.kawabi.data.track.kitsu.KitsuTracker
 import com.mymonstervr.kawabi.data.track.myanimelist.MyAnimeListTracker
 import com.mymonstervr.kawabi.data.usecase.AddAnimeToLibrary
 import com.mymonstervr.kawabi.data.usecase.AdultSources
+import com.mymonstervr.kawabi.data.usecase.AnimeFillers
 import com.mymonstervr.kawabi.data.usecase.AddMangaToLibrary
 import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
 import com.mymonstervr.kawabi.data.usecase.AnimeLibraryUpdateManager
+import com.mymonstervr.kawabi.data.usecase.AnimeNewReleases
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.AnimeTrackerSyncClient
 import com.mymonstervr.kawabi.data.usecase.LibraryUpdateManager
@@ -43,6 +45,7 @@ import com.mymonstervr.kawabi.data.usecase.AutoImportAnimeFromTrackers
 import com.mymonstervr.kawabi.data.usecase.ImportAnimeFromTracker
 import com.mymonstervr.kawabi.data.usecase.MergeDuplicateAnimes
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeBatch
+import com.mymonstervr.kawabi.data.usecase.ResolveAnimeSeason
 import com.mymonstervr.kawabi.data.usecase.RefreshAnimeEpisodes
 import com.mymonstervr.kawabi.data.usecase.RefreshLibraryBatch
 import com.mymonstervr.kawabi.data.usecase.RefreshMangaChapters
@@ -93,6 +96,8 @@ val dataModule = module {
     single { BackupManager(get(), get(), get(), get(), get(), get(), get()) }
 
     single { AnimeApi(get(), get()) }
+    single { AnimeFillers(get()) }
+    single { ResolveAnimeSeason(get()) }
     single { RefreshAnimeEpisodes(get(), get(), get()) }
     single { RefreshAnimeBatch(get(), get()) }
     // The merge is passed as a provider: it needs the matcher to group rows, so resolving
@@ -103,6 +108,7 @@ val dataModule = module {
     single { AnimeSyncClient(get(), get(), get(), get(), get(), get(), get()) }
     single { SwitchAnimeSource(get(), get(), get(), get(), get(), get(), get()) }
     single { AnimeLibraryUpdateManager(get(), get()) }
+    single { AnimeNewReleases(get()) }
 
     single { TrackerAuthNotifier() }
     single { TrackerApi(get(), get(), get()) }

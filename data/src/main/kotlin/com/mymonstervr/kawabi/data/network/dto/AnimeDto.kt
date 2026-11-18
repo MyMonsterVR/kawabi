@@ -39,6 +39,13 @@ data class AnimeCardDto(
     @SerialName("canonical_id") val canonicalId: Long? = null,
     val cover_url: String? = null,
     val status: String = "",
+    @SerialName("full_title") val fullTitle: String? = null,
+    @SerialName("cover_fallback_url") val coverFallbackUrl: String? = null,
+    // "sub", "dub" or "". Only trustworthy when audioKnown: an empty value is then a real
+    // answer (checked, the source has no tag) rather than "not looked up yet".
+    val audio: String? = null,
+    @SerialName("audio_known") val audioKnown: Boolean = false,
+    @SerialName("dub_since") val dubSince: Long? = null,
 )
 
 @Serializable
@@ -61,6 +68,8 @@ data class AnimeDetailResponse(
     val title: String,
     @SerialName("display_title") val displayTitle: String? = null,
     @SerialName("full_title") val fullTitle: String? = null,
+    @SerialName("canonical_id") val canonicalId: Long? = null,
+    @SerialName("cover_fallback_url") val coverFallbackUrl: String? = null,
     val cover_url: String? = null,
     val description: String? = null,
     val author: String? = null,
@@ -84,6 +93,7 @@ data class EpisodeDto(
     val number: Double = -1.0,
     val title: String = "",
     val date_upload: Long? = null,
+    val scanlator: String? = null,
 )
 
 @Serializable
@@ -223,3 +233,66 @@ data class AnimeImportResponse(
     val next_cursor: Int? = null,
     val total: Int = 0,
 )
+
+@Serializable
+data class AnimeAudioResponse(val audio: String = "")
+
+@Serializable
+data class AnimeSeasonDto(
+    val id: Long = 0,
+    val title: String = "",
+    val english: String? = null,
+    val romaji: String? = null,
+    val alt_titles: List<String> = emptyList(),
+    val cover_url: String? = null,
+    val year: Int? = null,
+    val format: String? = null,
+    val current: Boolean = false,
+)
+
+@Serializable
+data class AnimeSeasonsResponse(val seasons: List<AnimeSeasonDto> = emptyList())
+
+// Episode numbers, not keys.
+@Serializable
+data class AnimeFillersResponse(
+    val filler: List<Double> = emptyList(),
+    val mixed: List<Double> = emptyList(),
+)
+
+@Serializable
+data class AnimeFeedEpisodeDto(
+    val anime_key: String,
+    val anime_title: String = "",
+    @SerialName("display_title") val displayTitle: String? = null,
+    val cover_url: String? = null,
+    @SerialName("cover_fallback_url") val coverFallbackUrl: String? = null,
+    val source: String = "",
+    val episode_key: String,
+    val number: Double = -1.0,
+    val title: String = "",
+    val date_upload: Long = 0,
+)
+
+@Serializable
+data class AnimeFeedResponse(
+    val episodes: List<AnimeFeedEpisodeDto> = emptyList(),
+    val total: Int = 0,
+)
+
+@Serializable
+data class AnimeLinkCandidateDto(
+    val anilist_id: Long = 0,
+    val mal_id: Long = 0,
+    val title: String = "",
+    val format: String = "",
+    val year: Int = 0,
+    val episodes: Int = 0,
+    val cover_url: String? = null,
+)
+
+@Serializable
+data class AnimeLinkSuggestionsResponse(val candidates: List<AnimeLinkCandidateDto> = emptyList())
+
+@Serializable
+data class AnimeLinkResolveRequest(val key: String, val anilist_id: Long)

@@ -6,6 +6,12 @@ import com.mymonstervr.kawabi.data.network.AnimeApi
 import com.mymonstervr.kawabi.data.network.SourceApi
 import com.mymonstervr.kawabi.data.network.TokenStore
 import com.mymonstervr.kawabi.data.network.dto.AnimeDetailResponse
+import com.mymonstervr.kawabi.data.network.dto.AnimeLinkCandidateDto
+import com.mymonstervr.kawabi.data.network.dto.AnimeSeasonDto
+import com.mymonstervr.kawabi.data.settings.AppPreferences
+import com.mymonstervr.kawabi.data.usecase.AnimeFillers
+import com.mymonstervr.kawabi.data.usecase.FillerEpisodes
+import com.mymonstervr.kawabi.data.usecase.ResolveAnimeSeason
 import com.mymonstervr.kawabi.data.track.TrackerManager
 import com.mymonstervr.kawabi.data.track.dto.TrackSearchResult
 import com.mymonstervr.kawabi.data.usecase.AddAnimeToLibrary
@@ -20,6 +26,7 @@ import com.mymonstervr.kawabi.domain.model.Episode
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
 import com.mymonstervr.kawabi.domain.repository.AnimeTrackRepository
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -87,7 +94,39 @@ class AnimeDetailViewModel(
     private val trackerManager: TrackerManager,
     private val animeTrackRepository: AnimeTrackRepository,
     private val animeTrackerSyncClient: AnimeTrackerSyncClient,
+    private val appPreferences: AppPreferences,
+    private val animeFillers: AnimeFillers,
+    private val resolveAnimeSeason: ResolveAnimeSeason,
 ) : ViewModel() {
+
+    val globalAudio: Flow<String> = appPreferences.animePreferredAudio
+
+    fun showAudio(animeKey: String): Flow<String> = appPreferences.animeShowAudio(animeKey)
+
+    fun setShowAudio(animeKey: String, audio: String) {
+        viewModelScope.launch { appPreferences.setAnimeShowAudio(animeKey, audio) }
+    }
+
+    private val _fillers = MutableStateFlow(FillerEpisodes())
+    val fillers: StateFlow<FillerEpisodes> = _fillers.asStateFlow()
+
+    private val _seasons = MutableStateFlow<List<AnimeSeasonDto>>(emptyList())
+    val seasons: StateFlow<List<AnimeSeasonDto>> = _seasons.asStateFlow()
+
+    private val _resolvingSeasonId = MutableStateFlow<Long?>(null)
+    val resolvingSeasonId: StateFlow<Long?> = _resolvingSeasonId.asStateFlow()
+
+    private val _seasonError = MutableStateFlow<String?>(null)
+    val seasonError: StateFlow<String?> = _seasonError.asStateFlow()
+
+    private val _linkCandidates = MutableStateFlow<List<AnimeLinkCandidateDto>>(emptyList())
+    val linkCandidates: StateFlow<List<AnimeLinkCandidateDto>> = _linkCandidates.asStateFlow()
+
+    private val _linkSaving = MutableStateFlow(false)
+    val linkSaving: StateFlow<Boolean> = _linkSaving.asStateFlow()
+
+    private val _linkError = MutableStateFlow(false)
+    val linkError: StateFlow<Boolean> = _linkError.asStateFlow()
 
     val isLoggedIn: StateFlow<Boolean> = tokenStore.isLoggedIn
 
@@ -188,11 +227,64 @@ class AnimeDetailViewModel(
         _openKey.value = response.key
         _state.value = AnimeDetailState.Success(response)
         if (response.title.isNotBlank()) _lastTitle.value = response.title
+        loadExtras(response)
         addAnimeToLibrary.cache(response)
             .onSuccess { _episodeError.value = null }
             .onFailure { _episodeError.value = it.message ?: "Couldn't load episodes for this source" }
         resolveLocalFavoriteState(response.key)
         resolveLibraryMatch(response)
+        loadLinkSuggestions(response.key)
+    }
+
+    private fun loadExtras(response: AnimeDetailResponse) {
+        _fillers.value = FillerEpisodes()
+        _seasons.value = emptyList()
+        _resolvingSeasonId.value = null
+        _seasonError.value = null
+        _linkCandidates.value = emptyList()
+        _linkError.value = false
+        viewModelScope.launch {
+            val found = animeFillers.get(listOf(response.title, response.fullTitle))
+            if (loadedKey == response.key) _fillers.value = found
+        }
+        viewModelScope.launch {
+            animeApi.getSeasons(response.title).onSuccess { if (loadedKey == response.key) _seasons.value = it.seasons }
+        }
+    }
+
+    private suspend fun loadLinkSuggestions(key: String) {
+        val animeId = localAnimeId
+        if (!_isFavorite.value || animeId == null) return
+        if (animeTrackRepository.getForAnime(animeId).isNotEmpty()) return
+        if (trackerManager.loggedInTrackers().isEmpty()) return
+        animeApi.getLinkSuggestions(key).onSuccess { if (loadedKey == key) _linkCandidates.value = it.candidates }
+    }
+
+    fun resolveLinkSuggestion(candidate: AnimeLinkCandidateDto?) {
+        val key = loadedKey ?: return
+        if (_linkSaving.value) return
+        viewModelScope.launch {
+            _linkSaving.value = true
+            _linkError.value = false
+            animeApi.resolveLinkSuggestion(key, candidate?.anilist_id ?: 0L)
+                .onSuccess {
+                    _linkCandidates.value = emptyList()
+                    syncTrackers()
+                }
+                .onFailure { _linkError.value = true }
+            _linkSaving.value = false
+        }
+    }
+
+    fun openSeason(season: AnimeSeasonDto, currentSource: String, onKey: (String) -> Unit) {
+        if (_resolvingSeasonId.value != null) return
+        viewModelScope.launch {
+            _resolvingSeasonId.value = season.id
+            _seasonError.value = null
+            val key = resolveAnimeSeason.resolveKey(season, currentSource, false)
+            _resolvingSeasonId.value = null
+            if (key != null) onKey(key) else _seasonError.value = "Couldn't find \"${season.title}\" on your enabled sources."
+        }
     }
 
     /** Local-only, no network -- refreshes what playback wrote while the screen was away. */
@@ -243,6 +335,7 @@ class AnimeDetailViewModel(
                     _isFavorite.value = true
                     refreshLocalEpisodes()
                     animeSyncClient.sync()
+                    loadLinkSuggestions(key)
                 }
             }
         }
@@ -256,11 +349,11 @@ class AnimeDetailViewModel(
         }
     }
 
-    /** Marks every episode numbered before [target] as watched -- not including it. */
-    fun markPreviousAsWatched(target: Episode) {
+    /** Marks every episode in [scope] numbered before [target] as watched -- not including it. */
+    fun markPreviousAsWatched(target: Episode, scope: List<Episode>) {
         if (target.episodeNumber == UNKNOWN_EPISODE_NUMBER) return
         viewModelScope.launch {
-            _localEpisodesByKey.value.values
+            scope.mapNotNull { _localEpisodesByKey.value[it.key] }
                 .filter { it.episodeNumber != UNKNOWN_EPISODE_NUMBER && it.episodeNumber < target.episodeNumber && !it.watched }
                 .forEach { episodeRepository.setWatched(it.id, true) }
             refreshLocalEpisodes()

@@ -48,6 +48,7 @@ import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
 import com.mymonstervr.kawabi.player.PlayerUiState
 import com.mymonstervr.kawabi.player.PlayerVideo
 import com.mymonstervr.kawabi.player.PlayerViewModel
+import com.mymonstervr.kawabi.player.audioOf
 import com.mymonstervr.kawabi.tv.theme.TvColors
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -560,12 +561,4 @@ private fun applySubtitleAppearance(view: PlayerView, textSizePercent: Int, back
             )
         },
     )
-}
-
-/** Same substring convention as PlayerViewModel's own dub-detection (audio isn't a separate
- * structured field anywhere in this pipeline, just a plain word in the stream's title). */
-private fun audioOf(video: PlayerVideo): String? = when {
-    video.video.title.contains("dub", ignoreCase = true) -> "dub"
-    video.video.title.contains("sub", ignoreCase = true) -> "sub"
-    else -> null
 }

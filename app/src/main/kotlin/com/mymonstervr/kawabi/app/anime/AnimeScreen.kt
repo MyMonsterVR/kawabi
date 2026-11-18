@@ -104,15 +104,17 @@ fun AnimeScreen(
                     ) {
                         AnimeHomePane(
                             entries = entries,
-                            newEpisodes = viewModel.newEpisodes.collectAsState().value,
-                            newReleases = viewModel.newReleases.collectAsState().value,
+                            episodes = viewModel.newEpisodes.collectAsState().value,
+                            releases = viewModel.newReleases.collectAsState().value,
                             onContinue = onContinue,
-                            onEpisodeClick = onEpisodeClick,
-                            onAnimeClick = onAnimeClick,
+                            onEpisodeClick = { viewModel.openFeedEpisode(it, onEpisodeClick, onAnimeClick) },
                             onReleaseClick = { card -> viewModel.openKeyFor(card, onAnimeClick) },
                             onSeeAllWatching = { viewModel.selectTab(AnimeTab.WATCHING) },
                             onRetryNewEpisodes = viewModel::retryNewEpisodes,
                             onRetryNewReleases = viewModel::retryReleases,
+                            onShowMoreDays = viewModel::showMoreDays,
+                            onNeedReleases = viewModel::requestReleases,
+                            onReleaseAudio = viewModel::setReleaseAudio,
                         )
                     }
                     AnimeTab.WATCHING -> PullToRefreshBox(

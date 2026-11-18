@@ -246,6 +246,7 @@ fun Episodes.toDomain() = DomainEpisode(
     lastModifiedAt = last_modified_at,
     version = version,
     isSyncing = is_syncing,
+    scanlator = scanlator,
 )
 
 fun Anime_tracks.toDomain() = DomainAnimeTrack(

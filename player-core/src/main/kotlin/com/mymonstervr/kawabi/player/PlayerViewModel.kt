@@ -17,16 +17,24 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.mymonstervr.kawabi.data.network.AnimeApi
 import com.mymonstervr.kawabi.data.network.PlayerHttpClient
+import com.mymonstervr.kawabi.data.network.dto.AnimeSeasonDto
 import com.mymonstervr.kawabi.data.network.dto.VideoDto
 import com.mymonstervr.kawabi.data.network.dto.VideoTimestampDto
 import com.mymonstervr.kawabi.data.settings.ANIME_AUTO_MARK_WATCHED_THRESHOLD_DEFAULT
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.SUBTITLE_TEXT_SIZE_DEFAULT
 import com.mymonstervr.kawabi.data.settings.SubtitleBackgroundStyle
+import com.mymonstervr.kawabi.data.usecase.AnimeFillers
 import com.mymonstervr.kawabi.data.usecase.AnimeSyncClient
 import com.mymonstervr.kawabi.data.usecase.AnimeTrackerSyncClient
+import com.mymonstervr.kawabi.data.usecase.FillerEpisodes
+import com.mymonstervr.kawabi.data.usecase.ResolveAnimeSeason
+import com.mymonstervr.kawabi.domain.model.AUDIO_DUB
+import com.mymonstervr.kawabi.domain.model.AUDIO_SUB
 import com.mymonstervr.kawabi.domain.model.Episode
+import com.mymonstervr.kawabi.domain.model.effectiveShowAudio
 import com.mymonstervr.kawabi.domain.model.formatChapterNumber
+import com.mymonstervr.kawabi.domain.model.forAudio
 import com.mymonstervr.kawabi.domain.repository.AnimeRepository
 import com.mymonstervr.kawabi.domain.repository.EpisodeRepository
 import kotlinx.coroutines.Job
@@ -35,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -55,6 +64,15 @@ private const val PERSIST_EVERY_TICKS = 10
 // Below this a stored position is treated as "didn't really start" -- resuming 2s in is
 // more annoying than just starting over.
 private const val MIN_RESUME_MS = 5_000L
+
+// Autoplay only counts down after this much genuine playback in the episode, so opening an
+// episode, seeking to the end or resuming near it can't chain-advance through a series.
+private const val AUTOPLAY_MIN_REAL_PLAYBACK_MS = 60_000L
+// A tick's position delta counts as playback only when small and positive (a 2x stream moves
+// ~1s per 500ms tick); anything bigger is a seek or resume jump.
+private const val MAX_REAL_PLAYBACK_DELTA_MS = 2_000L
+
+enum class SeasonStatus { IDLE, FINDING, NOT_AVAILABLE }
 
 // Generic transient-error retry (onPlayerError): capped so a genuinely dead stream still
 // ends up at the error card instead of looping forever, with a short pause so a retry
@@ -102,6 +120,8 @@ class PlayerViewModel(
     private val animeSyncClient: AnimeSyncClient,
     private val animeTrackerSyncClient: AnimeTrackerSyncClient,
     private val playerHttpClient: PlayerHttpClient,
+    private val animeFillers: AnimeFillers,
+    private val resolveAnimeSeason: ResolveAnimeSeason,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<PlayerUiState>(PlayerUiState.Loading)
@@ -143,6 +163,33 @@ class PlayerViewModel(
     private val _previousEpisodeKey = MutableStateFlow<String?>(null)
     val previousEpisodeKey: StateFlow<String?> = _previousEpisodeKey.asStateFlow()
 
+    private val _episodeList = MutableStateFlow<List<Episode>>(emptyList())
+    val episodeList: StateFlow<List<Episode>> = _episodeList.asStateFlow()
+
+    val currentEpisodeKey: String? get() = loadedKey
+
+    private val _fillers = MutableStateFlow(FillerEpisodes())
+    val fillers: StateFlow<FillerEpisodes> = _fillers.asStateFlow()
+
+    private val _skipFiller = MutableStateFlow(false)
+    val skipFiller: StateFlow<Boolean> = _skipFiller.asStateFlow()
+
+    private val autoplayNext: StateFlow<Boolean> = preferences.animeAutoplayNext
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    private val realPlaybackGuardMet = MutableStateFlow(false)
+
+    /** The auto-advance countdown may run: setting on, a next episode exists, enough real playback. */
+    val autoplayCountdownActive: StateFlow<Boolean> =
+        combine(autoplayNext, realPlaybackGuardMet, _nextEpisodeKey) { enabled, guard, next ->
+            enabled && guard && next != null
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _nextSeason = MutableStateFlow<AnimeSeasonDto?>(null)
+    val nextSeason: StateFlow<AnimeSeasonDto?> = _nextSeason.asStateFlow()
+
+    private val _seasonStatus = MutableStateFlow(SeasonStatus.IDLE)
+    val seasonStatus: StateFlow<SeasonStatus> = _seasonStatus.asStateFlow()
+
     // Reactive (not snapshotted like markReadOnScroll) -- a size/style change in Settings
     // should apply to a player already open, not just the next one.
     val subtitleTextSize: StateFlow<Int> = preferences.subtitleTextSize
@@ -168,6 +215,13 @@ class PlayerViewModel(
     private var ticker: Job? = null
     private var ticks = 0
     private var autoSelectedSubtitle = false
+    private var subtitleLang = "en"
+    private var globalAudio = ""
+    private var showAudio = ""
+    private var knownEpisodes: List<Episode> = emptyList()
+    private var realPlaybackMs = 0L
+    private var lastTickPositionMs = 0L
+    private var seasonLookupDone = false
     private var usingProxy = false
     private var reachedReadyForCurrent = false
     // Bounded retry for a transient IO error that doesn't qualify for (or already tried)
@@ -211,10 +265,10 @@ class PlayerViewModel(
                 return
             }
             val subtitles = current.video.subtitles
-            val english = subtitles.indexOfFirst { it.lang.contains("en", ignoreCase = true) }
-            if (english >= 0) {
+            val preferred = subtitles.indexOfFirst { subtitleLangMatches(it.lang, subtitleLang) }
+            if (preferred >= 0) {
                 autoSelectedSubtitle = true
-                selectSubtitle(english)
+                selectSubtitle(preferred)
             }
         }
 
@@ -265,14 +319,25 @@ class PlayerViewModel(
         if (loadedKey == episodeKey) return
         loadedKey = episodeKey
         transientRetryCount = 0
+        realPlaybackMs = 0L
+        lastTickPositionMs = 0L
+        realPlaybackGuardMet.value = false
+        seasonLookupDone = false
+        _nextSeason.value = null
+        _seasonStatus.value = SeasonStatus.IDLE
         viewModelScope.launch {
             _state.value = PlayerUiState.Loading
             markWatchedThreshold = preferences.animeAutoMarkWatchedThreshold.first()
             _autoSkip.value = preferences.animeAutoSkipIntro.first()
+            _skipFiller.value = preferences.animeSkipFiller.first()
+            subtitleLang = preferences.animeSubtitleLang.first()
             val preferredQuality = preferences.animePreferredQuality.first()
-            val preferredAudio = preferences.animePreferredAudio.first()
+            globalAudio = preferences.animePreferredAudio.first()
+            showAudio = ""
 
             resolveLocalEpisode(episodeKey)
+            val preferredAudio = showAudio.ifEmpty { globalAudio }
+            val lastServer = preferences.animeLastServer()
 
             // Lets the backend's AniSkip fallback (OP/ED skip times for sources that don't
             // supply their own) resolve -- it needs the episode number, not just the key.
@@ -282,7 +347,7 @@ class PlayerViewModel(
                         hoster.videos.map { PlayerVideo(hoster.hoster.index, hoster.hoster.name, it) }
                     }
                     _videos.value = flattened
-                    val initial = pickInitialVideo(flattened, preferredQuality, preferredAudio)
+                    val initial = pickInitialVideo(flattened, preferredQuality, preferredAudio, lastServer)
                     if (initial == null) {
                         _state.value = PlayerUiState.Error("No playable streams for this episode", canPickServer = false)
                         return@onSuccess
@@ -300,6 +365,50 @@ class PlayerViewModel(
         // are the same episode from different hosts, so the position carries over.
         transientRetryCount = 0
         play(selection, startAtMs = player.currentPosition.coerceAtLeast(0L))
+        viewModelScope.launch {
+            preferences.setAnimeLastServer(selection.hosterName, selection.video.title)
+            val audio = audioOf(selection)
+            val key = _animeKey.value
+            val both = _videos.value.any { audioOf(it) == AUDIO_SUB } && _videos.value.any { audioOf(it) == AUDIO_DUB }
+            if (audio != null && key != null && both) {
+                preferences.setAnimeShowAudio(key, audio)
+                showAudio = audio
+                computeNeighbours()
+            }
+        }
+    }
+
+    fun setSkipFiller(enabled: Boolean) {
+        _skipFiller.value = enabled
+        computeNeighbours()
+        viewModelScope.launch { preferences.setAnimeSkipFiller(enabled) }
+    }
+
+    fun findNextSeason() {
+        if (seasonLookupDone || _nextEpisodeKey.value != null) return
+        val title = _animeTitle.value.takeIf { it.isNotBlank() } ?: return
+        seasonLookupDone = true
+        viewModelScope.launch {
+            val seasons = animeApi.getSeasons(title).getOrNull()?.seasons ?: return@launch
+            val index = seasons.indexOfFirst { it.current }
+            if (index >= 0 && index < seasons.lastIndex) _nextSeason.value = seasons[index + 1]
+        }
+    }
+
+    fun startNextSeason(onFound: (String) -> Unit) {
+        val season = _nextSeason.value ?: return
+        if (_seasonStatus.value == SeasonStatus.FINDING) return
+        _seasonStatus.value = SeasonStatus.FINDING
+        viewModelScope.launch {
+            val currentSource = loadedKey?.let { sourceIdFor(it) }.orEmpty()
+            val key = runCatching { resolveAnimeSeason.resolveKey(season, currentSource) }.getOrNull()
+            if (key == null) {
+                _seasonStatus.value = SeasonStatus.NOT_AVAILABLE
+            } else {
+                _seasonStatus.value = SeasonStatus.IDLE
+                onFound(key)
+            }
+        }
     }
 
     // Anime HLS playlists routinely declare embedded CEA-608/708 closed-caption channels
@@ -367,16 +476,32 @@ class PlayerViewModel(
         _animeTitle.value = anime?.title.orEmpty()
         _animeKey.value = anime?.key
         _episodeTitle.value = local.name.ifBlank { "Episode ${formatChapterNumber(local.episodeNumber)}" }
-        resolveNeighbours(local)
+        anime?.key?.let { showAudio = preferences.animeShowAudio(it).first() }
+        knownEpisodes = episodeRepository.getForAnime(local.animeId)
+            .filter { it.episodeNumber != UNKNOWN_EPISODE_NUMBER }
+        computeNeighbours()
+        val title = anime?.title.orEmpty()
+        viewModelScope.launch {
+            _fillers.value = animeFillers.get(listOf(title))
+            computeNeighbours()
+        }
     }
 
-    private suspend fun resolveNeighbours(current: Episode) {
+    // The list is narrowed to the show's audio so Next can never land on the current
+    // episode's other-audio twin; an episode opened directly in the other audio falls back
+    // to the full list so it still has neighbours.
+    private fun computeNeighbours() {
+        val current = episode ?: return
         if (current.episodeNumber == UNKNOWN_EPISODE_NUMBER) return
-        val siblings = episodeRepository.getForAnime(current.animeId)
-            .filter { it.episodeNumber != UNKNOWN_EPISODE_NUMBER }
-        _nextEpisodeKey.value = siblings.filter { it.episodeNumber > current.episodeNumber }
+        val audio = effectiveShowAudio(showAudio, globalAudio)
+        val filtered = knownEpisodes.forAudio(audio)
+        val list = if (filtered.any { it.id == current.id }) filtered else knownEpisodes
+        _episodeList.value = list
+        val skip = if (_skipFiller.value) _fillers.value.filler else emptySet()
+        val candidates = list.filter { it.episodeNumber !in skip }
+        _nextEpisodeKey.value = candidates.filter { it.episodeNumber > current.episodeNumber }
             .minByOrNull { it.episodeNumber }?.key
-        _previousEpisodeKey.value = siblings.filter { it.episodeNumber < current.episodeNumber }
+        _previousEpisodeKey.value = candidates.filter { it.episodeNumber < current.episodeNumber }
             .maxByOrNull { it.episodeNumber }?.key
     }
 
@@ -471,7 +596,14 @@ class PlayerViewModel(
         val position = player.currentPosition.coerceAtLeast(0L)
         val duration = player.duration.takeIf { it > 0 } ?: 0L
         _positionMs.value = position
+        val delta = position - lastTickPositionMs
+        lastTickPositionMs = position
         if (!player.isPlaying) return
+
+        if (delta in 1..MAX_REAL_PLAYBACK_DELTA_MS && !realPlaybackGuardMet.value) {
+            realPlaybackMs += delta
+            if (realPlaybackMs >= AUTOPLAY_MIN_REAL_PLAYBACK_MS) realPlaybackGuardMet.value = true
+        }
 
         pendingPositionMs = position
         pendingDurationMs = duration
@@ -503,7 +635,9 @@ class PlayerViewModel(
         if (alreadyMarkedWatched) return
         val local = episode ?: return
         alreadyMarkedWatched = true
+        val server = _currentVideo.value
         viewModelScope.launch {
+            server?.let { preferences.setAnimeLastServer(it.hosterName, it.video.title) }
             episodeRepository.setProgress(local.id, true, pendingPositionMs, pendingDurationMs)
             animeId?.let { animeRepository.touchLastWatched(it, System.currentTimeMillis()) }
             // Push right when an episode completes rather than waiting for the next app
@@ -521,6 +655,7 @@ class PlayerViewModel(
         // crossing it.
         markWatched()
         persistProgress()
+        findNextSeason()
     }
 
     override fun onCleared() {
@@ -542,24 +677,54 @@ class PlayerViewModel(
 /**
  * Initial stream choice, in preference order: within whichever videos match the stored
  * audio preference (sub/dub, falling back to every video if none match -- e.g. no dub
- * exists for this episode), the user's stored quality if any variant's title mentions it,
+ * exists for this episode), the last-used server (exact hoster+title, else that hoster's
+ * streams), the user's stored quality if any variant's title mentions it,
  * whatever the extension flagged `preferred`, then the highest resolution -- falling back
  * to parsing "1080p" out of the title, since several extensions leave `resolution` at 0 and
  * only label the variant. Audio and quality are both plain words in the same title string
  * (e.g. "Sub 1080p"), same field, just two separate substring checks.
  */
-internal fun pickInitialVideo(videos: List<PlayerVideo>, preferredQuality: String, preferredAudio: String = ""): PlayerVideo? {
+internal fun pickInitialVideo(
+    videos: List<PlayerVideo>,
+    preferredQuality: String,
+    preferredAudio: String = "",
+    lastServer: Pair<String, String>? = null,
+): PlayerVideo? {
     if (videos.isEmpty()) return null
-    val pool = if (preferredAudio.isNotBlank()) {
-        videos.filter { it.video.title.contains(preferredAudio, ignoreCase = true) }.ifEmpty { videos }
+    var pool = if (preferredAudio.isNotBlank()) {
+        videos.filter { audioWordMatches(it, preferredAudio) }.ifEmpty { videos }
     } else {
         videos
+    }
+    if (lastServer != null) {
+        pool.firstOrNull { it.hosterName == lastServer.first && it.video.title == lastServer.second }?.let { return it }
+        pool.filter { it.hosterName == lastServer.first }.takeIf { it.isNotEmpty() }?.let { pool = it }
     }
     if (preferredQuality.isNotBlank()) {
         pool.firstOrNull { it.video.title.contains(preferredQuality, ignoreCase = true) }?.let { return it }
     }
     pool.firstOrNull { it.video.preferred }?.let { return it }
     return pool.maxByOrNull { resolutionOf(it.video) } ?: pool.first()
+}
+
+/** Audio isn't a structured field: it is a plain word in the stream title ("Sub 1080p"). Dub is checked first. */
+fun audioOf(video: PlayerVideo): String? = when {
+    video.video.title.contains("dub", ignoreCase = true) -> AUDIO_DUB
+    video.video.title.contains("sub", ignoreCase = true) -> AUDIO_SUB
+    else -> null
+}
+
+private fun audioWordMatches(video: PlayerVideo, audio: String): Boolean = audioOf(video) == audio.lowercase()
+
+private val SUBTITLE_LANGUAGE_NAMES = mapOf(
+    "en" to "english", "es" to "spanish", "pt" to "portuguese", "fr" to "french", "de" to "german",
+)
+
+internal fun subtitleLangMatches(label: String, code: String): Boolean {
+    val lower = label.trim().lowercase()
+    val name = SUBTITLE_LANGUAGE_NAMES[code]
+    return lower == code || lower.startsWith("$code-") || lower.startsWith("${code}_") ||
+        (name != null && lower.contains(name)) || (name == null && lower.contains(code))
 }
 
 internal fun resolutionOf(video: VideoDto): Int =

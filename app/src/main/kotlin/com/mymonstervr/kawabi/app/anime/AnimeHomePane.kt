@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,12 +39,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.mymonstervr.kawabi.app.common.CoverPill
+import com.mymonstervr.kawabi.app.common.FallbackCover
 import com.mymonstervr.kawabi.app.common.SectionHeader
 import com.mymonstervr.kawabi.app.common.SegmentedTabs
 import com.mymonstervr.kawabi.app.common.glass
@@ -53,41 +56,63 @@ import com.mymonstervr.kawabi.data.network.dto.AnimeCardDto
 import com.mymonstervr.kawabi.data.network.resolveCoverUrl
 import com.mymonstervr.kawabi.domain.model.AnimeLibraryEntry
 import com.mymonstervr.kawabi.domain.model.AnimeWatchStatus
-import com.mymonstervr.kawabi.domain.model.NewEpisode
+import com.mymonstervr.kawabi.domain.model.AUDIO_DUB
+import com.mymonstervr.kawabi.domain.model.AUDIO_SUB
 import com.mymonstervr.kawabi.domain.model.formatChapterNumber
-import com.mymonstervr.kawabi.domain.model.formatRelativeTime
 
 private val CONTINUE_CARD_WIDTH = 128.dp
 private val PROGRESS_RED = Color(0xFFEF4D55)
 private const val FEED_PAGE_SIZE = 9
 private const val FEED_COLUMNS = 3
-private const val NEW_EPISODE_WINDOW_MS = 3L * 24 * 60 * 60 * 1000
+private const val DAY_MS = 24L * 60 * 60 * 1000
+private const val NEW_EPISODE_WINDOW_MS = 3 * DAY_MS
 
 private class FeedCard(
     val key: String,
     val title: String,
     val coverUrl: String?,
+    val coverFallbackUrl: String?,
     val source: String?,
     val pill: String?,
     val isNew: Boolean,
+    val isDub: Boolean,
     val subtitle: String?,
     val onClick: () -> Unit,
 )
 
+private fun relativeDay(epochMillis: Long): String? {
+    if (epochMillis <= 0) return null
+    val days = ((System.currentTimeMillis() - epochMillis) / DAY_MS).coerceAtLeast(0)
+    return when (days) {
+        0L -> "Today"
+        1L -> "Yesterday"
+        else -> "$days days ago"
+    }
+}
+
+private fun releaseFilterIndex(filter: String) = when (filter) {
+    AUDIO_SUB -> 1
+    AUDIO_DUB -> 2
+    else -> 0
+}
+
 @Composable
 internal fun AnimeHomePane(
     entries: List<AnimeLibraryEntry>,
-    newEpisodes: SectionState<NewEpisode>,
-    newReleases: SectionState<AnimeCardDto>,
+    episodes: EpisodesUi,
+    releases: ReleasesUi,
     onContinue: (Long, String) -> Unit,
-    onEpisodeClick: (String) -> Unit,
-    onAnimeClick: (String) -> Unit,
+    onEpisodeClick: (FeedEpisode) -> Unit,
     onReleaseClick: (AnimeCardDto) -> Unit,
     onSeeAllWatching: () -> Unit,
     onRetryNewEpisodes: () -> Unit,
     onRetryNewReleases: () -> Unit,
+    onShowMoreDays: () -> Unit,
+    onNeedReleases: (Int) -> Unit,
+    onReleaseAudio: (String) -> Unit,
 ) {
     val scale = LocalKawabiScale.current
+    val uriHandler = LocalUriHandler.current
     var feedTab by rememberSaveable { mutableIntStateOf(0) }
     var page by rememberSaveable { mutableIntStateOf(0) }
     val continueRail = remember(entries) {
@@ -96,65 +121,74 @@ internal fun AnimeHomePane(
             .take(CONTINUE_RAIL_MAX)
     }
 
-    if (entries.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            EmptyAnimeMessage(
-                title = "Nothing here yet",
-                hint = "Search for a show and add it to your library to start watching.",
-            )
-        }
-        return
+    LaunchedEffect(feedTab, page) {
+        if (feedTab == 1) onNeedReleases((page + 1) * FEED_PAGE_SIZE + 1)
     }
 
     val feedState: SectionState<FeedCard> = if (feedTab == 0) {
-        when (newEpisodes) {
+        when (val state = episodes.state) {
             is SectionState.Loading -> SectionState.Loading
-            is SectionState.Error -> SectionState.Error(newEpisodes.message)
+            is SectionState.Error -> SectionState.Error(state.message)
             is SectionState.Loaded -> SectionState.Loaded(
-                newEpisodes.items.map { episode ->
+                state.items.map { episode ->
                     FeedCard(
-                        key = "e${episode.episodeId}",
-                        title = episode.animeTitle,
-                        coverUrl = episode.animeThumbnailUrl,
-                        source = episode.animeSource,
-                        pill = if (episode.episodeNumber >= 0) "EP ${formatChapterNumber(episode.episodeNumber)}" else null,
+                        key = episode.key,
+                        title = episode.title,
+                        coverUrl = episode.coverUrl,
+                        coverFallbackUrl = episode.coverFallbackUrl,
+                        source = episode.source,
+                        pill = if (episode.number.isFinite() && episode.number > 0) "EP ${formatChapterNumber(episode.number)}" else null,
                         isNew = episode.dateUpload > 0 && System.currentTimeMillis() - episode.dateUpload < NEW_EPISODE_WINDOW_MS,
-                        subtitle = formatRelativeTime(episode.dateUpload),
-                        onClick = { onEpisodeClick(episode.episodeKey) },
+                        isDub = false,
+                        subtitle = relativeDay(episode.dateUpload),
+                        onClick = { onEpisodeClick(episode) },
                     )
                 },
             )
         }
     } else {
-        when (newReleases) {
-            is SectionState.Loading -> SectionState.Loading
-            is SectionState.Error -> SectionState.Error(newReleases.message)
-            is SectionState.Loaded -> SectionState.Loaded(
-                newReleases.items.map { card ->
+        when {
+            releases.cards.isNotEmpty() -> SectionState.Loaded(
+                releases.cards.map { release ->
+                    val card = release.card
                     FeedCard(
                         key = "r${card.key}",
                         title = card.displayTitle ?: card.title,
                         coverUrl = card.cover_url,
+                        coverFallbackUrl = card.coverFallbackUrl,
                         source = card.source,
                         pill = null,
                         isNew = false,
+                        isDub = release.audio == AUDIO_DUB,
                         subtitle = card.source_name.ifBlank { null },
                         onClick = { onReleaseClick(card) },
                     )
                 },
             )
+            releases.failed -> SectionState.Error("Couldn't load new releases.")
+            !releases.started || releases.loading || releases.checkingAudio -> SectionState.Loading
+            else -> SectionState.Loaded(emptyList())
         }
     }
     val feedTotal = (feedState as? SectionState.Loaded)?.items?.size ?: 0
     val safePage = page.coerceIn(0, ((feedTotal - 1) / FEED_PAGE_SIZE).coerceAtLeast(0))
     val hasPrev = safePage > 0
-    val hasNext = (safePage + 1) * FEED_PAGE_SIZE < feedTotal
+    val hasNext = (safePage + 1) * FEED_PAGE_SIZE < feedTotal || (feedTab == 1 && releases.canGrow && !releases.failed)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp * scale.spacing),
     ) {
-        if (continueRail.isNotEmpty()) {
+        if (entries.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    EmptyAnimeMessage(
+                        title = "Nothing here yet",
+                        hint = "Search for a show and add it to your library to start watching.",
+                    )
+                }
+            }
+        } else if (continueRail.isNotEmpty()) {
             item {
                 SectionHeader(
                     title = "Continue watching",
@@ -197,6 +231,23 @@ internal fun AnimeHomePane(
             }
         }
 
+        if (feedTab == 1) {
+            item {
+                SegmentedTabs(
+                    options = listOf("All", "Sub", "Dub"),
+                    selectedIndex = releaseFilterIndex(releases.filter),
+                    onSelect = {
+                        page = 0
+                        onReleaseAudio(listOf("", AUDIO_SUB, AUDIO_DUB)[it])
+                    },
+                    equalWidth = false,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp * scale.spacing)
+                        .padding(bottom = 14.dp * scale.spacing),
+                )
+            }
+        }
+
         when (feedState) {
             is SectionState.Loading -> item { ShimmerGrid() }
             is SectionState.Error -> item {
@@ -209,7 +260,13 @@ internal fun AnimeHomePane(
                 if (feedState.items.isEmpty()) {
                     item {
                         AnimeSectionNote(
-                            if (feedTab == 0) "No new episodes in the last two weeks." else "No new releases right now.",
+                            if (feedTab == 0) {
+                                "No new episodes in the last ${episodes.days} days."
+                            } else when (releases.filter) {
+                                AUDIO_SUB -> "No subbed releases right now."
+                                AUDIO_DUB -> "No dubbed releases right now."
+                                else -> "No new releases right now."
+                            },
                         )
                     }
                 } else {
@@ -232,6 +289,31 @@ internal fun AnimeHomePane(
                         }
                     }
                 }
+            }
+        }
+
+        if (feedTab == 0 && episodes.fromFeed && episodes.days < FEED_DAYS_MAX) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TextButton(onClick = onShowMoreDays) {
+                        Text(text = "Show 30 more days", fontSize = 12.sp * scale.font, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+        if (feedTab == 1 && feedState is SectionState.Loaded && releases.checkingAudio) {
+            item { AnimeSectionNote("Checking audio…") }
+        }
+        if (feedTab == 1 && releases.filter == AUDIO_DUB && releases.cards.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Dub dates powered by AnimeSchedule.net",
+                    fontSize = 10.sp * scale.font,
+                    color = NightSession.TextDim,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing)
+                        .clickable { uriHandler.openUri("https://animeschedule.net") },
+                )
             }
         }
     }
@@ -277,12 +359,20 @@ private fun FeedCardView(card: FeedCard) {
                 .background(NightSession.Cover)
                 .border(1.dp, Color.White.copy(alpha = 0.07f), shape),
         ) {
-            AsyncImage(
-                model = resolveCoverUrl(card.coverUrl, card.source),
+            FallbackCover(
+                coverUrl = card.coverUrl,
+                fallbackUrl = card.coverFallbackUrl,
+                source = card.source,
                 contentDescription = card.title,
-                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            if (card.isDub) {
+                CoverPill(
+                    text = "DUB",
+                    accent = true,
+                    modifier = Modifier.align(Alignment.TopStart).padding(7.dp),
+                )
+            }
             if (card.pill != null) {
                 CoverPill(
                     text = card.pill,
@@ -348,7 +438,7 @@ private fun AnimeSectionError(message: String, onRetry: () -> Unit) {
         modifier = Modifier.padding(horizontal = 16.dp * scale.spacing, vertical = 6.dp * scale.spacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = "Couldn't load", fontSize = 11.sp * scale.font, color = NightSession.TextDim)
+        Text(text = message, fontSize = 11.sp * scale.font, color = NightSession.TextDim)
         TextButton(onClick = onRetry) {
             Text(text = "Retry", fontSize = 11.sp * scale.font, color = MaterialTheme.colorScheme.primary)
         }

@@ -12,6 +12,26 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+- Anime: Sub/Dub switch on every show's episode list, remembered per show. Dub-only
+  picks dim the episodes that have no dub yet, and shows that list each episode twice
+  (once per audio) now show one row and Next never lands on the other audio's copy.
+- Anime: New releases has All / Sub / Dub tabs. Dub is sorted by newest dub first (dub
+  dates powered by AnimeSchedule.net) and the list goes much further back than before.
+- Anime: New episodes now comes from the server, so it matches the website: 90 days
+  back, "Show 30 more days", and a setting to only list each show's oldest unwatched
+  episode. It still works offline from what's on the device.
+- Anime: seasons on the details page, with "Start season" offered when you finish the
+  last episode of one.
+- Anime: filler and mixed episodes are tagged, with a "Skip filler episodes" option.
+- Anime: when a show matches more than one entry on your trackers, the details page
+  asks which one it is and keeps it in sync from then on.
+- Player: episode list inside the player, Sub/Dub tabs in the server list, the last
+  server you used is remembered, and "Autoplay next episode" can be turned off. Autoplay
+  also no longer fires if you only skipped to the end.
+- Player: subtitle language setting (English, Spanish, Portuguese, French, German).
+- Anime search: the same show on several sources is one result.
+- TV: new "New Dubs" row on Home.
+
 ## 0.1.0-132 - 2026-11-05
 
 - Updates: after an update installs, the app no longer keeps showing "update ready to install" for it. Some tablets never tell the app the install finished, so it now checks the downloaded file itself.

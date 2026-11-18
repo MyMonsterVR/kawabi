@@ -55,6 +55,7 @@ fun TvHomeScreen(
 ) {
     val continueWatching by viewModel.continueWatching.collectAsState()
     val newReleases by viewModel.newReleases.collectAsState()
+    val newDubs by viewModel.newDubs.collectAsState()
     val hero = continueWatching.firstOrNull()
 
     Row(modifier = Modifier.fillMaxSize().background(TvColors.Background)) {
@@ -149,9 +150,23 @@ fun TvHomeScreen(
                     items = newReleases,
                     cover = { it.cover_url },
                     source = { it.source },
-                    label = { it.title },
+                    label = { it.displayTitle ?: it.title },
                     onClick = { onOpenAnime(it.key) },
                 )
+            }
+
+            if (newDubs.isNotEmpty()) {
+                item { Spacer(Modifier.height(32.dp)) }
+                item {
+                    AnimeRow(
+                        title = "New Dubs",
+                        items = newDubs,
+                        cover = { it.cover_url },
+                        source = { it.source },
+                        label = { it.displayTitle ?: it.title },
+                        onClick = { onOpenAnime(it.key) },
+                    )
+                }
             }
 
             item { Spacer(Modifier.height(TvDimens.OverscanVertical)) }

@@ -8,6 +8,8 @@ import com.mymonstervr.kawabi.data.network.dto.AnimeSourceDto
 import com.mymonstervr.kawabi.data.settings.AppPreferences
 import com.mymonstervr.kawabi.data.settings.LIBRARY_GRID_COLUMNS_DEFAULT
 import com.mymonstervr.kawabi.data.usecase.AnimeIdentityMatcher
+import com.mymonstervr.kawabi.domain.model.AnimeIdentity
+import com.mymonstervr.kawabi.domain.model.animeIdentityOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +20,43 @@ import kotlinx.coroutines.launch
 // PLAN-anime.md decision D4: Anikoto is the default/main source, so it leads the chip row
 // regardless of the order the backend happens to declare sources in.
 private const val PRIMARY_SOURCE_NAME = "anikoto"
+
+data class AnimeSearchGroup(val primary: AnimeCardDto, val sourceCount: Int)
+
+private class GroupBuilder(val primary: AnimeCardDto) {
+    val titleIdentity = animeIdentityOf(primary.title)
+    val fullIdentity: AnimeIdentity? = primary.fullTitle?.takeIf { it.isNotBlank() }?.let { animeIdentityOf(it) }
+    val canonicalIds = mutableSetOf<Long>()
+    var count = 1
+
+    init {
+        primary.canonicalId?.takeIf { it > 0 }?.let { canonicalIds += it }
+    }
+
+    fun accepts(card: AnimeCardDto): Boolean {
+        val id = card.canonicalId
+        if (id != null && id > 0 && id in canonicalIds) return true
+        val cardTitle = animeIdentityOf(card.title)
+        if (cardTitle.matches(titleIdentity)) return true
+        val cardFull = card.fullTitle?.takeIf { it.isNotBlank() }?.let { animeIdentityOf(it) }
+        if (cardFull != null && cardFull.matches(titleIdentity)) return true
+        return fullIdentity != null && fullIdentity.matches(cardTitle)
+    }
+
+    fun add(card: AnimeCardDto) {
+        count++
+        card.canonicalId?.takeIf { it > 0 }?.let { canonicalIds += it }
+    }
+}
+
+private fun groupSearchResults(results: List<AnimeCardDto>): List<AnimeSearchGroup> {
+    val groups = mutableListOf<GroupBuilder>()
+    for (card in results) {
+        val existing = groups.firstOrNull { it.accepts(card) }
+        if (existing != null) existing.add(card) else groups += GroupBuilder(card)
+    }
+    return groups.map { AnimeSearchGroup(it.primary, it.count) }
+}
 
 class AnimeSearchViewModel(
     private val animeApi: AnimeApi,
@@ -35,8 +74,8 @@ class AnimeSearchViewModel(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val _results = MutableStateFlow<List<AnimeCardDto>>(emptyList())
-    val results: StateFlow<List<AnimeCardDto>> = _results.asStateFlow()
+    private val _results = MutableStateFlow<List<AnimeSearchGroup>>(emptyList())
+    val results: StateFlow<List<AnimeSearchGroup>> = _results.asStateFlow()
 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
@@ -85,7 +124,7 @@ class AnimeSearchViewModel(
             _isSearching.value = true
             _error.value = null
             animeApi.search(trimmed, adult)
-                .onSuccess { _results.value = it.results }
+                .onSuccess { _results.value = groupSearchResults(it.results) }
                 .onFailure { _error.value = it.message ?: "Search failed" }
             _isSearching.value = false
         }

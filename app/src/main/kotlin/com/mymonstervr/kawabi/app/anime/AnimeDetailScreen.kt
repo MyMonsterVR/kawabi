@@ -13,6 +13,18 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material3.LinearProgressIndicator
+import com.mymonstervr.kawabi.app.common.FallbackCover
+import com.mymonstervr.kawabi.data.network.dto.AnimeLinkCandidateDto
+import com.mymonstervr.kawabi.data.network.dto.AnimeSeasonDto
+import com.mymonstervr.kawabi.data.usecase.FillerEpisodes
+import com.mymonstervr.kawabi.domain.model.AUDIO_DUB
+import com.mymonstervr.kawabi.domain.model.AUDIO_SUB
+import com.mymonstervr.kawabi.domain.model.effectiveShowAudio
+import com.mymonstervr.kawabi.domain.model.episodesForAudio
+import com.mymonstervr.kawabi.domain.model.scanlatorHasDub
+import com.mymonstervr.kawabi.domain.model.scanlatorLacksDub
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
@@ -104,6 +116,7 @@ fun AnimeDetailScreen(
     onOpenAnimeDetail: (String) -> Unit,
     onOpenTrackingSettings: () -> Unit,
     onKeyChanged: (String) -> Unit = {},
+    onOpenAnime: (String) -> Unit = onOpenAnimeDetail,
     viewModel: AnimeDetailViewModel = koinViewModel(),
 ) {
     LaunchedEffect(animeKey) { viewModel.load(animeKey) }
@@ -137,6 +150,16 @@ fun AnimeDetailScreen(
     val trackerSheet by viewModel.trackerSheet.collectAsState()
     val altTitleSuggestions by viewModel.altTitleSuggestions.collectAsState()
     val lastTitle by viewModel.lastTitle.collectAsState()
+    val fillers by viewModel.fillers.collectAsState()
+    val seasons by viewModel.seasons.collectAsState()
+    val resolvingSeasonId by viewModel.resolvingSeasonId.collectAsState()
+    val seasonError by viewModel.seasonError.collectAsState()
+    val linkCandidates by viewModel.linkCandidates.collectAsState()
+    val linkSaving by viewModel.linkSaving.collectAsState()
+    val linkError by viewModel.linkError.collectAsState()
+    val globalAudio by viewModel.globalAudio.collectAsState(initial = "")
+    val showAudioKey = (state as? AnimeDetailState.Success)?.anime?.key ?: animeKey
+    val showAudio by remember(showAudioKey) { viewModel.showAudio(showAudioKey) }.collectAsState(initial = "")
     val pullState = rememberPullToRefreshState()
     var showRemoveConfirm by remember { mutableStateOf(false) }
     var searchingTrackerId by remember { mutableStateOf<String?>(null) }
@@ -264,6 +287,20 @@ fun AnimeDetailScreen(
                             onEpisodeClick = onEpisodeClick,
                             onSetEpisodeWatched = viewModel::setEpisodeWatched,
                             onMarkPreviousAsWatched = viewModel::markPreviousAsWatched,
+                            fillers = fillers,
+                            seasons = seasons,
+                            resolvingSeasonId = resolvingSeasonId,
+                            seasonError = seasonError,
+                            onOpenSeason = { season ->
+                                viewModel.openSeason(season, current.anime.source, onOpenAnime)
+                            },
+                            linkCandidates = linkCandidates,
+                            linkSaving = linkSaving,
+                            linkError = linkError,
+                            onResolveLink = viewModel::resolveLinkSuggestion,
+                            showAudio = showAudio,
+                            globalAudio = globalAudio,
+                            onSetShowAudio = { audio -> viewModel.setShowAudio(current.anime.key, audio) },
                             onOpenTrackerSheet = viewModel::openTrackerSheet,
                         )
                     }
@@ -297,16 +334,37 @@ private fun AnimeDetailContent(
     onToggleFavorite: () -> Unit,
     onEpisodeClick: (String) -> Unit,
     onSetEpisodeWatched: (Long, Boolean) -> Unit,
-    onMarkPreviousAsWatched: (Episode) -> Unit,
+    onMarkPreviousAsWatched: (Episode, List<Episode>) -> Unit,
+    fillers: FillerEpisodes,
+    seasons: List<AnimeSeasonDto>,
+    resolvingSeasonId: Long?,
+    seasonError: String?,
+    onOpenSeason: (AnimeSeasonDto) -> Unit,
+    linkCandidates: List<AnimeLinkCandidateDto>,
+    linkSaving: Boolean,
+    linkError: Boolean,
+    onResolveLink: (AnimeLinkCandidateDto?) -> Unit,
+    showAudio: String,
+    globalAudio: String,
+    onSetShowAudio: (String) -> Unit,
     onOpenTrackerSheet: () -> Unit,
 ) {
     val scale = LocalKawabiScale.current
     var expandedEpisodeKey by remember { mutableStateOf<String?>(null) }
     var newestFirst by remember { mutableStateOf(true) }
-    val resume = remember(localEpisodesByKey) { resumeEpisode(localEpisodesByKey.values) }
+    val dubAvailable = remember(anime.episodes) { anime.episodes.any { scanlatorHasDub(it.scanlator.orEmpty()) } }
+    val partlyDubbed = dubAvailable && remember(anime.episodes) { anime.episodes.any { scanlatorLacksDub(it.scanlator.orEmpty()) } }
+    val audio = if (dubAvailable) effectiveShowAudio(showAudio, globalAudio) else AUDIO_SUB
+    val audioEpisodes = remember(anime.episodes, audio) {
+        episodesForAudio(anime.episodes, audio, { it.number }, { it.scanlator.orEmpty() })
+    }
+    val audioLocalEpisodes = remember(audioEpisodes, localEpisodesByKey) {
+        audioEpisodes.mapNotNull { localEpisodesByKey[it.key] }
+    }
+    val resume = remember(audioLocalEpisodes) { resumeEpisode(audioLocalEpisodes) }
     val hasAnyWatched = remember(localEpisodesByKey) { localEpisodesByKey.values.any { it.watched } }
-    val episodes = remember(anime.episodes, newestFirst) {
-        if (newestFirst) anime.episodes.sortedByDescending { it.number } else anime.episodes.sortedBy { it.number }
+    val episodes = remember(audioEpisodes, newestFirst) {
+        if (newestFirst) audioEpisodes.sortedByDescending { it.number } else audioEpisodes.sortedBy { it.number }
     }
     val gutter = 16.dp * scale.spacing
 
@@ -347,8 +405,10 @@ private fun AnimeDetailContent(
                             modifier = Modifier.fillMaxWidth().padding(top = 14.dp * scale.spacing),
                             horizontalArrangement = Arrangement.spacedBy(16.dp * scale.spacing),
                         ) {
-                            AsyncImage(
-                                model = resolveCoverUrl(anime.cover_url, anime.source),
+                            FallbackCover(
+                                coverUrl = anime.cover_url,
+                                fallbackUrl = anime.coverFallbackUrl,
+                                source = anime.source,
                                 contentDescription = anime.title,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -462,6 +522,16 @@ private fun AnimeDetailContent(
                     modifier = Modifier.padding(horizontal = gutter).padding(top = 14.dp * scale.spacing),
                 )
 
+                if (linkCandidates.isNotEmpty()) {
+                    LinkSuggestionCard(
+                        candidates = linkCandidates,
+                        saving = linkSaving,
+                        error = linkError,
+                        onPick = onResolveLink,
+                        modifier = Modifier.padding(horizontal = gutter).padding(top = 14.dp * scale.spacing),
+                    )
+                }
+
                 val description = anime.description
                 if (!description.isNullOrBlank()) {
                     Text(
@@ -470,6 +540,18 @@ private fun AnimeDetailContent(
                         lineHeight = 18.sp * scale.font,
                         color = NightSession.TextDim,
                         modifier = Modifier.padding(horizontal = gutter, vertical = 12.dp * scale.spacing),
+                    )
+                }
+
+                if (seasons.size >= 2) {
+                    SeasonsSection(
+                        seasons = seasons,
+                        watched = audioLocalEpisodes.count { it.watched },
+                        total = audioEpisodes.size,
+                        resolvingId = resolvingSeasonId,
+                        error = seasonError,
+                        onOpen = onOpenSeason,
+                        modifier = Modifier.padding(horizontal = gutter).padding(top = 12.dp * scale.spacing),
                     )
                 }
 
@@ -487,12 +569,24 @@ private fun AnimeDetailContent(
                         fontWeight = FontWeight.SemiBold,
                         color = NightSession.Text,
                     )
-                    SegmentedTabs(
-                        options = listOf("Newest", "Oldest"),
-                        selectedIndex = if (newestFirst) 0 else 1,
-                        onSelect = { newestFirst = it == 0 },
-                        equalWidth = false,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SegmentedTabs(
+                            options = listOf("Sub", "Dub"),
+                            selectedIndex = if (audio == AUDIO_DUB) 1 else 0,
+                            onSelect = { index ->
+                                val picked = if (index == 1) AUDIO_DUB else AUDIO_SUB
+                                if (picked == AUDIO_SUB || dubAvailable) onSetShowAudio(picked)
+                            },
+                            equalWidth = false,
+                            disabledIndices = if (dubAvailable) emptySet() else setOf(1),
+                        )
+                        SegmentedTabs(
+                            options = listOf("Newest", "Oldest"),
+                            selectedIndex = if (newestFirst) 0 else 1,
+                            onSelect = { newestFirst = it == 0 },
+                            equalWidth = false,
+                        )
+                    }
                 }
 
                 if (episodeError != null) {
@@ -525,6 +619,10 @@ private fun AnimeDetailContent(
                 episode = episode,
                 localEpisode = localEpisode,
                 isNextUp = isFavorite && resume != null && resume.key == episode.key,
+                filler = episode.number in fillers.filler,
+                mixed = episode.number in fillers.mixed,
+                subOnly = audio == AUDIO_DUB && scanlatorLacksDub(episode.scanlator.orEmpty()),
+                dubTag = audio == AUDIO_SUB && partlyDubbed && scanlatorHasDub(episode.scanlator.orEmpty()),
                 showDivider = index > 0,
                 expanded = expandedEpisodeKey == episode.key,
                 onClick = { if (localEpisode != null) onEpisodeClick(episode.key) },
@@ -534,7 +632,7 @@ private fun AnimeDetailContent(
                     expandedEpisodeKey = null
                 },
                 onMarkPreviousWatched = {
-                    localEpisode?.let(onMarkPreviousAsWatched)
+                    localEpisode?.let { onMarkPreviousAsWatched(it, audioLocalEpisodes) }
                     expandedEpisodeKey = null
                 },
                 modifier = Modifier
@@ -726,6 +824,10 @@ private fun EpisodeRow(
     episode: EpisodeDto,
     localEpisode: Episode?,
     isNextUp: Boolean,
+    filler: Boolean,
+    mixed: Boolean,
+    subOnly: Boolean,
+    dubTag: Boolean,
     showDivider: Boolean,
     expanded: Boolean,
     onClick: () -> Unit,
@@ -743,6 +845,7 @@ private fun EpisodeRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .alpha(if (subOnly) 0.5f else 1f)
                 .background(if (isNextUp) accentSoft(0.1f) else Color.Transparent)
                 .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
                 .defaultMinSize(minHeight = 64.dp * scale.spacing)
@@ -810,7 +913,13 @@ private fun EpisodeRow(
                     }
                 }
             }
-            if (isNextUp) CoverPill(text = "CONTINUE", accent = true)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (isNextUp) CoverPill(text = "CONTINUE", accent = true)
+                if (filler) EpisodeTag("FILLER", PROGRESS_RED, filled = true)
+                if (mixed) EpisodeTag("MIXED", NightSession.TextDim, filled = true)
+                if (subOnly) EpisodeTag("SUB ONLY", NightSession.TextDim, filled = false)
+                if (dubTag) EpisodeTag("DUB", accent, filled = false)
+            }
         }
         if (expanded && localEpisode != null) {
             Row(
@@ -868,4 +977,189 @@ private fun formatAirsAt(airsAtSeconds: Long): String {
         else -> "in ${minutes}m"
     }
     return "$whenText ($remaining)"
+}
+
+@Composable
+private fun EpisodeTag(text: String, color: Color, filled: Boolean) {
+    val scale = LocalKawabiScale.current
+    val shape = RoundedCornerShape(8.dp)
+    Text(
+        text = text,
+        fontSize = 10.sp * scale.font,
+        fontWeight = FontWeight.Bold,
+        color = color,
+        modifier = Modifier
+            .clip(shape)
+            .then(
+                if (filled) Modifier.background(color.copy(alpha = 0.16f)) else Modifier.border(1.dp, color.copy(alpha = 0.6f), shape),
+            )
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+private fun SeasonsSection(
+    seasons: List<AnimeSeasonDto>,
+    watched: Int,
+    total: Int,
+    resolvingId: Long?,
+    error: String?,
+    onOpen: (AnimeSeasonDto) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scale = LocalKawabiScale.current
+    Column(modifier = modifier) {
+        Text(
+            text = "Seasons",
+            fontSize = 18.sp * scale.font,
+            fontWeight = FontWeight.SemiBold,
+            color = NightSession.Text,
+            modifier = Modifier.padding(bottom = 10.dp * scale.spacing),
+        )
+        seasons.withIndex().chunked(2).forEach { pair ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp * scale.spacing).height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                pair.forEach { (index, season) ->
+                    SeasonTile(
+                        index = index,
+                        season = season,
+                        watched = watched,
+                        total = total,
+                        finding = resolvingId == season.id,
+                        enabled = resolvingId == null,
+                        onClick = { onOpen(season) },
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
+                }
+                if (pair.size == 1) Box(modifier = Modifier.weight(1f))
+            }
+        }
+        if (error != null) {
+            Text(text = error, fontSize = 11.sp * scale.font, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@Composable
+private fun SeasonTile(
+    index: Int,
+    season: AnimeSeasonDto,
+    watched: Int,
+    total: Int,
+    finding: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scale = LocalKawabiScale.current
+    val accent = MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.045f))
+            .border(1.dp, if (season.current) accent else Color.White.copy(alpha = 0.08f), shape)
+            .clickable(enabled = enabled && !season.current, onClick = onClick)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "Season ${index + 1}",
+            fontSize = 14.sp * scale.font,
+            fontWeight = FontWeight.SemiBold,
+            color = NightSession.Text,
+        )
+        season.year?.let { Text(text = it.toString(), fontSize = 12.sp * scale.font, color = NightSession.TextDim) }
+        when {
+            finding -> Text(text = "Finding\u2026", fontSize = 11.sp * scale.font, color = accent)
+            season.current -> {
+                Text(text = "$watched / $total watched", fontSize = 11.sp * scale.font, color = accent)
+                LinearProgressIndicator(
+                    progress = { if (total > 0) (watched.toFloat() / total).coerceIn(0f, 1f) else 0f },
+                    color = accent,
+                    trackColor = Color.White.copy(alpha = 0.1f),
+                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(3.dp)),
+                )
+            }
+            else -> season.format?.takeIf { it.isNotBlank() }?.let {
+                Text(text = it, fontSize = 11.sp * scale.font, color = NightSession.TextDim)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LinkSuggestionCard(
+    candidates: List<AnimeLinkCandidateDto>,
+    saving: Boolean,
+    error: Boolean,
+    onPick: (AnimeLinkCandidateDto?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scale = LocalKawabiScale.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .glass(RoundedCornerShape(14.dp))
+            .padding(14.dp * scale.spacing),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "Which one is this on your trackers?",
+            fontSize = 14.sp * scale.font,
+            fontWeight = FontWeight.SemiBold,
+            color = NightSession.Text,
+        )
+        Text(
+            text = "We found more than one match. Pick the right one and we will keep your trackers in sync automatically.",
+            fontSize = 12.sp * scale.font,
+            color = NightSession.TextDim,
+        )
+        candidates.forEach { candidate ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(enabled = !saving) { onPick(candidate) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                AsyncImage(
+                    model = candidate.cover_url,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(width = 36.dp, height = 52.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(NightSession.Cover),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = candidate.title,
+                        fontSize = 13.sp * scale.font,
+                        color = NightSession.Text,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val meta = listOfNotNull(
+                        candidate.format.takeIf { it.isNotBlank() },
+                        candidate.year.takeIf { it > 0 }?.toString(),
+                        candidate.episodes.takeIf { it > 0 }?.let { "$it episodes" },
+                    ).joinToString(" \u00b7 ")
+                    if (meta.isNotBlank()) {
+                        Text(text = meta, fontSize = 11.sp * scale.font, color = NightSession.TextDim)
+                    }
+                }
+            }
+        }
+        TextButton(onClick = { onPick(null) }, enabled = !saving) {
+            Text("None of these", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp * scale.font)
+        }
+        if (error) {
+            Text(text = "Couldn't save that. Try again.", fontSize = 11.sp * scale.font, color = MaterialTheme.colorScheme.error)
+        }
+    }
 }

@@ -16,7 +16,7 @@ interface EpisodeRepository {
     suspend fun getByAnimeAndUrl(animeId: Long, url: String): Episode?
     suspend fun upsert(episode: Episode): Long
     suspend fun insert(episode: Episode): Long
-    suspend fun updateDetails(id: Long, key: String, name: String, episodeNumber: Double, sourceOrder: Int, dateUpload: Long)
+    suspend fun updateDetails(id: Long, key: String, name: String, episodeNumber: Double, sourceOrder: Int, dateUpload: Long, scanlator: String = "")
     /**
      * Applies a whole sync pass (new episodes, changed-field updates, removed episodes) in one
      * DB transaction instead of a separate transaction per row -- see

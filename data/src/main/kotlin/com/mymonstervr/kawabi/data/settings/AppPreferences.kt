@@ -85,6 +85,13 @@ class AppPreferences(private val context: Context) {
     private val animePreferredAudioKey = stringPreferencesKey("anime_preferred_audio")
     private val animeAutoSkipIntroKey = booleanPreferencesKey("anime_auto_skip_intro")
     private val animeAutoImportEnabledKey = booleanPreferencesKey("anime_auto_import_enabled")
+    private val animeAutoplayNextKey = booleanPreferencesKey("anime_autoplay_next")
+    private val animeSkipFillerKey = booleanPreferencesKey("anime_skip_filler")
+    private val animeFeedNextOnlyKey = booleanPreferencesKey("anime_feed_next_only")
+    private val animeReleaseAudioKey = stringPreferencesKey("anime_release_audio")
+    private val animeLastServerHosterKey = stringPreferencesKey("anime_last_server_hoster")
+    private val animeLastServerTitleKey = stringPreferencesKey("anime_last_server_title")
+    private val animeSubtitleLangKey = stringPreferencesKey("anime_subtitle_lang")
     private val trackerLastVerifiedAtKey = longPreferencesKey("tracker_last_verified_at")
     private val subtitleTextSizeKey = intPreferencesKey("subtitle_text_size")
     private val subtitleBackgroundStyleKey = stringPreferencesKey("subtitle_background_style")
@@ -310,6 +317,77 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setAnimeAutoSkipIntro(enabled: Boolean) {
         context.settingsDataStore.edit { it[animeAutoSkipIntroKey] = enabled }
+    }
+
+    // Per-show Sub/Dub choice, keyed by anime key. Empty means "never picked for this
+    // show": callers fall back to animePreferredAudio, then to sub.
+    fun animeShowAudio(animeKey: String): Flow<String> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeShowAudioKey(animeKey)].orEmpty()
+    }
+
+    suspend fun setAnimeShowAudio(animeKey: String, audio: String) {
+        context.settingsDataStore.edit {
+            if (audio.isEmpty()) it.remove(animeShowAudioKey(animeKey)) else it[animeShowAudioKey(animeKey)] = audio
+        }
+    }
+
+    private fun animeShowAudioKey(animeKey: String) = stringPreferencesKey("anime_show_audio_$animeKey")
+
+    val animeAutoplayNext: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeAutoplayNextKey] ?: true
+    }
+
+    suspend fun setAnimeAutoplayNext(enabled: Boolean) {
+        context.settingsDataStore.edit { it[animeAutoplayNextKey] = enabled }
+    }
+
+    val animeSkipFiller: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeSkipFillerKey] ?: false
+    }
+
+    suspend fun setAnimeSkipFiller(enabled: Boolean) {
+        context.settingsDataStore.edit { it[animeSkipFillerKey] = enabled }
+    }
+
+    // When on, New episodes lists only each show's oldest unwatched episode.
+    val animeFeedNextOnly: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeFeedNextOnlyKey] ?: false
+    }
+
+    suspend fun setAnimeFeedNextOnly(enabled: Boolean) {
+        context.settingsDataStore.edit { it[animeFeedNextOnlyKey] = enabled }
+    }
+
+    // New releases filter: "", "sub" or "dub". Empty is "all".
+    val animeReleaseAudio: Flow<String> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeReleaseAudioKey].orEmpty()
+    }
+
+    suspend fun setAnimeReleaseAudio(audio: String) {
+        context.settingsDataStore.edit { it[animeReleaseAudioKey] = audio }
+    }
+
+    // Hoster name + video title of the stream last played, so the next episode opens on
+    // the same server instead of whatever the source lists first.
+    suspend fun animeLastServer(): Pair<String, String>? {
+        val prefs = context.settingsDataStore.data.first()
+        val hoster = prefs[animeLastServerHosterKey] ?: return null
+        return hoster to prefs[animeLastServerTitleKey].orEmpty()
+    }
+
+    suspend fun setAnimeLastServer(hoster: String, title: String) {
+        context.settingsDataStore.edit {
+            it[animeLastServerHosterKey] = hoster
+            it[animeLastServerTitleKey] = title
+        }
+    }
+
+    val animeSubtitleLang: Flow<String> = context.settingsDataStore.data.map { prefs ->
+        prefs[animeSubtitleLangKey] ?: "en"
+    }
+
+    suspend fun setAnimeSubtitleLang(lang: String) {
+        context.settingsDataStore.edit { it[animeSubtitleLangKey] = lang }
     }
 
     // Gates AutoImportAnimeFromTrackers entirely -- off means it never runs, even

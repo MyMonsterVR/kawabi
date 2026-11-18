@@ -65,5 +65,6 @@ fun AnimeDetailResponse.toSourceEpisodes(): List<SourceEpisode> = episodes.map {
         name = dto.title,
         episodeNumber = dto.number,
         dateUpload = dto.date_upload ?: 0L,
+        scanlator = dto.scanlator.orEmpty(),
     )
 }

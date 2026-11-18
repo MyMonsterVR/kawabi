@@ -140,14 +140,17 @@ fun AnimeSearchScreen(
                         verticalArrangement = Arrangement.spacedBy(18.dp * scale.spacing),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(results, key = { it.key }) { result ->
+                        items(results, key = { it.primary.key }) { group ->
+                            val result = group.primary
                             MediaGridCard(
                                 title = result.displayTitle ?: result.title,
                                 coverUrl = result.cover_url,
-                                subtitle = result.source_name,
+                                subtitle = if (group.sourceCount > 1) null else result.source_name,
                                 onClick = { viewModel.openKeyFor(result, onResultClick) },
                                 source = result.source,
+                                pill = if (group.sourceCount > 1) "${group.sourceCount} sources" else null,
                                 blurCover = adult,
+                                coverFallbackUrl = result.coverFallbackUrl,
                             )
                         }
                     }

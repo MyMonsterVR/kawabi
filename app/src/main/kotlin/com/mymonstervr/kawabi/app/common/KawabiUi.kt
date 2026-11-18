@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -99,6 +100,7 @@ fun SegmentedTabs(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     equalWidth: Boolean = true,
+    disabledIndices: Set<Int> = emptySet(),
 ) {
     val scale = LocalKawabiScale.current
     val shape = RoundedCornerShape(12.dp)
@@ -112,13 +114,15 @@ fun SegmentedTabs(
     ) {
         options.forEachIndexed { index, label ->
             val selected = index == selectedIndex
+            val enabled = index !in disabledIndices
             Box(
                 modifier = Modifier
                     .then(if (equalWidth) Modifier.weight(1f) else Modifier)
                     .height(40.dp * scale.spacing)
                     .clip(RoundedCornerShape(9.dp))
                     .background(if (selected) accentSoft() else Color.Transparent)
-                    .clickable { onSelect(index) }
+                    .clickable(enabled = enabled) { onSelect(index) }
+                    .alpha(if (enabled) 1f else 0.35f)
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {

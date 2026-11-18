@@ -1,6 +1,7 @@
 package com.mymonstervr.kawabi.data.network
 
 import com.mymonstervr.kawabi.core.dispatchers.AppDispatchers
+import com.mymonstervr.kawabi.data.network.dto.AnimeAudioResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeBatchRequest
 import com.mymonstervr.kawabi.data.network.dto.AnimeBatchResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeBrowseResponse
@@ -8,12 +9,17 @@ import com.mymonstervr.kawabi.data.network.dto.AnimeDetailResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntriesRequest
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntriesResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeEntryDto
+import com.mymonstervr.kawabi.data.network.dto.AnimeFeedResponse
+import com.mymonstervr.kawabi.data.network.dto.AnimeFillersResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeImportRequest
 import com.mymonstervr.kawabi.data.network.dto.AnimeImportResponse
+import com.mymonstervr.kawabi.data.network.dto.AnimeLinkResolveRequest
+import com.mymonstervr.kawabi.data.network.dto.AnimeLinkSuggestionsResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeProgressDto
 import com.mymonstervr.kawabi.data.network.dto.AnimeProgressRequest
 import com.mymonstervr.kawabi.data.network.dto.AnimeProgressResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeSearchResponse
+import com.mymonstervr.kawabi.data.network.dto.AnimeSeasonsResponse
 import com.mymonstervr.kawabi.data.network.dto.AnimeSourcesResponse
 import com.mymonstervr.kawabi.data.network.dto.HosterDto
 import com.mymonstervr.kawabi.data.network.dto.HosterVideosDto
@@ -57,13 +63,24 @@ class AnimeApi(
         }
     }
 
-    suspend fun browse(source: String, sort: String, page: Int, adult: Boolean = false): Result<AnimeBrowseResponse> = withContext(dispatchers.io) {
+    // recent=true is the New releases mode: airing now or finished within a year, with
+    // audio/audio_known/dub_since stamped on every card. limit only applies with it.
+    suspend fun browse(
+        source: String,
+        sort: String,
+        page: Int,
+        adult: Boolean = false,
+        recent: Boolean = false,
+        limit: Int? = null,
+    ): Result<AnimeBrowseResponse> = withContext(dispatchers.io) {
         runCatching {
             val request = getRequest("anime/browse") {
                 addQueryParameter("source", source)
                 addQueryParameter("sort", sort)
                 addQueryParameter("page", page.toString())
                 if (adult) addQueryParameter("adult", "1")
+                if (recent) addQueryParameter("recent", "1")
+                limit?.let { addQueryParameter("limit", it.toString()) }
             }
             executeWithRetry(request, AnimeBrowseResponse.serializer(), longReadClient)
         }
@@ -222,6 +239,63 @@ class AnimeApi(
                 executeWithRetry(request, AnimeImportResponse.serializer(), importClient)
             }
         }
+
+    /** "sub", "dub" or "" for one show. Only needed for browse cards without `audio_known`. */
+    suspend fun getAudio(key: String): Result<String> = withContext(dispatchers.io) {
+        runCatching {
+            val request = getRequest("anime/audio") { addQueryParameter("key", key) }
+            executeWithRetry(request, AnimeAudioResponse.serializer(), longReadClient).audio
+        }
+    }
+
+    /** Already ordered by the backend; `current` marks the season [title] belongs to. */
+    suspend fun getSeasons(title: String): Result<AnimeSeasonsResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val request = getRequest("anime/seasons") { addQueryParameter("title", title) }
+            executeWithRetry(request, AnimeSeasonsResponse.serializer(), longReadClient)
+        }
+    }
+
+    suspend fun getFillers(titles: List<String>): Result<AnimeFillersResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val distinct = titles.filter { it.isNotBlank() }.distinct()
+            if (distinct.isEmpty()) return@runCatching AnimeFillersResponse()
+            val request = getRequest("anime/fillers") { distinct.forEach { addQueryParameter("title", it) } }
+            executeWithRetry(request, AnimeFillersResponse.serializer(), longReadClient)
+        }
+    }
+
+    suspend fun getFeed(days: Int, limit: Int, nextOnly: Boolean): Result<AnimeFeedResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val request = getRequest("anime/feed") {
+                addQueryParameter("days", days.toString())
+                addQueryParameter("limit", limit.toString())
+                if (nextOnly) addQueryParameter("next_only", "1")
+            }
+            executeWithRetry(request, AnimeFeedResponse.serializer(), longReadClient)
+        }
+    }
+
+    suspend fun getLinkSuggestions(key: String): Result<AnimeLinkSuggestionsResponse> = withContext(dispatchers.io) {
+        runCatching {
+            val request = getRequest("anime/link-suggestions") { addQueryParameter("key", key) }
+            executeWithRetry(request, AnimeLinkSuggestionsResponse.serializer(), longReadClient)
+        }
+    }
+
+    /** [anilistId] 0 means "none of these": the backend stops suggesting for this show. */
+    suspend fun resolveLinkSuggestion(key: String, anilistId: Long): Result<Unit> = withContext(dispatchers.io) {
+        runCatching {
+            val request = postRequest(
+                "anime/link-suggestions/resolve",
+                AnimeLinkResolveRequest(key, anilistId),
+                AnimeLinkResolveRequest.serializer(),
+            )
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error(errorMessageFor(response))
+            }
+        }
+    }
 
     private val longReadClient by lazy { client.newBuilder().readTimeout(20, TimeUnit.SECONDS).build() }
 

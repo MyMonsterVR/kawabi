@@ -69,6 +69,7 @@ import org.koin.compose.koinInject
 private val PREFERRED_QUALITIES = listOf("", "1080p", "720p", "480p")
 private val PREFERRED_QUALITY_LABELS = listOf("Auto", "1080p", "720p", "480p")
 private val PREFERRED_AUDIO_OPTIONS = listOf("" to "Any", "sub" to "Sub", "dub" to "Dub")
+private val SUBTITLE_LANGUAGES = listOf("en" to "English", "es" to "Spanish", "pt" to "Portuguese", "fr" to "French", "de" to "German")
 
 @Composable
 fun SettingsScreen(
@@ -102,6 +103,10 @@ fun SettingsScreen(
     val animePreferredQuality by viewModel.animePreferredQuality.collectAsState()
     val animePreferredAudio by viewModel.animePreferredAudio.collectAsState()
     val animeAutoSkipIntro by viewModel.animeAutoSkipIntro.collectAsState()
+    val animeAutoplayNext by viewModel.animeAutoplayNext.collectAsState()
+    val animeSkipFiller by viewModel.animeSkipFiller.collectAsState()
+    val animeFeedNextOnly by viewModel.animeFeedNextOnly.collectAsState()
+    val animeSubtitleLang by viewModel.animeSubtitleLang.collectAsState()
     val subtitleTextSize by viewModel.subtitleTextSize.collectAsState()
     val subtitleBackgroundStyle by viewModel.subtitleBackgroundStyle.collectAsState()
     val expiredTrackerCount by viewModel.expiredTrackerCount.collectAsState()
@@ -292,6 +297,27 @@ fun SettingsScreen(
                             selectedIndex = PREFERRED_AUDIO_OPTIONS.indexOfFirst { it.first == animePreferredAudio }.coerceAtLeast(0),
                             onSelect = { viewModel.setAnimePreferredAudio(PREFERRED_AUDIO_OPTIONS[it].first) },
                         )
+                        SettingsDivider()
+                        SettingsToggleRow(
+                            title = "Autoplay next episode",
+                            subtitle = "Counts down after an episode you actually watched",
+                            checked = animeAutoplayNext,
+                            onCheckedChange = viewModel::setAnimeAutoplayNext,
+                        )
+                        SettingsDivider()
+                        SettingsToggleRow(
+                            title = "Skip filler episodes",
+                            subtitle = "Next and Previous jump over filler",
+                            checked = animeSkipFiller,
+                            onCheckedChange = viewModel::setAnimeSkipFiller,
+                        )
+                        SettingsDivider()
+                        SettingsToggleRow(
+                            title = "Only show the oldest unwatched episode",
+                            subtitle = "New episodes lists one episode per show, so you can't skip ahead by accident.",
+                            checked = animeFeedNextOnly,
+                            onCheckedChange = viewModel::setAnimeFeedNextOnly,
+                        )
                     }
                 }
                 item {
@@ -313,6 +339,12 @@ fun SettingsScreen(
                                     if (index == 1) SubtitleBackgroundStyle.BOX else SubtitleBackgroundStyle.OUTLINE,
                                 )
                             },
+                        )
+                        SettingsSegmentRow(
+                            title = "Subtitle language",
+                            options = SUBTITLE_LANGUAGES.map { it.second },
+                            selectedIndex = SUBTITLE_LANGUAGES.indexOfFirst { it.first == animeSubtitleLang }.coerceAtLeast(0),
+                            onSelect = { viewModel.setAnimeSubtitleLang(SUBTITLE_LANGUAGES[it].first) },
                         )
                     }
                 }

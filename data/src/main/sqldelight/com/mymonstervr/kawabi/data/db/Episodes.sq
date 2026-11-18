@@ -14,6 +14,9 @@ CREATE TABLE episodes (
     last_modified_at INTEGER NOT NULL DEFAULT 0,
     version INTEGER NOT NULL DEFAULT 0,
     is_syncing INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    -- The source's audio tag for this row ("Sub", "Dub", "Sub & Dub"); empty when the
+    -- source doesn't say. Some sources list an episode once per audio, same number.
+    scanlator TEXT NOT NULL DEFAULT '',
     FOREIGN KEY(anime_id) REFERENCES animes(_id) ON DELETE CASCADE
 );
 
@@ -41,8 +44,8 @@ END;
 
 insertEpisode:
 INSERT INTO episodes(anime_id, key, url, name, watched, position_ms, duration_ms,
-    episode_number, source_order, date_upload, date_fetch, last_modified_at, version, is_syncing)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    episode_number, source_order, date_upload, date_fetch, last_modified_at, version, is_syncing, scanlator)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectByAnime:
 SELECT * FROM episodes WHERE anime_id = ? ORDER BY source_order DESC;
@@ -78,7 +81,7 @@ markWatchedUpToNumber:
 UPDATE episodes SET watched = 1 WHERE anime_id = ? AND episode_number != -1 AND episode_number <= ?;
 
 updateDetails:
-UPDATE episodes SET key = ?, name = ?, episode_number = ?, source_order = ?, date_upload = ? WHERE _id = ?;
+UPDATE episodes SET key = ?, name = ?, episode_number = ?, source_order = ?, date_upload = ?, scanlator = ? WHERE _id = ?;
 
 setEpisodeSyncing:
 UPDATE episodes SET is_syncing = ? WHERE _id = ?;

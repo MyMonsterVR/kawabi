@@ -55,6 +55,7 @@ fun MediaGridCard(
     badge: String? = null,
     pill: String? = null,
     blurCover: Boolean = false,
+    coverFallbackUrl: String? = null,
 ) {
     val scale = LocalKawabiScale.current
     var revealed by remember { mutableStateOf(false) }
@@ -66,10 +67,11 @@ fun MediaGridCard(
         ),
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            AsyncImage(
-                model = resolveCoverUrl(coverUrl, source),
+            FallbackCover(
+                coverUrl = coverUrl,
+                fallbackUrl = coverFallbackUrl,
+                source = source,
                 contentDescription = title,
-                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
@@ -124,6 +126,30 @@ fun MediaGridCard(
             )
         }
     }
+}
+
+/**
+ * A cover that swaps to [fallbackUrl] when the source's own image is missing or fails to
+ * load. The fallback is a plain CDN url, so it skips the source proxy.
+ */
+@Composable
+fun FallbackCover(
+    coverUrl: String?,
+    fallbackUrl: String?,
+    source: String?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+) {
+    var failed by remember(coverUrl) { mutableStateOf(false) }
+    val useFallback = !fallbackUrl.isNullOrBlank() && (failed || coverUrl.isNullOrBlank())
+    AsyncImage(
+        model = if (useFallback) fallbackUrl else resolveCoverUrl(coverUrl, source),
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        onError = { failed = true },
+        modifier = modifier,
+    )
 }
 
 /** Manga search/browse results, which all arrive as [SearchResultDto]. */

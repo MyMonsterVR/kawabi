@@ -16,6 +16,7 @@ data class Episode(
     val lastModifiedAt: Long,
     val version: Long,
     val isSyncing: Boolean,
+    val scanlator: String = "",
 )
 
 /** One existing episode's changed fields, for [EpisodeRepository.applySync]. */
@@ -26,4 +27,5 @@ data class EpisodeUpdate(
     val episodeNumber: Double,
     val sourceOrder: Int,
     val dateUpload: Long,
+    val scanlator: String = "",
 )

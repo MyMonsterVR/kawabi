@@ -46,6 +46,7 @@ class SyncEpisodesWithSource(
                 current.key != sourceEpisode.key ||
                 current.episodeNumber != sourceEpisode.episodeNumber ||
                 current.dateUpload != sourceEpisode.dateUpload ||
+                current.scanlator != sourceEpisode.scanlator ||
                 current.sourceOrder != index
             if (changed) current to (sourceEpisode to index) else null
         }
@@ -83,6 +84,7 @@ class SyncEpisodesWithSource(
                 lastModifiedAt = 0,
                 version = 0,
                 isSyncing = false,
+                scanlator = sourceEpisode.scanlator,
             )
             isGenuinelyNew += (carryover == null)
         }
@@ -96,6 +98,7 @@ class SyncEpisodesWithSource(
                 episodeNumber = sourceEpisode.episodeNumber,
                 sourceOrder = index,
                 dateUpload = sourceEpisode.dateUpload,
+                scanlator = sourceEpisode.scanlator,
             )
         }
 
