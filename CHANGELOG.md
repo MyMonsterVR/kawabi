@@ -12,6 +12,8 @@ stamp, it won't fail the build).
 
 ## Unreleased
 
+## 0.1.0-134 - 2026-11-18
+
 - Anime: Sub/Dub switch on every show's episode list, remembered per show. Dub-only
   picks dim the episodes that have no dub yet, and shows that list each episode twice
   (once per audio) now show one row and Next never lands on the other audio's copy.
